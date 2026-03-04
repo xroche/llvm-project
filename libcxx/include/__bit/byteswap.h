@@ -42,7 +42,14 @@ template <integral _Tp>
 #    endif // __has_builtin(__builtin_bswap128)
 #  endif   // _LIBCPP_HAS_INT128
   } else {
-    static_assert(sizeof(_Tp) == 0, "byteswap is unimplemented for integral types of this size");
+    // Generic byteswap for wide integer types (e.g. _BitInt(N) with N > 128).
+    // Reverses bytes by decomposing into 8-bit chunks.
+    _Tp __result = 0;
+    for (decltype(sizeof(0)) __i = 0; __i < sizeof(_Tp); ++__i) {
+      __result |= static_cast<_Tp>(static_cast<unsigned char>(__val >> (__i * 8)))
+                  << ((sizeof(_Tp) - 1 - __i) * 8);
+    }
+    return __result;
   }
 }
 
