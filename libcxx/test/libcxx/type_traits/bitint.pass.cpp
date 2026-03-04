@@ -125,11 +125,8 @@ void test_popcount_big_numbers() {
   }
   {
     // Exactly 4 bits set at positions 0, 64, 128, 255
-    unsigned _BitInt(256) v =
-        (unsigned _BitInt(256))(1) |
-        ((unsigned _BitInt(256))(1) << 64) |
-        ((unsigned _BitInt(256))(1) << 128) |
-        ((unsigned _BitInt(256))(1) << 255);
+    unsigned _BitInt(256) v = (unsigned _BitInt(256))(1) | ((unsigned _BitInt(256))(1) << 64) |
+                              ((unsigned _BitInt(256))(1) << 128) | ((unsigned _BitInt(256))(1) << 255);
     assert(std::popcount(v) == 4);
   }
 #endif

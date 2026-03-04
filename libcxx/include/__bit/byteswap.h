@@ -46,8 +46,7 @@ template <integral _Tp>
     // Reverses bytes by decomposing into 8-bit chunks.
     _Tp __result = 0;
     for (decltype(sizeof(0)) __i = 0; __i < sizeof(_Tp); ++__i) {
-      __result |= static_cast<_Tp>(static_cast<unsigned char>(__val >> (__i * 8)))
-                  << ((sizeof(_Tp) - 1 - __i) * 8);
+      __result |= static_cast<_Tp>(static_cast<unsigned char>(__val >> (__i * 8))) << ((sizeof(_Tp) - 1 - __i) * 8);
     }
     return __result;
   }

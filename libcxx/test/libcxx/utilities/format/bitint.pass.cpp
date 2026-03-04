@@ -20,14 +20,14 @@ void test_decimal() {
   // Small widths
   assert(std::format("{}", (_BitInt(8))0) == "0");
   assert(std::format("{}", (_BitInt(8))42) == "42");
-  assert(std::format("{}", (_BitInt(8))-42) == "-42");
+  assert(std::format("{}", (_BitInt(8)) - 42) == "-42");
   assert(std::format("{}", (_BitInt(8))127) == "127");
-  assert(std::format("{}", (_BitInt(8))-128) == "-128");
+  assert(std::format("{}", (_BitInt(8)) - 128) == "-128");
 
   // Standard widths
   assert(std::format("{}", (_BitInt(16))32767) == "32767");
   assert(std::format("{}", (_BitInt(32))2147483647) == "2147483647");
-  assert(std::format("{}", (_BitInt(64))-999999999999LL) == "-999999999999");
+  assert(std::format("{}", (_BitInt(64)) - 999999999999LL) == "-999999999999");
 
   // 128-bit requires __int128 for __make_32_64_or_128_bit_t (Python-verified)
 #if _LIBCPP_HAS_INT128
@@ -40,7 +40,7 @@ void test_decimal() {
 
   // Odd widths
   assert(std::format("{}", (_BitInt(7))63) == "63");
-  assert(std::format("{}", (_BitInt(7))-64) == "-64");
+  assert(std::format("{}", (_BitInt(7)) - 64) == "-64");
   assert(std::format("{}", (unsigned _BitInt(1))1) == "1");
   assert(std::format("{}", (unsigned _BitInt(1))0) == "0");
 }
@@ -84,7 +84,7 @@ void test_binary() {
 void test_width_fill() {
   // Right-aligned (default for integers)
   assert(std::format("{:>20}", (_BitInt(32))42) == "                  42");
-  assert(std::format("{:>20}", (_BitInt(32))-42) == "                 -42");
+  assert(std::format("{:>20}", (_BitInt(32)) - 42) == "                 -42");
 
   // Left-aligned
   assert(std::format("{:<20}", (_BitInt(32))42) == "42                  ");
@@ -94,7 +94,7 @@ void test_width_fill() {
 
   // Zero-padded
   assert(std::format("{:020}", (_BitInt(64))42) == "00000000000000000042");
-  assert(std::format("{:020}", (_BitInt(64))-42) == "-0000000000000000042");
+  assert(std::format("{:020}", (_BitInt(64)) - 42) == "-0000000000000000042");
 
   // Custom fill character
   assert(std::format("{:*>10}", (_BitInt(32))42) == "********42");
@@ -105,11 +105,11 @@ void test_width_fill() {
 void test_sign() {
   // Plus sign
   assert(std::format("{:+}", (_BitInt(32))42) == "+42");
-  assert(std::format("{:+}", (_BitInt(32))-42) == "-42");
+  assert(std::format("{:+}", (_BitInt(32)) - 42) == "-42");
 
   // Space sign
   assert(std::format("{: }", (_BitInt(32))42) == " 42");
-  assert(std::format("{: }", (_BitInt(32))-42) == "-42");
+  assert(std::format("{: }", (_BitInt(32)) - 42) == "-42");
 }
 
 // ===== Explicit decimal specifier =====
@@ -133,8 +133,8 @@ void test_edge_values() {
 
   // _BitInt(2): minimum signed width, range [-2, 1]
   assert(std::format("{}", (_BitInt(2))1) == "1");
-  assert(std::format("{}", (_BitInt(2))-1) == "-1");
-  assert(std::format("{}", (_BitInt(2))-2) == "-2");
+  assert(std::format("{}", (_BitInt(2)) - 1) == "-1");
+  assert(std::format("{}", (_BitInt(2)) - 2) == "-2");
 }
 
 int main(int, char**) {

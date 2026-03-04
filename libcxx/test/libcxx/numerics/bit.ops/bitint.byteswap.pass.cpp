@@ -37,12 +37,12 @@ void test_roundtrip() {
 void test_wide_byteswap() {
   // Byte at position 0 moves to position 31 in a 256-bit value
   unsigned _BitInt(256) v = (unsigned _BitInt(256))0xAB;
-  auto swapped = std::byteswap(v);
+  auto swapped            = std::byteswap(v);
   assert((unsigned char)(swapped >> (31 * 8)) == 0xAB);
 
   // 4096-bit: first byte to last byte
   unsigned _BitInt(4096) big = (unsigned _BitInt(4096))0x42;
-  auto big_swapped = std::byteswap(big);
+  auto big_swapped           = std::byteswap(big);
   assert((unsigned char)(big_swapped >> ((sizeof(big) - 1) * 8)) == 0x42);
 }
 
@@ -50,7 +50,7 @@ void test_wide_byteswap() {
 // because padding bits (sizeof*8 > N) cause truncation.
 void test_non_power_of_2() {
   unsigned _BitInt(129) v = 42;
-  auto swapped = std::byteswap(v);
+  auto swapped            = std::byteswap(v);
   (void)swapped; // just verify no crash
 }
 

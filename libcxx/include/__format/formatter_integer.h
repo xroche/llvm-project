@@ -98,12 +98,9 @@ struct formatter<__uint128_t, _CharT> : public __formatter_integer<_CharT> {};
 // Excludes all types that already have explicit formatter specializations above.
 template <class _Tp>
 concept __formattable_bitint =
-    __signed_or_unsigned_integer<_Tp> &&
-    !is_void_v<__make_32_64_or_128_bit_t<_Tp>> &&
-    !is_same_v<_Tp, signed char> && !is_same_v<_Tp, unsigned char> &&
-    !is_same_v<_Tp, short> && !is_same_v<_Tp, unsigned short> &&
-    !is_same_v<_Tp, int> && !is_same_v<_Tp, unsigned int> &&
-    !is_same_v<_Tp, long> && !is_same_v<_Tp, unsigned long> &&
+    __signed_or_unsigned_integer<_Tp> && !is_void_v<__make_32_64_or_128_bit_t<_Tp>> && !is_same_v<_Tp, signed char> &&
+    !is_same_v<_Tp, unsigned char> && !is_same_v<_Tp, short> && !is_same_v<_Tp, unsigned short> &&
+    !is_same_v<_Tp, int> && !is_same_v<_Tp, unsigned int> && !is_same_v<_Tp, long> && !is_same_v<_Tp, unsigned long> &&
     !is_same_v<_Tp, long long> && !is_same_v<_Tp, unsigned long long>
 #  if _LIBCPP_HAS_INT128
     && !is_same_v<_Tp, __int128_t> && !is_same_v<_Tp, __uint128_t>
