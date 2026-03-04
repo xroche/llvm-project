@@ -177,6 +177,21 @@ protected:
   static _LIBCPP_CONSTEXPR const float_round_style round_style = round_toward_zero;
 };
 
+// Helper to get an unsigned type for __builtin_popcountg-based digit counting.
+// For unsigned types, returns the type as-is. For signed types, uses
+// __make_unsigned. This avoids calling __make_unsigned on unsigned _BitInt(1),
+// which Clang rejects.
+#if __has_builtin(__builtin_popcountg) && __has_builtin(__make_unsigned)
+template <class _Tp, bool _IsSigned = (_Tp(-1) < _Tp(0))>
+struct __numeric_limits_unsigned_type {
+  using type = _Tp;
+};
+template <class _Tp>
+struct __numeric_limits_unsigned_type<_Tp, true> {
+  using type = __make_unsigned(_Tp);
+};
+#endif
+
 template <class _Tp>
 class __libcpp_numeric_limits<_Tp, true> {
 protected:
@@ -184,8 +199,18 @@ protected:
 
   static _LIBCPP_CONSTEXPR const bool is_specialized = true;
 
-  static _LIBCPP_CONSTEXPR const bool is_signed   = type(-1) < type(0);
-  static _LIBCPP_CONSTEXPR const int digits       = static_cast<int>(sizeof(type) * __CHAR_BIT__ - is_signed);
+  static _LIBCPP_CONSTEXPR const bool is_signed = type(-1) < type(0);
+  // For _BitInt(N), sizeof * CHAR_BIT may exceed the declared width N due to
+  // padding bits. Use __builtin_popcountg on the unsigned all-ones value to get
+  // the exact value-bit count: ~unsigned(0) sets exactly N bits (padding stays
+  // zero), so popcountg gives the true width regardless of storage size.
+#if __has_builtin(__builtin_popcountg) && __has_builtin(__make_unsigned)
+  using __unsigned_type = typename __numeric_limits_unsigned_type<type>::type;
+  static _LIBCPP_CONSTEXPR const int digits =
+      __builtin_popcountg(static_cast<__unsigned_type>(~static_cast<__unsigned_type>(0))) - is_signed;
+#else
+  static _LIBCPP_CONSTEXPR const int digits = static_cast<int>(sizeof(type) * __CHAR_BIT__ - is_signed);
+#endif
   static _LIBCPP_CONSTEXPR const int digits10     = digits * 3 / 10;
   static _LIBCPP_CONSTEXPR const int max_digits10 = 0;
   static _LIBCPP_CONSTEXPR const type __min       = is_signed ? _Tp(_Tp(1) << digits) : 0;
