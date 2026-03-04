@@ -76,7 +76,9 @@ consteval __arg_t __determine_arg_t() {
     return __arg_t::__i128;
 #  endif
   else
-    static_assert(sizeof(_Tp) == 0, "an unsupported signed integer was used");
+    // Wide integer types (e.g. _BitInt(N) with N > 128) use the handle
+    // path, which type-erases through the formatter.
+    return __arg_t::__handle;
 }
 
 // Unsigned integers
@@ -91,7 +93,7 @@ consteval __arg_t __determine_arg_t() {
     return __arg_t::__u128;
 #  endif
   else
-    static_assert(sizeof(_Tp) == 0, "an unsupported unsigned integer was used");
+    return __arg_t::__handle;
 }
 
 // Floating-point
@@ -209,6 +211,14 @@ _LIBCPP_HIDE_FROM_ABI basic_format_arg<_Context> __create_format_arg(_Tp& __valu
       return basic_format_arg<_Context>{__arg, basic_string_view<__context_char_type>{__value.data(), __value.size()}};
   else if constexpr (__arg == __arg_t::__ptr)
     return basic_format_arg<_Context>{__arg, static_cast<const void*>(__value)};
+#  if _LIBCPP_HAS_INT128
+  // _BitInt(N) types with sizeof matching __int128_t need explicit cast
+  // since _BitInt(128) and __int128_t are distinct types.
+  else if constexpr (__arg == __arg_t::__i128)
+    return basic_format_arg<_Context>{__arg, static_cast<__int128_t>(__value)};
+  else if constexpr (__arg == __arg_t::__u128)
+    return basic_format_arg<_Context>{__arg, static_cast<__uint128_t>(__value)};
+#  endif
   else if constexpr (__arg == __arg_t::__handle)
     return basic_format_arg<_Context>{__arg, typename __basic_format_arg_value<_Context>::__handle{__value}};
   else
