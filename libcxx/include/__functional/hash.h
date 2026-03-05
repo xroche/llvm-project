@@ -256,8 +256,20 @@ _LIBCPP_HIDE_FROM_ABI inline size_t __hash_memory(const void* __ptr, size_t __si
 }
 #endif
 
+// Generic primary template for sizeof(_Tp) / sizeof(size_t) > 4.
+// Handles wide _BitInt types where sizeof > 4 * sizeof(size_t).
 template <class _Tp, size_t = sizeof(_Tp) / sizeof(size_t)>
-struct __scalar_hash;
+struct __scalar_hash : public __unary_function<_Tp, size_t> {
+  _LIBCPP_HIDE_FROM_ABI size_t operator()(_Tp __v) const _NOEXCEPT {
+    union {
+      _Tp __t;
+      char __bytes[sizeof(_Tp)];
+    } __u;
+    std::memset(&__u, 0, sizeof(__u));
+    __u.__t = __v;
+    return std::__hash_memory(std::addressof(__u), sizeof(__u));
+  }
+};
 
 template <class _Tp>
 struct __scalar_hash<_Tp, 0> : public __unary_function<_Tp, size_t> {
@@ -294,6 +306,9 @@ struct __scalar_hash<_Tp, 2> : public __unary_function<_Tp, size_t> {
         size_t __b;
       } __s;
     } __u;
+    // Zero padding bits for types like _BitInt(N) where N is not a multiple of
+    // the storage size.
+    std::memset(&__u, 0, sizeof(__u));
     __u.__t = __v;
     return std::__hash_memory(std::addressof(__u), sizeof(__u));
   }
@@ -310,6 +325,7 @@ struct __scalar_hash<_Tp, 3> : public __unary_function<_Tp, size_t> {
         size_t __c;
       } __s;
     } __u;
+    std::memset(&__u, 0, sizeof(__u));
     __u.__t = __v;
     return std::__hash_memory(std::addressof(__u), sizeof(__u));
   }
@@ -327,6 +343,7 @@ struct __scalar_hash<_Tp, 4> : public __unary_function<_Tp, size_t> {
         size_t __d;
       } __s;
     } __u;
+    std::memset(&__u, 0, sizeof(__u));
     __u.__t = __v;
     return std::__hash_memory(std::addressof(__u), sizeof(__u));
   }
