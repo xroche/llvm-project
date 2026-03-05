@@ -218,6 +218,34 @@ struct _LIBCPP_HIDDEN __integral<16> {
 
 } // namespace __itoa
 
+// Wide integer base-10 conversion for types larger than 128 bits (e.g., _BitInt(N > 128)).
+// Writes digits right-to-left using simple division.
+template <typename _Tp>
+_LIBCPP_HIDE_FROM_ABI __to_chars_result __to_chars_wide_base10(char* __first, char* __last, _Tp __value) {
+  // Count decimal digits
+  int __n = 1;
+  {
+    _Tp __tmp = __value;
+    while (__tmp >= 10) {
+      __tmp /= 10;
+      ++__n;
+    }
+  }
+
+  auto __diff = __last - __first;
+  if (__n > __diff)
+    return {__last, errc::value_too_large};
+
+  __last    = __first + __n;
+  char* __p = __last;
+  do {
+    *--__p = "0123456789"[static_cast<unsigned>(__value % 10)];
+    __value /= 10;
+  } while (__value != 0);
+
+  return {__last, errc(0)};
+}
+
 template <unsigned _Base, typename _Tp, __enable_if_t<(sizeof(_Tp) >= sizeof(unsigned)), int> = 0>
 _LIBCPP_CONSTEXPR_SINCE_CXX23 _LIBCPP_HIDE_FROM_ABI int __to_chars_integral_width(_Tp __value) {
   return __itoa::__integral<_Base>::__width(__value);
@@ -269,8 +297,12 @@ _LIBCPP_CONSTEXPR_SINCE_CXX23 _LIBCPP_HIDE_FROM_ABI int __to_chars_integral_widt
 template <class _Tp, __enable_if_t<!is_signed<_Tp>::value, int> >
 inline _LIBCPP_CONSTEXPR_SINCE_CXX23 _LIBCPP_HIDE_FROM_ABI __to_chars_result
 __to_chars_integral(char* __first, char* __last, _Tp __value, int __base) {
-  if (__base == 10) [[likely]]
-    return std::__to_chars_itoa(__first, __last, __value, false_type());
+  if (__base == 10) [[likely]] {
+    if constexpr (sizeof(_Tp) > 16)
+      return std::__to_chars_wide_base10(__first, __last, __value);
+    else
+      return std::__to_chars_itoa(__first, __last, __value, false_type());
+  }
 
   switch (__base) {
   case 2:
@@ -321,9 +353,21 @@ to_chars_result to_chars(char*, char*, bool, int = 10) = delete;
 template <typename _Tp, __enable_if_t<is_integral<_Tp>::value, int> = 0>
 inline _LIBCPP_CONSTEXPR_SINCE_CXX23 _LIBCPP_HIDE_FROM_ABI to_chars_result
 to_chars(char* __first, char* __last, _Tp __value) {
-  using _Type = __make_32_64_or_128_bit_t<_Tp>;
-  static_assert(!is_same<_Type, void>::value, "unsupported integral type used in to_chars");
-  return std::__to_chars_itoa(__first, __last, static_cast<_Type>(__value), is_signed<_Tp>());
+  if constexpr (sizeof(_Tp) > 16) {
+    // Wide integer type (e.g., _BitInt(N > 128)): handle sign and convert directly.
+    auto __x = std::__to_unsigned_like(__value);
+    if constexpr (is_signed<_Tp>::value) {
+      if (__value < 0 && __first != __last) {
+        *__first++ = '-';
+        __x        = std::__complement(__x);
+      }
+    }
+    return std::__to_chars_wide_base10(__first, __last, __x);
+  } else {
+    using _Type = __make_32_64_or_128_bit_t<_Tp>;
+    static_assert(!is_same<_Type, void>::value, "unsupported integral type used in to_chars");
+    return std::__to_chars_itoa(__first, __last, static_cast<_Type>(__value), is_signed<_Tp>());
+  }
 }
 
 template <typename _Tp, __enable_if_t<is_integral<_Tp>::value, int> = 0>
@@ -331,8 +375,13 @@ inline _LIBCPP_CONSTEXPR_SINCE_CXX23 _LIBCPP_HIDE_FROM_ABI to_chars_result
 to_chars(char* __first, char* __last, _Tp __value, int __base) {
   _LIBCPP_ASSERT_UNCATEGORIZED(2 <= __base && __base <= 36, "base not in [2, 36]");
 
-  using _Type = __make_32_64_or_128_bit_t<_Tp>;
-  return std::__to_chars_integral(__first, __last, static_cast<_Type>(__value), __base);
+  if constexpr (sizeof(_Tp) > 16) {
+    // Wide integer type: pass through directly (no promotion).
+    return std::__to_chars_integral(__first, __last, __value, __base);
+  } else {
+    using _Type = __make_32_64_or_128_bit_t<_Tp>;
+    return std::__to_chars_integral(__first, __last, static_cast<_Type>(__value), __base);
+  }
 }
 
 #endif // _LIBCPP_STD_VER >= 17

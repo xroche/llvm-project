@@ -171,8 +171,13 @@ inline constexpr float __from_chars_log2f_lut[35] = {
 template <typename _Tp, __enable_if_t<is_unsigned<_Tp>::value, int> = 0>
 inline _LIBCPP_CONSTEXPR_SINCE_CXX23 _LIBCPP_HIDE_FROM_ABI from_chars_result
 __from_chars_integral(const char* __first, const char* __last, _Tp& __value, int __base) {
-  if (__base == 10)
-    return std::__from_chars_atoi(__first, __last, __value);
+  // For narrow types (sizeof <= 16), use optimized base-10 path via __from_chars_atoi.
+  // Wide types (e.g., _BitInt(N > 128)) skip this because __from_chars_atoi requires
+  // __itoa::__traits which has no specialization for sizeof > 16.
+  if constexpr (sizeof(_Tp) <= 16) {
+    if (__base == 10)
+      return std::__from_chars_atoi(__first, __last, __value);
+  }
 
   return std::__subject_seq_combinator(
       __first,
@@ -219,7 +224,11 @@ __from_chars_integral(const char* __first, const char* __last, _Tp& __value, int
 template <typename _Tp, __enable_if_t<is_integral<_Tp>::value, int> = 0>
 inline _LIBCPP_CONSTEXPR_SINCE_CXX23 _LIBCPP_HIDE_FROM_ABI from_chars_result
 from_chars(const char* __first, const char* __last, _Tp& __value) {
-  return std::__from_chars_atoi(__first, __last, __value);
+  if constexpr (sizeof(_Tp) > 16)
+    // Wide integer type: use generic digit-by-digit path (no __itoa::__traits dependency).
+    return std::__from_chars_integral(__first, __last, __value, 10);
+  else
+    return std::__from_chars_atoi(__first, __last, __value);
 }
 
 template <typename _Tp, __enable_if_t<is_integral<_Tp>::value, int> = 0>
