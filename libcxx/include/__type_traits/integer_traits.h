@@ -48,8 +48,7 @@ template <> inline const bool __is_character_or_bool_v<char32_t> = true;
 // features (e.g. std::formattable) for volatile-qualified types.
 template <class _Tp>
 inline const bool __is_signed_integer_v =
-    !__is_const(_Tp) && !__is_volatile(_Tp) && __is_integral(_Tp) && __is_signed(_Tp) &&
-    !__is_character_or_bool_v<_Tp>;
+    !__is_const(_Tp) && !__is_volatile(_Tp) && __is_integral(_Tp) && __is_signed(_Tp) && !__is_character_or_bool_v<_Tp>;
 
 // Unsigned integer types: all unsigned integral types except character types and bool.
 template <class _Tp>

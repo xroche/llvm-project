@@ -54,7 +54,7 @@ int main(int, char**) {
 
   // Large value test (Python-verified)
   {
-    _BitInt(256) v = -(_BitInt(256))(1) << 200;
+    _BitInt(256) v        = -(_BitInt(256))(1) << 200;
     _BitInt(256) expected = (_BitInt(256))(1) << 200;
     assert(std::abs(v) == expected);
   }
