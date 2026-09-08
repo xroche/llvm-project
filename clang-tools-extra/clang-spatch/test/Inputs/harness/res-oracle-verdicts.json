@@ -1,0 +1,7907 @@
+[
+ {
+  "rule": "cpptests/access_specifiers_0.cocci",
+  "c": "cpptests/access_specifiers_0.cpp",
+  "res": "cpptests/access_specifiers_0.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/access_specifiers_1.cocci",
+  "c": "cpptests/access_specifiers_1.cpp",
+  "res": "cpptests/access_specifiers_1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/access_specifiers_1_class.cocci",
+  "c": "cpptests/access_specifiers_1_class.cpp",
+  "res": "cpptests/access_specifiers_1_class.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/access_specifiers_2.cocci",
+  "c": "cpptests/access_specifiers_2.cpp",
+  "res": "cpptests/access_specifiers_2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/access_specifiers_3.cocci",
+  "c": "cpptests/access_specifiers_3.cpp",
+  "res": "cpptests/access_specifiers_3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/access_specifiers_4.cocci",
+  "c": "cpptests/access_specifiers_4.cpp",
+  "res": "cpptests/access_specifiers_4.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/addremvec_failure.cocci",
+  "c": "cpptests/addremvec_failure.cpp",
+  "res": "cpptests/addremvec_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/aggregate_initialization_failure.cocci",
+  "c": "cpptests/aggregate_initialization_failure.cpp",
+  "res": "cpptests/aggregate_initialization_failure.res",
+  "exit": 255,
+  "stderr_tail": "minus: parse error: \n  File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/cpptests/aggregate_initialization_failure.cocci\", line 5, column 7, charpos = 38\n  around = '{',\n  whole content = -\tint i{0};\n\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "cpptests/attributeu.cocci",
+  "c": "cpptests/attributeu.cpp",
+  "res": "cpptests/attributeu.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/auto_failure.cocci",
+  "c": "cpptests/auto_failure.cpp",
+  "res": "cpptests/auto_failure.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 3: metavariable t not used in the - or context code\n",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/autoloop_failure.cocci",
+  "c": "cpptests/autoloop_failure.cpp",
+  "res": "cpptests/autoloop_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/bool1.cocci",
+  "c": "cpptests/bool1.cpp",
+  "res": "cpptests/bool1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/braced_init_list.cocci",
+  "c": "cpptests/braced_init_list.cpp",
+  "res": "cpptests/braced_init_list.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should i be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/braced_init_list_arg.cocci",
+  "c": "cpptests/braced_init_list_arg.cpp",
+  "res": "cpptests/braced_init_list_arg.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/braced_init_list_assign.cocci",
+  "c": "cpptests/braced_init_list_assign.cpp",
+  "res": "cpptests/braced_init_list_assign.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 5: should i be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/braced_init_list_return.cocci",
+  "c": "cpptests/braced_init_list_return.cpp",
+  "res": "cpptests/braced_init_list_return.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/bracket.cocci",
+  "c": "cpptests/bracket.cpp",
+  "res": "cpptests/bracket.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/bracketed_expression_assignment.cocci",
+  "c": "cpptests/bracketed_expression_assignment.cpp",
+  "res": "cpptests/bracketed_expression_assignment.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/case_attribute_modify_failure.cocci",
+  "c": "cpptests/case_attribute_modify_failure.cpp",
+  "res": "cpptests/case_attribute_modify_failure.res",
+  "exit": 255,
+  "stderr_tail": "minus: parse error: \n  File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/cpptests/case_attribute_modify_failure.cocci\", line 7, column 3, charpos = 62\n  around = 'case',\n  whole content =    case 0: ... break;\n\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "cpptests/case_attribute_parse_failure.cocci",
+  "c": "cpptests/case_attribute_parse_failure.cpp",
+  "res": "cpptests/case_attribute_parse_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/cdstr.cocci",
+  "c": "cpptests/cdstr.cpp",
+  "res": "cpptests/cdstr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/classfinal_failure.cocci",
+  "c": "cpptests/classfinal_failure.cpp",
+  "res": "cpptests/classfinal_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/co_await_kw0.cocci",
+  "c": "cpptests/co_await_kw0.cpp",
+  "res": "cpptests/co_await_kw0.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/co_await_kw1.cocci",
+  "c": "cpptests/co_await_kw1.cpp",
+  "res": "cpptests/co_await_kw1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/co_return.cocci",
+  "c": "cpptests/co_return.cpp",
+  "res": "cpptests/co_return.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/co_yield_kw0.cocci",
+  "c": "cpptests/co_yield_kw0.cpp",
+  "res": "cpptests/co_yield_kw0.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/co_yield_kw1.cocci",
+  "c": "cpptests/co_yield_kw1.cpp",
+  "res": "cpptests/co_yield_kw1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/complexcpp.cocci",
+  "c": "cpptests/complexcpp.cpp",
+  "res": "cpptests/complexcpp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/constinit_modify_failure.cocci",
+  "c": "cpptests/constinit_modify_failure.cpp",
+  "res": "cpptests/constinit_modify_failure.res",
+  "exit": 255,
+  "stderr_tail": "minus: parse error: \n  File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/cpptests/constinit_modify_failure.cocci\", line 4, column 18, charpos = 41\n  around = 'int',\n  whole content = - constinit const int i = 0;\n\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "cpptests/constinit_parse_ok.cocci",
+  "c": "cpptests/constinit_parse_ok.cpp",
+  "res": "cpptests/constinit_parse_ok.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/cuda.cocci",
+  "c": "cpptests/cuda.cpp",
+  "res": "cpptests/cuda.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 7: should gridDim be a metavariable?\nwarning: line 7: should blockDim be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/cuda1.cocci",
+  "c": "cpptests/cuda1.cpp",
+  "res": "cpptests/cuda1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/cuda_noattr.cocci",
+  "c": "cpptests/cuda_noattr.cpp",
+  "res": "cpptests/cuda_noattr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/decl_and_ref.cocci",
+  "c": "cpptests/decl_and_ref.cpp",
+  "res": "cpptests/decl_and_ref.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should b be a metavariable?\nwarning: line 4: should v be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/decl_andand_ref.cocci",
+  "c": "cpptests/decl_andand_ref.cpp",
+  "res": "cpptests/decl_andand_ref.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should b be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/decl_ptr_ref.cocci",
+  "c": "cpptests/decl_ptr_ref.cpp",
+  "res": "cpptests/decl_ptr_ref.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should b be a metavariable?\nwarning: line 4: should v be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/decltype.cocci",
+  "c": "cpptests/decltype.cpp",
+  "res": "cpptests/decltype.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/decltype_matches_type.cocci",
+  "c": "cpptests/decltype_matches_type.cpp",
+  "res": "cpptests/decltype_matches_type.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/delete.cocci",
+  "c": "cpptests/delete.cpp",
+  "res": "cpptests/delete.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/delete_array.cocci",
+  "c": "cpptests/delete_array.cpp",
+  "res": "cpptests/delete_array.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/delete_constructor_modify_failure.cocci",
+  "c": "cpptests/delete_constructor_modify_failure.cpp",
+  "res": "cpptests/delete_constructor_modify_failure.res",
+  "exit": 255,
+  "stderr_tail": "minus: parse error: \n  File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/cpptests/delete_constructor_modify_failure.cocci\", line 4, column 14, charpos = 37\n  around = ';',\n  whole content = - s() = delete;\n\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "cpptests/delete_constructor_parse_failure.cocci",
+  "c": "cpptests/delete_constructor_parse_failure.cpp",
+  "res": "cpptests/delete_constructor_parse_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/delete_replace.cocci",
+  "c": "cpptests/delete_replace.cpp",
+  "res": "cpptests/delete_replace.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should a be a metavariable?\nwarning: line 9: should a be a metavariable?\n",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/destructor_constructor_parse_failure.cocci",
+  "c": "cpptests/destructor_constructor_parse_failure.cpp",
+  "res": "cpptests/destructor_constructor_parse_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/destructor_constructor_parse_smpl_failure.cocci",
+  "c": "cpptests/destructor_constructor_parse_smpl_failure.cpp",
+  "res": "cpptests/destructor_constructor_parse_smpl_failure.res",
+  "exit": 255,
+  "stderr_tail": "minus: parse error: \n  File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/cpptests/destructor_constructor_parse_smpl_failure.cocci\", line 6, column 5, charpos = 46\n  around = ')',\n  whole content = -\t A(){}\n\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "cpptests/emptytmp_failure.cocci",
+  "c": "cpptests/emptytmp_failure.cpp",
+  "res": "cpptests/emptytmp_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/endcolon.cocci",
+  "c": "cpptests/endcolon.cpp",
+  "res": "cpptests/endcolon.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/endline.cocci",
+  "c": "cpptests/endline.cpp",
+  "res": "cpptests/endline.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/enumcpp.cocci",
+  "c": "cpptests/enumcpp.cpp",
+  "res": "cpptests/enumcpp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/explicit_kw_parse_failure.cocci",
+  "c": "cpptests/explicit_kw_parse_failure.cpp",
+  "res": "cpptests/explicit_kw_parse_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/fieldtmp_failure.cocci",
+  "c": "cpptests/fieldtmp_failure.cpp",
+  "res": "cpptests/fieldtmp_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/finalclass.cocci",
+  "c": "cpptests/finalclass.cpp",
+  "res": "cpptests/finalclass.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/forc.cocci",
+  "c": "cpptests/forc.cpp",
+  "res": "cpptests/forc.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/forrange2.cocci",
+  "c": "cpptests/forrange2.cpp",
+  "res": "cpptests/forrange2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/forrange_failure.cocci",
+  "c": "cpptests/forrange_failure.cpp",
+  "res": "cpptests/forrange_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/friend_modify_failure.cocci",
+  "c": "cpptests/friend_modify_failure.cpp",
+  "res": "cpptests/friend_modify_failure.res",
+  "exit": 255,
+  "stderr_tail": "minus: parse error: \n  File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/cpptests/friend_modify_failure.cocci\", line 4, column 9, charpos = 29\n  around = 'struct',\n  whole content = - friend struct s;\n\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "cpptests/friend_parse_failure.cocci",
+  "c": "cpptests/friend_parse_failure.cpp",
+  "res": "cpptests/friend_parse_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/inh1.cocci",
+  "c": "cpptests/inh1.cpp",
+  "res": "cpptests/inh1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/init3tst.cocci",
+  "c": "cpptests/init3tst.cpp",
+  "res": "cpptests/init3tst.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/instfour_failure.cocci",
+  "c": "cpptests/instfour_failure.cpp",
+  "res": "cpptests/instfour_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/instruct.cocci",
+  "c": "cpptests/instruct.cpp",
+  "res": "cpptests/instruct.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/lambda_simple_failure.cocci",
+  "c": "cpptests/lambda_simple_failure.cpp",
+  "res": "cpptests/lambda_simple_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/list_and_aggregate_initialization_isomorphism_off.cocci",
+  "c": "cpptests/list_and_aggregate_initialization_isomorphism_off.cpp",
+  "res": "cpptests/list_and_aggregate_initialization_isomorphism_off.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/list_and_aggregate_initialization_isomorphism_on.cocci",
+  "c": "cpptests/list_and_aggregate_initialization_isomorphism_on.cpp",
+  "res": "cpptests/list_and_aggregate_initialization_isomorphism_on.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/list_initialization.cocci",
+  "c": "cpptests/list_initialization.cpp",
+  "res": "cpptests/list_initialization.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/local_macro_fn_def_and_call.cocci",
+  "c": "cpptests/local_macro_fn_def_and_call.cpp",
+  "res": "cpptests/local_macro_fn_def_and_call.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/macro_stmt_when_fn_type.cocci",
+  "c": "cpptests/macro_stmt_when_fn_type.cpp",
+  "res": "cpptests/macro_stmt_when_fn_type.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/match_bracket_expressions_assignment_broken.cocci",
+  "c": "cpptests/match_bracket_expressions_assignment_broken.cpp",
+  "res": "cpptests/match_bracket_expressions_assignment_broken.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/miniclass.cocci",
+  "c": "cpptests/miniclass.cpp",
+  "res": "cpptests/miniclass.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/mutable_modify_failure.cocci",
+  "c": "cpptests/mutable_modify_failure.cpp",
+  "res": "cpptests/mutable_modify_failure.res",
+  "exit": 255,
+  "stderr_tail": "minus: parse error: \n  File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/cpptests/mutable_modify_failure.cocci\", line 5, column 10, charpos = 40\n  around = 'int',\n  whole content = - mutable int x = 1;\n\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "cpptests/mutable_parse_failure.cocci",
+  "c": "cpptests/mutable_parse_failure.cpp",
+  "res": "cpptests/mutable_parse_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/namespace_alias_definition_failure.cocci",
+  "c": "cpptests/namespace_alias_definition_failure.cpp",
+  "res": "cpptests/namespace_alias_definition_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/namespace_nested1_failure.cocci",
+  "c": "cpptests/namespace_nested1_failure.cpp",
+  "res": "cpptests/namespace_nested1_failure.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should B be a metavariable?\n",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/namespace_nested2_failure.cocci",
+  "c": "cpptests/namespace_nested2_failure.cpp",
+  "res": "cpptests/namespace_nested2_failure.res",
+  "exit": 255,
+  "stderr_tail": "minus: parse error: \n  File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/cpptests/namespace_nested2_failure.cocci\", line 4, column 2, charpos = 34\n  around = 'namespace',\n  whole content = - namespace B { };\n\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "cpptests/namespace_nested3_failure.cocci",
+  "c": "cpptests/namespace_nested3_failure.cpp",
+  "res": "cpptests/namespace_nested3_failure.res",
+  "exit": 255,
+  "stderr_tail": "minus: parse error: \n  File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/cpptests/namespace_nested3_failure.cocci\", line 4, column 0, charpos = 32\n  around = 'namespace',\n  whole content = namespace A\n\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "cpptests/namespace_nested4_failure.cocci",
+  "c": "cpptests/namespace_nested4_failure.cpp",
+  "res": "cpptests/namespace_nested4_failure.res",
+  "exit": 255,
+  "stderr_tail": "minus: parse error: \n  File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/cpptests/namespace_nested4_failure.cocci\", line 5, column 0, charpos = 37\n  around = 'namespace',\n  whole content = namespace\n\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "cpptests/new_failure.cocci",
+  "c": "cpptests/new_failure.cpp",
+  "res": "cpptests/new_failure.res",
+  "exit": 255,
+  "stderr_tail": "impossible\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "cpptests/newsimple.cocci",
+  "c": "cpptests/newsimple.cpp",
+  "res": "cpptests/newsimple.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/nm.cocci",
+  "c": "cpptests/nm.cpp",
+  "res": "cpptests/nm.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/noexcept_failure.cocci",
+  "c": "cpptests/noexcept_failure.cpp",
+  "res": "cpptests/noexcept_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/notpp.cocci",
+  "c": "cpptests/notpp.cpp",
+  "res": "cpptests/notpp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/opeq_failure.cocci",
+  "c": "cpptests/opeq_failure.cpp",
+  "res": "cpptests/opeq_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/override_modify_failure.cocci",
+  "c": "cpptests/override_modify_failure.cpp",
+  "res": "cpptests/override_modify_failure.res",
+  "exit": 255,
+  "stderr_tail": "nus: parse error: \n  File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/cpptests/override_modify_failure.cocci\", line 4, column 10, charpos = 33\n  around = ':',\n  whole content = - struct B: public A { int f() override { return 0; } };\n\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "cpptests/override_parse_failure.cocci",
+  "c": "cpptests/override_parse_failure.cpp",
+  "res": "cpptests/override_parse_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/preprocessor_elifdef_add.cocci",
+  "c": "cpptests/preprocessor_elifdef_add.cpp",
+  "res": "cpptests/preprocessor_elifdef_add.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/protocpp.cocci",
+  "c": "cpptests/protocpp.cpp",
+  "res": "cpptests/protocpp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/qual.cocci",
+  "c": "cpptests/qual.cpp",
+  "res": "cpptests/qual.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/qualclass.cocci",
+  "c": "cpptests/qualclass.cpp",
+  "res": "cpptests/qualclass.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/sizet.cocci",
+  "c": "cpptests/sizet.cpp",
+  "res": "cpptests/sizet.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/snip_field.cocci",
+  "c": "cpptests/snip_field.cpp",
+  "res": "cpptests/snip_field.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/snip_field_and_keep_access_specifier.cocci",
+  "c": "cpptests/snip_field_and_keep_access_specifier.cpp",
+  "res": "cpptests/snip_field_and_keep_access_specifier.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/snip_field_bad.cocci",
+  "c": "cpptests/snip_field_bad.cpp",
+  "res": "cpptests/snip_field_bad.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/structured_bindings_modify_failure.cocci",
+  "c": "cpptests/structured_bindings_modify_failure.cpp",
+  "res": "cpptests/structured_bindings_modify_failure.res",
+  "exit": 255,
+  "stderr_tail": "minus: parse error: \n  File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/cpptests/structured_bindings_modify_failure.cocci\", line 11, column 2, charpos = 103\n  around = 'int',\n  whole content = - int & [b, c] = a;\n\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "cpptests/structured_bindings_parse_failure.cocci",
+  "c": "cpptests/structured_bindings_parse_failure.cpp",
+  "res": "cpptests/structured_bindings_parse_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/template_test_failure.cocci",
+  "c": "cpptests/template_test_failure.cpp",
+  "res": "cpptests/template_test_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/templates1.cocci",
+  "c": "cpptests/templates1.cpp",
+  "res": "cpptests/templates1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/templates_partial_specialization_failure.cocci",
+  "c": "cpptests/templates_partial_specialization_failure.cpp",
+  "res": "cpptests/templates_partial_specialization_failure.res",
+  "exit": 255,
+  "stderr_tail": "arse error: \n  File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/cpptests/templates_partial_specialization_failure.cocci\", line 6, column 21, charpos = 79\n  around = 'struct',\n  whole content = - template <class T> struct ts  { ... };\n\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "cpptests/tmpinit.cocci",
+  "c": "cpptests/tmpinit.cpp",
+  "res": "cpptests/tmpinit.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/tmpinst2_failure.cocci",
+  "c": "cpptests/tmpinst2_failure.cpp",
+  "res": "cpptests/tmpinst2_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/tmpinst4_failure.cocci",
+  "c": "cpptests/tmpinst4_failure.cpp",
+  "res": "cpptests/tmpinst4_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/tmpinst5_failure.cocci",
+  "c": "cpptests/tmpinst5_failure.cpp",
+  "res": "cpptests/tmpinst5_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/try_catch.cocci",
+  "c": "cpptests/try_catch.cpp",
+  "res": "cpptests/try_catch.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/try_catch2.cocci",
+  "c": "cpptests/try_catch2.cpp",
+  "res": "cpptests/try_catch2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/using1.cocci",
+  "c": "cpptests/using1.cpp",
+  "res": "cpptests/using1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/using2_failure.cocci",
+  "c": "cpptests/using2_failure.cpp",
+  "res": "cpptests/using2_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/using3.cocci",
+  "c": "cpptests/using3.cpp",
+  "res": "cpptests/using3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/using4_failure.cocci",
+  "c": "cpptests/using4_failure.cpp",
+  "res": "cpptests/using4_failure.res",
+  "exit": 255,
+  "stderr_tail": "minus: parse error: \n  File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/cpptests/using4_failure.cocci\", line 7, column 21, charpos = 105\n  around = 't',\n  whole content = - using i = typename t;\n\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "cpptests/usingtest_failure.cocci",
+  "c": "cpptests/usingtest_failure.cpp",
+  "res": "cpptests/usingtest_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/usingtype.cocci",
+  "c": "cpptests/usingtype.cpp",
+  "res": "cpptests/usingtype.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/vconstr_failure.cocci",
+  "c": "cpptests/vconstr_failure.cpp",
+  "res": "cpptests/vconstr_failure.res",
+  "exit": 2,
+  "stderr_tail": "Fatal error: exception Not_found\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "cpptests/virtual_constructor_failure.cocci",
+  "c": "cpptests/virtual_constructor_failure.cpp",
+  "res": "cpptests/virtual_constructor_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/virtual_parse_failure.cocci",
+  "c": "cpptests/virtual_parse_failure.cpp",
+  "res": "cpptests/virtual_parse_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "cpptests/while_init_condition.cocci",
+  "c": "cpptests/while_init_condition.cpp",
+  "res": "cpptests/while_init_condition.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should v be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "cpptests/while_init_condition_smpl.cocci",
+  "c": "cpptests/while_init_condition_smpl.cpp",
+  "res": "cpptests/while_init_condition_smpl.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should v be a metavariable?\nwarning: line 4: should i be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "demos/assignment_matching.cocci",
+  "c": "demos/assignment_matching.c",
+  "res": "demos/assignment_matching.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "demos/camltococci.cocci",
+  "c": "demos/camltococci.c",
+  "res": "demos/camltococci.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "demos/exists1.cocci",
+  "c": "demos/exists1.c",
+  "res": "demos/exists1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "demos/exists2.cocci",
+  "c": "demos/exists2.c",
+  "res": "demos/exists2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "demos/exists3.cocci",
+  "c": "demos/exists3.c",
+  "res": "demos/exists3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "demos/exists4.cocci",
+  "c": "demos/exists4.c",
+  "res": "demos/exists4.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "demos/format.cocci",
+  "c": "demos/format.c",
+  "res": "demos/format.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "demos/itimer.cocci",
+  "c": "demos/itimer.c",
+  "res": "demos/itimer.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should cputime be a metavariable?\nwarning: line 4: should cputime_zero be a metavariable?\n",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "demos/localidexpression.cocci",
+  "c": "demos/localidexpression.c",
+  "res": "demos/localidexpression.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "demos/not.cocci",
+  "c": "demos/not.c",
+  "res": "demos/not.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "demos/plusplus1.cocci",
+  "c": "demos/plusplus1.c",
+  "res": "demos/plusplus1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "demos/plusplus2.cocci",
+  "c": "demos/plusplus2.c",
+  "res": "demos/plusplus2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "demos/pythontococci.cocci",
+  "c": "demos/pythontococci.c",
+  "res": "demos/pythontococci.res",
+  "exit": 255,
+  "stderr_tail": ", line 4\n    print y\n    ^^^^^^^\nSyntaxError: Missing parentheses in call to 'print'. Did you mean print(...)?\nError in Python script, line 7, file \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/demos/pythontococci.cocci\": Python failure\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/62.cocci",
+  "c": "tests/62.c",
+  "res": "tests/62.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/a.cocci",
+  "c": "tests/a.c",
+  "res": "tests/a.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/a3.cocci",
+  "c": "tests/a3.c",
+  "res": "tests/a3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/a3d.cocci",
+  "c": "tests/a3d.c",
+  "res": "tests/a3d.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/a_and_e.cocci",
+  "c": "tests/a_and_e.c",
+  "res": "tests/a_and_e.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/ab.cocci",
+  "c": "tests/ab.c",
+  "res": "tests/ab.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/action.cocci",
+  "c": "tests/action.c",
+  "res": "tests/action.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/add1.cocci",
+  "c": "tests/add1.c",
+  "res": "tests/add1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/addaft.cocci",
+  "c": "tests/addaft.c",
+  "res": "tests/addaft.res",
+  "exit": 0,
+  "stderr_tail": "rning: rule starting on line 1, node 34: [after][1,2,10,11] in main may be inconsistently modified\nwarning: rule starting on line 1, node 29: [endif][1,2,10,11,13] in main may be inconsistently modified\nwarning: rule starting on line 1, node 20: while[1,2,10]* in main may be inconsistently modified\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/addafterdecl.cocci",
+  "c": "tests/addafterdecl.c",
+  "res": "tests/addafterdecl.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/addbefore.cocci",
+  "c": "tests/addbefore.c",
+  "res": "tests/addbefore.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/addbeforeafter.cocci",
+  "c": "tests/addbeforeafter.c",
+  "res": "tests/addbeforeafter.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/addcomm.cocci",
+  "c": "tests/addcomm.c",
+  "res": "tests/addcomm.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/addelse.cocci",
+  "c": "tests/addelse.c",
+  "res": "tests/addelse.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/addes.cocci",
+  "c": "tests/addes.c",
+  "res": "tests/addes.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/addfield.cocci",
+  "c": "tests/addfield.c",
+  "res": "tests/addfield.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/addfield2.cocci",
+  "c": "tests/addfield2.c",
+  "res": "tests/addfield2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/addif1_spacingfailure.cocci",
+  "c": "tests/addif1_spacingfailure.c",
+  "res": "tests/addif1_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/addif2.cocci",
+  "c": "tests/addif2.c",
+  "res": "tests/addif2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/addif_spacingfailure.cocci",
+  "c": "tests/addif_spacingfailure.c",
+  "res": "tests/addif_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/addifdef_spacingfailure.cocci",
+  "c": "tests/addifdef_spacingfailure.c",
+  "res": "tests/addifdef_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/addifelse.cocci",
+  "c": "tests/addifelse.c",
+  "res": "tests/addifelse.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/addifelse2.cocci",
+  "c": "tests/addifelse2.c",
+  "res": "tests/addifelse2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/addinc.cocci",
+  "c": "tests/addinc.c",
+  "res": "tests/addinc.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/addnl.cocci",
+  "c": "tests/addnl.c",
+  "res": "tests/addnl.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/addtoo.cocci",
+  "c": "tests/addtoo.c",
+  "res": "tests/addtoo.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/addtrace.cocci",
+  "c": "tests/addtrace.c",
+  "res": "tests/addtrace.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/after_if.cocci",
+  "c": "tests/after_if.c",
+  "res": "tests/after_if.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/allex.cocci",
+  "c": "tests/allex.c",
+  "res": "tests/allex.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/allex2.cocci",
+  "c": "tests/allex2.c",
+  "res": "tests/allex2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/allex3.cocci",
+  "c": "tests/allex3.c",
+  "res": "tests/allex3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/andid.cocci",
+  "c": "tests/andid.c",
+  "res": "tests/andid.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/anon.cocci",
+  "c": "tests/anon.c",
+  "res": "tests/anon.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/anonfield.cocci",
+  "c": "tests/anonfield.c",
+  "res": "tests/anonfield.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ar.cocci",
+  "c": "tests/ar.c",
+  "res": "tests/ar.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/arg.cocci",
+  "c": "tests/arg.c",
+  "res": "tests/arg.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/argument.cocci",
+  "c": "tests/argument.c",
+  "res": "tests/argument.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/arparam.cocci",
+  "c": "tests/arparam.c",
+  "res": "tests/arparam.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/array_init.cocci",
+  "c": "tests/array_init.c",
+  "res": "tests/array_init.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/array_size.cocci",
+  "c": "tests/array_size.c",
+  "res": "tests/array_size.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/arraysz.cocci",
+  "c": "tests/arraysz.c",
+  "res": "tests/arraysz.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/as_stm.cocci",
+  "c": "tests/as_stm.c",
+  "res": "tests/as_stm.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/assign_deref_funcall_in_macro_it.cocci",
+  "c": "tests/assign_deref_funcall_in_macro_it.c",
+  "res": "tests/assign_deref_funcall_in_macro_it.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/attr_std_kwd_fn_removal_spacingfailure.cocci",
+  "c": "tests/attr_std_kwd_fn_removal_spacingfailure.c",
+  "res": "tests/attr_std_kwd_fn_removal_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/attr_std_kwd_spacingfailure.cocci",
+  "c": "tests/attr_std_kwd_spacingfailure.c",
+  "res": "tests/attr_std_kwd_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/attr_with_arguments.cocci",
+  "c": "tests/attr_with_arguments.c",
+  "res": "tests/attr_with_arguments.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 36: should id be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/attradd.cocci",
+  "c": "tests/attradd.c",
+  "res": "tests/attradd.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/attribute_order.cocci",
+  "c": "tests/attribute_order.c",
+  "res": "tests/attribute_order.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/attributeb.cocci",
+  "c": "tests/attributeb.c",
+  "res": "tests/attributeb.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 5: should variable be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/attrreplace.cocci",
+  "c": "tests/attrreplace.c",
+  "res": "tests/attrreplace.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/attrs2groups.cocci",
+  "c": "tests/attrs2groups.c",
+  "res": "tests/attrs2groups.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/b1.cocci",
+  "c": "tests/b1.c",
+  "res": "tests/b1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/b2.cocci",
+  "c": "tests/b2.c",
+  "res": "tests/b2.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 1, node 36: foo(...)[1,2,10,11,12,13] in main may be inconsistently modified\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/bad_define_failure.cocci",
+  "c": "tests/bad_define_failure.c",
+  "res": "tests/bad_define_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "tests/bad_iso_example.cocci",
+  "c": "tests/bad_iso_example.c",
+  "res": "tests/bad_iso_example.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/bad_kfree.cocci",
+  "c": "tests/bad_kfree.c",
+  "res": "tests/bad_kfree.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/bad_ptr_print.cocci",
+  "c": "tests/bad_ptr_print.c",
+  "res": "tests/bad_ptr_print.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/bad_typedef.cocci",
+  "c": "tests/bad_typedef.c",
+  "res": "tests/bad_typedef.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/badcfg.cocci",
+  "c": "tests/badcfg.c",
+  "res": "tests/badcfg.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/badexp.cocci",
+  "c": "tests/badexp.c",
+  "res": "tests/badexp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/badpos.cocci",
+  "c": "tests/badpos.c",
+  "res": "tests/badpos.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/badtypedef.cocci",
+  "c": "tests/badtypedef.c",
+  "res": "tests/badtypedef.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/badwhen.cocci",
+  "c": "tests/badwhen.c",
+  "res": "tests/badwhen.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/badzero.cocci",
+  "c": "tests/badzero.c",
+  "res": "tests/badzero.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/badzero_old.cocci",
+  "c": "tests/badzero_old.c",
+  "res": "tests/badzero_old.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/bc_1.cocci",
+  "c": "tests/bc_1.c",
+  "res": "tests/bc_1.res",
+  "exit": 0,
+  "stderr_tail": "warning: f: metavariable i not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/befS.cocci",
+  "c": "tests/befS.c",
+  "res": "tests/befS.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/before.cocci",
+  "c": "tests/before.c",
+  "res": "tests/before.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/befored.cocci",
+  "c": "tests/befored.c",
+  "res": "tests/befored.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ben.cocci",
+  "c": "tests/ben.c",
+  "res": "tests/ben.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/bigin.cocci",
+  "c": "tests/bigin.c",
+  "res": "tests/bigin.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/bigrepl.cocci",
+  "c": "tests/bigrepl.c",
+  "res": "tests/bigrepl.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/binop.cocci",
+  "c": "tests/binop.c",
+  "res": "tests/binop.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/bitfield.cocci",
+  "c": "tests/bitfield.c",
+  "res": "tests/bitfield.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 11: metavariable v not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/bitfield_matching.cocci",
+  "c": "tests/bitfield_matching.c",
+  "res": "tests/bitfield_matching.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/boolconv.cocci",
+  "c": "tests/boolconv.c",
+  "res": "tests/boolconv.res",
+  "exit": 255,
+  "stderr_tail": "-o can not be applied because there are no modified files\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/boolr.cocci",
+  "c": "tests/boolr.c",
+  "res": "tests/boolr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/bracebraceline.cocci",
+  "c": "tests/bracebraceline.c",
+  "res": "tests/bracebraceline.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/braceline.cocci",
+  "c": "tests/braceline.c",
+  "res": "tests/braceline.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/braces.cocci",
+  "c": "tests/braces.c",
+  "res": "tests/braces.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/branchparen.cocci",
+  "c": "tests/branchparen.c",
+  "res": "tests/branchparen.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/break.cocci",
+  "c": "tests/break.c",
+  "res": "tests/break.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/btf.cocci",
+  "c": "tests/btf.c",
+  "res": "tests/btf.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/bug1.cocci",
+  "c": "tests/bug1.c",
+  "res": "tests/bug1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/bugloop_failure.cocci",
+  "c": "tests/bugloop_failure.c",
+  "res": "tests/bugloop_failure.res",
+  "exit": 255,
+  "stderr_tail": "6: opt only allowed for the elements of a statement list\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/bugon.cocci",
+  "c": "tests/bugon.c",
+  "res": "tests/bugon.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/bus.cocci",
+  "c": "tests/bus.c",
+  "res": "tests/bus.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/call_kern.cocci",
+  "c": "tests/call_kern.c",
+  "res": "tests/call_kern.res",
+  "exit": 255,
+  "stderr_tail": "-o can not be applied because there are no modified files\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/cards_spacingfailure.cocci",
+  "c": "tests/cards_spacingfailure.c",
+  "res": "tests/cards_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/caseprint.cocci",
+  "c": "tests/caseprint.c",
+  "res": "tests/caseprint.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/cast.cocci",
+  "c": "tests/cast.c",
+  "res": "tests/cast.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/cast_iso.cocci",
+  "c": "tests/cast_iso.c",
+  "res": "tests/cast_iso.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/castdecl.cocci",
+  "c": "tests/castdecl.c",
+  "res": "tests/castdecl.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/cex_snip_field_ok.cocci",
+  "c": "tests/cex_snip_field_ok.c",
+  "res": "tests/cex_snip_field_ok.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/cex_wishlist_complex1.cocci",
+  "c": "tests/cex_wishlist_complex1.c",
+  "res": "tests/cex_wishlist_complex1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/cex_wishlist_complex2.cocci",
+  "c": "tests/cex_wishlist_complex2.c",
+  "res": "tests/cex_wishlist_complex2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/cex_wishlist_complex3.cocci",
+  "c": "tests/cex_wishlist_complex3.c",
+  "res": "tests/cex_wishlist_complex3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/change.cocci",
+  "c": "tests/change.c",
+  "res": "tests/change.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/change_pragma.cocci",
+  "c": "tests/change_pragma.c",
+  "res": "tests/change_pragma.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/change_type.cocci",
+  "c": "tests/change_type.c",
+  "res": "tests/change_type.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/changei_failure.cocci",
+  "c": "tests/changei_failure.c",
+  "res": "tests/changei_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/cocci_args.cocci",
+  "c": "tests/cocci_args.c",
+  "res": "tests/cocci_args.res",
+  "exit": 255,
+  "stderr_tail": "sh: 1: Syntax error: Unterminated quoted string\n-o can not be applied because there are no modified files\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/com.cocci",
+  "c": "tests/com.c",
+  "res": "tests/com.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/comadd.cocci",
+  "c": "tests/comadd.c",
+  "res": "tests/comadd.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/comj.cocci",
+  "c": "tests/comj.c",
+  "res": "tests/comj.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/comma.cocci",
+  "c": "tests/comma.c",
+  "res": "tests/comma.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/comma_call.cocci",
+  "c": "tests/comma_call.c",
+  "res": "tests/comma_call.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/comma_if.cocci",
+  "c": "tests/comma_if.c",
+  "res": "tests/comma_if.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/comment_brace2_spacingfailure.cocci",
+  "c": "tests/comment_brace2_spacingfailure.c",
+  "res": "tests/comment_brace2_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/comment_brace_spacingfailure.cocci",
+  "c": "tests/comment_brace_spacingfailure.c",
+  "res": "tests/comment_brace_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/comment_line.cocci",
+  "c": "tests/comment_line.c",
+  "res": "tests/comment_line.res",
+  "exit": 0,
+  "stderr_tail": "File \"/tmp/ocaml_cocci_13ea1d.ml\", line 21, characters 4-5:\n21 | let p = match List.nth __args__ 1 with Coccilib.Pos x -> x | _ -> failwith \"bad value\" in\n         ^\nWarning 26 [unused-var]: unused variable p.\n1\n1\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/comment_middle.cocci",
+  "c": "tests/comment_middle.c",
+  "res": "tests/comment_middle.res",
+  "exit": 0,
+  "stderr_tail": "File \"/tmp/ocaml_cocci_6fb1f1.ml\", line 20, characters 5-6:\n20 |  let f = match List.nth __args__ 0 with Coccilib.Str x -> x | _ -> failwith \"bad value\" in\n          ^\nWarning 26 [unused-var]: unused variable f.\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/commentbefore.cocci",
+  "c": "tests/commentbefore.c",
+  "res": "tests/commentbefore.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/commentbefore2.cocci",
+  "c": "tests/commentbefore2.c",
+  "res": "tests/commentbefore2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/commentend.cocci",
+  "c": "tests/commentend.c",
+  "res": "tests/commentend.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/comments.cocci",
+  "c": "tests/comments.c",
+  "res": "tests/comments.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/compare.cocci",
+  "c": "tests/compare.c",
+  "res": "tests/compare.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/compare_const.cocci",
+  "c": "tests/compare_const.c",
+  "res": "tests/compare_const.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/compare_const2.cocci",
+  "c": "tests/compare_const2.c",
+  "res": "tests/compare_const2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/comreturn.cocci",
+  "c": "tests/comreturn.c",
+  "res": "tests/comreturn.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/cond_no_effect.cocci",
+  "c": "tests/cond_no_effect.c",
+  "res": "tests/cond_no_effect.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/condexp.cocci",
+  "c": "tests/condexp.c",
+  "res": "tests/condexp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/const.cocci",
+  "c": "tests/const.c",
+  "res": "tests/const.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/const1bis.cocci",
+  "c": "tests/const1bis.c",
+  "res": "tests/const1bis.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/const_adding.cocci",
+  "c": "tests/const_adding.c",
+  "res": "tests/const_adding.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/const_array.cocci",
+  "c": "tests/const_array.c",
+  "res": "tests/const_array.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/const_implicit_iso.cocci",
+  "c": "tests/const_implicit_iso.c",
+  "res": "tests/const_implicit_iso.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/constptr.cocci",
+  "c": "tests/constptr.c",
+  "res": "tests/constptr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/constraints.cocci",
+  "c": "tests/constraints.c",
+  "res": "tests/constraints.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/constrem.cocci",
+  "c": "tests/constrem.c",
+  "res": "tests/constrem.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/constructor.cocci",
+  "c": "tests/constructor.c",
+  "res": "tests/constructor.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/constty.cocci",
+  "c": "tests/constty.c",
+  "res": "tests/constty.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/constx.cocci",
+  "c": "tests/constx.c",
+  "res": "tests/constx.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/countcalls.cocci",
+  "c": "tests/countcalls.c",
+  "res": "tests/countcalls.res",
+  "exit": 0,
+  "stderr_tail": "g: 1\n",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/countcalls_python.cocci",
+  "c": "tests/countcalls_python.c",
+  "res": "tests/countcalls_python.res",
+  "exit": 0,
+  "stderr_tail": "g: 1\n",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/cptr.cocci",
+  "c": "tests/cptr.c",
+  "res": "tests/cptr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/cr.cocci",
+  "c": "tests/cr.c",
+  "res": "tests/cr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/cr1a.cocci",
+  "c": "tests/cr1a.c",
+  "res": "tests/cr1a.res",
+  "exit": 0,
+  "stderr_tail": " 38: continue; [1,2,7][1,2,7,8,13,14] in probe_base_port may be inconsistently modified\nwarning: rule starting on line 1, node 39: }2[1,2,7,8] in probe_base_port may be inconsistently modified\nwarning: rule starting on line 1, node 20: if[1,2,7,8,9] in probe_base_port may be inconsistently modified\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/cs_check.cocci",
+  "c": "tests/cs_check.c",
+  "res": "tests/cs_check.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 5: should handle be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/cst.cocci",
+  "c": "tests/cst.c",
+  "res": "tests/cst.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/cst_null.cocci",
+  "c": "tests/cst_null.c",
+  "res": "tests/cst_null.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/cstptr.cocci",
+  "c": "tests/cstptr.c",
+  "res": "tests/cstptr.res",
+  "exit": 255,
+  "stderr_tail": "-o can not be applied because there are no modified files\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/cstr.cocci",
+  "c": "tests/cstr.c",
+  "res": "tests/cstr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/cststr.cocci",
+  "c": "tests/cststr.c",
+  "res": "tests/cststr.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should foo be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/csw.cocci",
+  "c": "tests/csw.c",
+  "res": "tests/csw.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should x be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dbg.cocci",
+  "c": "tests/dbg.c",
+  "res": "tests/dbg.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dbg1.cocci",
+  "c": "tests/dbg1.c",
+  "res": "tests/dbg1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dc.cocci",
+  "c": "tests/dc.c",
+  "res": "tests/dc.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dc_close.cocci",
+  "c": "tests/dc_close.c",
+  "res": "tests/dc_close.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/debug.cocci",
+  "c": "tests/debug.c",
+  "res": "tests/debug.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dec.cocci",
+  "c": "tests/dec.c",
+  "res": "tests/dec.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/decadd.cocci",
+  "c": "tests/decadd.c",
+  "res": "tests/decadd.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/decdup.cocci",
+  "c": "tests/decdup.c",
+  "res": "tests/decdup.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/decdup2.cocci",
+  "c": "tests/decdup2.c",
+  "res": "tests/decdup2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/decdup3.cocci",
+  "c": "tests/decdup3.c",
+  "res": "tests/decdup3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/decdup4.cocci",
+  "c": "tests/decdup4.c",
+  "res": "tests/decdup4.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/decl.cocci",
+  "c": "tests/decl.c",
+  "res": "tests/decl.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/decl2.cocci",
+  "c": "tests/decl2.c",
+  "res": "tests/decl2.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 8: should x be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/decl_space.cocci",
+  "c": "tests/decl_space.c",
+  "res": "tests/decl_space.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/decl_split_failure.cocci",
+  "c": "tests/decl_split_failure.c",
+  "res": "tests/decl_split_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "tests/decl_star.cocci",
+  "c": "tests/decl_star.c",
+  "res": "tests/decl_star.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/declend.cocci",
+  "c": "tests/declend.c",
+  "res": "tests/declend.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/declmeta.cocci",
+  "c": "tests/declmeta.c",
+  "res": "tests/declmeta.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/defe.cocci",
+  "c": "tests/defe.c",
+  "res": "tests/defe.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/define_exp.cocci",
+  "c": "tests/define_exp.c",
+  "res": "tests/define_exp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/define_param_spacingfailure.cocci",
+  "c": "tests/define_param_spacingfailure.c",
+  "res": "tests/define_param_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/define_unmatched.cocci",
+  "c": "tests/define_unmatched.c",
+  "res": "tests/define_unmatched.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/defineattr.cocci",
+  "c": "tests/defineattr.c",
+  "res": "tests/defineattr.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should name be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/definedots.cocci",
+  "c": "tests/definedots.c",
+  "res": "tests/definedots.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/defineinit.cocci",
+  "c": "tests/defineinit.c",
+  "res": "tests/defineinit.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/deftodo.cocci",
+  "c": "tests/deftodo.c",
+  "res": "tests/deftodo.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/del2.cocci",
+  "c": "tests/del2.c",
+  "res": "tests/del2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/delete_function.cocci",
+  "c": "tests/delete_function.c",
+  "res": "tests/delete_function.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/delp.cocci",
+  "c": "tests/delp.c",
+  "res": "tests/delp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/depfail.cocci",
+  "c": "tests/depfail.c",
+  "res": "tests/depfail.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/deref.cocci",
+  "c": "tests/deref.c",
+  "res": "tests/deref.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/destroy.cocci",
+  "c": "tests/destroy.c",
+  "res": "tests/destroy.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/detect_cast_attr.cocci",
+  "c": "tests/detect_cast_attr.c",
+  "res": "tests/detect_cast_attr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/detect_macrodecl_attr.cocci",
+  "c": "tests/detect_macrodecl_attr.c",
+  "res": "tests/detect_macrodecl_attr.res",
+  "exit": 0,
+  "stderr_tail": "File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/tests/detect_macrodecl_attr.cocci\", line 18, characters 6-57:\nWarning 10 [non-unit-statement]: this expression should have type unit.\nwarning: line 8: should a be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/detect_param_attr.cocci",
+  "c": "tests/detect_param_attr.c",
+  "res": "tests/detect_param_attr.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 37: should nocast be a metavariable?\nwarning: line 50: should nocast be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/detect_struct_endattr.cocci",
+  "c": "tests/detect_struct_endattr.c",
+  "res": "tests/detect_struct_endattr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/detect_struct_gccattr.cocci",
+  "c": "tests/detect_struct_gccattr.c",
+  "res": "tests/detect_struct_gccattr.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 8: should pack be a metavariable?\nwarning: line 18: should pack be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/deunroll2.cocci",
+  "c": "tests/deunroll2.c",
+  "res": "tests/deunroll2.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 22: should undo be a metavariable?\nwarning: line 34: should undo be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/devlink.cocci",
+  "c": "tests/devlink.c",
+  "res": "tests/devlink.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/disj.cocci",
+  "c": "tests/disj.c",
+  "res": "tests/disj.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/disjexpr.cocci",
+  "c": "tests/disjexpr.c",
+  "res": "tests/disjexpr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/disjid.cocci",
+  "c": "tests/disjid.c",
+  "res": "tests/disjid.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/distribute.cocci",
+  "c": "tests/distribute.c",
+  "res": "tests/distribute.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dotcall.cocci",
+  "c": "tests/dotcall.c",
+  "res": "tests/dotcall.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dots_comma.cocci",
+  "c": "tests/dots_comma.c",
+  "res": "tests/dots_comma.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dots_in_block_remove_failure.cocci",
+  "c": "tests/dots_in_block_remove_failure.c",
+  "res": "tests/dots_in_block_remove_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/double.cocci",
+  "c": "tests/double.c",
+  "res": "tests/double.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/double_assign.cocci",
+  "c": "tests/double_assign.c",
+  "res": "tests/double_assign.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/double_lines.cocci",
+  "c": "tests/double_lines.c",
+  "res": "tests/double_lines.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/double_switch.cocci",
+  "c": "tests/double_switch.c",
+  "res": "tests/double_switch.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/doublebitand.cocci",
+  "c": "tests/doublebitand.c",
+  "res": "tests/doublebitand.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/doubleconst.cocci",
+  "c": "tests/doubleconst.c",
+  "res": "tests/doubleconst.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/doubleconst2.cocci",
+  "c": "tests/doubleconst2.c",
+  "res": "tests/doubleconst2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/doubleconst4.cocci",
+  "c": "tests/doubleconst4.c",
+  "res": "tests/doubleconst4.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/doublepos.cocci",
+  "c": "tests/doublepos.c",
+  "res": "tests/doublepos.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/doubleswitch.cocci",
+  "c": "tests/doubleswitch.c",
+  "res": "tests/doubleswitch.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/doundo.cocci",
+  "c": "tests/doundo.c",
+  "res": "tests/doundo.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dowhile.cocci",
+  "c": "tests/dowhile.c",
+  "res": "tests/dowhile.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dowhile_4.cocci",
+  "c": "tests/dowhile_4.c",
+  "res": "tests/dowhile_4.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dowhile_for_complex.cocci",
+  "c": "tests/dowhile_for_complex.c",
+  "res": "tests/dowhile_for_complex.res",
+  "exit": 0,
+  "stderr_tail": "1,2,4,5,7,8] in fun may be inconsistently modified\nwarning: nested, node 16: for[1,2,4,5,7]* in fun may be inconsistently modified\nwarning: nested, node 21: statement[1,2,4,5,7,8,9] in fun may be inconsistently modified\nwarning: nested, node 20: {3[1,2,4,5,7,8] in fun may be inconsistently modified\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dowhile_nested.cocci",
+  "c": "tests/dowhile_nested.c",
+  "res": "tests/dowhile_nested.res",
+  "exit": 0,
+  "stderr_tail": "il[1,2,4,5,7] in fun may be inconsistently modified\nwarning: nested, node 23: statement[1,2,4,5,7,8,9] in fun may be inconsistently modified\nwarning: nested, node 16: do[1,2,4,5,7]* in fun may be inconsistently modified\nwarning: nested, node 24: }3[1,2,4,5,7,8] in fun may be inconsistently modified\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dropbr.cocci",
+  "c": "tests/dropbr.c",
+  "res": "tests/dropbr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dropcom.cocci",
+  "c": "tests/dropcom.c",
+  "res": "tests/dropcom.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dropenderr.cocci",
+  "c": "tests/dropenderr.c",
+  "res": "tests/dropenderr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dropf.cocci",
+  "c": "tests/dropf.c",
+  "res": "tests/dropf.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dropparam.cocci",
+  "c": "tests/dropparam.c",
+  "res": "tests/dropparam.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/dtest.cocci",
+  "c": "tests/dtest.c",
+  "res": "tests/dtest.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/eb1_spacingfailure.cocci",
+  "c": "tests/eb1_spacingfailure.c",
+  "res": "tests/eb1_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/edots.cocci",
+  "c": "tests/edots.c",
+  "res": "tests/edots.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/efi3.cocci",
+  "c": "tests/efi3.c",
+  "res": "tests/efi3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/elsify.cocci",
+  "c": "tests/elsify.c",
+  "res": "tests/elsify.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/empty.cocci",
+  "c": "tests/empty.c",
+  "res": "tests/empty.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/emptydefine.cocci",
+  "c": "tests/emptydefine.c",
+  "res": "tests/emptydefine.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/end_attr.cocci",
+  "c": "tests/end_attr.c",
+  "res": "tests/end_attr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/end_commas.cocci",
+  "c": "tests/end_commas.c",
+  "res": "tests/end_commas.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/endcomma_spacingfailure.cocci",
+  "c": "tests/endcomma_spacingfailure.c",
+  "res": "tests/endcomma_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/endif.cocci",
+  "c": "tests/endif.c",
+  "res": "tests/endif.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 5: should x be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/endmodif_spacingfailure.cocci",
+  "c": "tests/endmodif_spacingfailure.c",
+  "res": "tests/endmodif_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/endnl.cocci",
+  "c": "tests/endnl.c",
+  "res": "tests/endnl.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/endpos.cocci",
+  "c": "tests/endpos.c",
+  "res": "tests/endpos.res",
+  "exit": 0,
+  "stderr_tail": "warning: s: metavariable p not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/eno.cocci",
+  "c": "tests/eno.c",
+  "res": "tests/eno.res",
+  "exit": 255,
+  "stderr_tail": "-o can not be applied because there are no modified files\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/enum.cocci",
+  "c": "tests/enum.c",
+  "res": "tests/enum.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/enum_assign.cocci",
+  "c": "tests/enum_assign.c",
+  "res": "tests/enum_assign.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/enumcast.cocci",
+  "c": "tests/enumcast.c",
+  "res": "tests/enumcast.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/enumdots.cocci",
+  "c": "tests/enumdots.c",
+  "res": "tests/enumdots.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/excluded_middle.cocci",
+  "c": "tests/excluded_middle.c",
+  "res": "tests/excluded_middle.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/exitc.cocci",
+  "c": "tests/exitc.c",
+  "res": "tests/exitc.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/exitp.cocci",
+  "c": "tests/exitp.c",
+  "res": "tests/exitp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/exp.cocci",
+  "c": "tests/exp.c",
+  "res": "tests/exp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/expnest.cocci",
+  "c": "tests/expnest.c",
+  "res": "tests/expnest.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/expopt.cocci",
+  "c": "tests/expopt.c",
+  "res": "tests/expopt.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/expopt2.cocci",
+  "c": "tests/expopt2.c",
+  "res": "tests/expopt2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/expopt3.cocci",
+  "c": "tests/expopt3.c",
+  "res": "tests/expopt3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/exprlist_comma.cocci",
+  "c": "tests/exprlist_comma.c",
+  "res": "tests/exprlist_comma.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/exprun.cocci",
+  "c": "tests/exprun.c",
+  "res": "tests/exprun.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/extra.cocci",
+  "c": "tests/extra.c",
+  "res": "tests/extra.res",
+  "exit": 0,
+  "stderr_tail": "File \"/tmp/ocaml_cocci_2f732c.ml\", line 21, characters 4-6:\n21 | let ff = match List.nth __args__ 1 with Coccilib.Str x -> x | _ -> failwith \"bad value\" in\n         ^^\nWarning 26 [unused-var]: unused variable ff.\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/failing_andany.cocci",
+  "c": "tests/failing_andany.c",
+  "res": "tests/failing_andany.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/far.cocci",
+  "c": "tests/far.c",
+  "res": "tests/far.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/far2.cocci",
+  "c": "tests/far2.c",
+  "res": "tests/far2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fields.cocci",
+  "c": "tests/fields.c",
+  "res": "tests/fields.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fieldsmin.cocci",
+  "c": "tests/fieldsmin.c",
+  "res": "tests/fieldsmin.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should x be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/finalize_only.cocci",
+  "c": "tests/finalize_only.c",
+  "res": "tests/finalize_only.res",
+  "exit": 0,
+  "stderr_tail": "here\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/find_long.cocci",
+  "c": "tests/find_long.c",
+  "res": "tests/find_long.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/finish.cocci",
+  "c": "tests/finish.c",
+  "res": "tests/finish.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/firstdecl.cocci",
+  "c": "tests/firstdecl.c",
+  "res": "tests/firstdecl.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/fix_flow_need.cocci",
+  "c": "tests/fix_flow_need.c",
+  "res": "tests/fix_flow_need.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/flex.cocci",
+  "c": "tests/flex.c",
+  "res": "tests/flex.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/flexible_array.cocci",
+  "c": "tests/flexible_array.c",
+  "res": "tests/flexible_array.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/fltst.cocci",
+  "c": "tests/fltst.c",
+  "res": "tests/fltst.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fn_todo.cocci",
+  "c": "tests/fn_todo.c",
+  "res": "tests/fn_todo.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fnptr.cocci",
+  "c": "tests/fnptr.c",
+  "res": "tests/fnptr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fnret.cocci",
+  "c": "tests/fnret.c",
+  "res": "tests/fnret.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 6: should x be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fnty.cocci",
+  "c": "tests/fnty.c",
+  "res": "tests/fnty.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fntypedef.cocci",
+  "c": "tests/fntypedef.c",
+  "res": "tests/fntypedef.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/for3.cocci",
+  "c": "tests/for3.c",
+  "res": "tests/for3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fordots.cocci",
+  "c": "tests/fordots.c",
+  "res": "tests/fordots.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/format.cocci",
+  "c": "tests/format.c",
+  "res": "tests/format.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/format2.cocci",
+  "c": "tests/format2.c",
+  "res": "tests/format2.res",
+  "exit": 0,
+  "stderr_tail": "format string is 1x\nformat string is 2x\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/formatlist.cocci",
+  "c": "tests/formatlist.c",
+  "res": "tests/formatlist.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fortest.cocci",
+  "c": "tests/fortest.c",
+  "res": "tests/fortest.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fortype.cocci",
+  "c": "tests/fortype.c",
+  "res": "tests/fortype.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should x be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/four.cocci",
+  "c": "tests/four.c",
+  "res": "tests/four.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/foura.cocci",
+  "c": "tests/foura.c",
+  "res": "tests/foura.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fp.cocci",
+  "c": "tests/fp.c",
+  "res": "tests/fp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fptr.cocci",
+  "c": "tests/fptr.c",
+  "res": "tests/fptr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fptr2.cocci",
+  "c": "tests/fptr2.c",
+  "res": "tests/fptr2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fptr3.cocci",
+  "c": "tests/fptr3.c",
+  "res": "tests/fptr3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/freeattr.cocci",
+  "c": "tests/freeattr.c",
+  "res": "tests/freeattr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fresh_id_script.cocci",
+  "c": "tests/fresh_id_script.c",
+  "res": "tests/fresh_id_script.res",
+  "exit": 0,
+  "stderr_tail": "File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/tests/fresh_id_script.cocci\", line 37, characters 4-5:\nWarning 26 [unused-var]: unused variable i.\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fsh.cocci",
+  "c": "tests/fsh.c",
+  "res": "tests/fsh.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/fun.cocci",
+  "c": "tests/fun.c",
+  "res": "tests/fun.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 5: should x be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/func.cocci",
+  "c": "tests/func.c",
+  "res": "tests/func.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/funptr_array.cocci",
+  "c": "tests/funptr_array.c",
+  "res": "tests/funptr_array.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/gadget_allocate_spacingfailure.cocci",
+  "c": "tests/gadget_allocate_spacingfailure.c",
+  "res": "tests/gadget_allocate_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "warning: soa_init: inherited metavariable id1 not used in the -, +, or context code\nwarning: soa_free: inherited metavariable id1 not used in the -, +, or context code\nwarning: soa_alloc: inherited metavariable id1 not used in the -, +, or context code\n",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/gadget_gather_scatter_spacingfailure.cocci",
+  "c": "tests/gadget_gather_scatter_spacingfailure.c",
+  "res": "tests/gadget_gather_scatter_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "catter_per_type_soa_functions_fill, node 20: }2[1,2,6,7] in soa_scatter__sph_particle_data_soa_t may be inconsistently modified\nwarning: line 230: P, previously declared as a metavariable, is used as an identifier\nwarning: line 230: p, previously declared as a metavariable, is used as an identifier\n",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/gadget_invalidate_spacingfailure.cocci",
+  "c": "tests/gadget_invalidate_spacingfailure.c",
+  "res": "tests/gadget_invalidate_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "ly modified\nwarning: invalidate_aos_per_type_soa_functions_fill, node 20: }2[1,2,6,7] in soa_invalidate_aos__particle_data may be inconsistently modified\nwarning: invalidate_aos_per_type_soa_functions_fill, node 20: }2[1,2,6,7] in soa_invalidate_aos__sph_particle_data may be inconsistently modified\n",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/gadget_mark_used_fields.cocci",
+  "c": "tests/gadget_mark_used_fields.c",
+  "res": "tests/gadget_mark_used_fields.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/gadget_misc.cocci",
+  "c": "tests/gadget_misc.c",
+  "res": "tests/gadget_misc.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/gadget_ninelets_typedef.cocci",
+  "c": "tests/gadget_ninelets_typedef.c",
+  "res": "tests/gadget_ninelets_typedef.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/gadget_patch.cocci",
+  "c": "tests/gadget_patch.c",
+  "res": "tests/gadget_patch.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/gadget_remove_mpi_function_calls.cocci",
+  "c": "tests/gadget_remove_mpi_function_calls.c",
+  "res": "tests/gadget_remove_mpi_function_calls.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/gadget_remove_used_fields.cocci",
+  "c": "tests/gadget_remove_used_fields.c",
+  "res": "tests/gadget_remove_used_fields.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/gadget_sentinel_spacingfailure.cocci",
+  "c": "tests/gadget_sentinel_spacingfailure.c",
+  "res": "tests/gadget_sentinel_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "n aos_checksum__particle_data may be inconsistently modified\nwarning: checksum_per_type_aos_functions_compute, node 21: }2[1,2,7,8] in aos_checksum__sph_particle_data may be inconsistently modified\nwarning: line 111: should first be a metavariable?\nwarning: line 142: should first be a metavariable?\n",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/gadget_soa_defs.cocci",
+  "c": "tests/gadget_soa_defs.c",
+  "res": "tests/gadget_soa_defs.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/gadget_soa_select.cocci",
+  "c": "tests/gadget_soa_select.c",
+  "res": "tests/gadget_soa_select.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/gadget_sorting_hook.cocci",
+  "c": "tests/gadget_sorting_hook.c",
+  "res": "tests/gadget_sorting_hook.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/gadget_triplets_typedef.cocci",
+  "c": "tests/gadget_triplets_typedef.c",
+  "res": "tests/gadget_triplets_typedef.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/gadget_triplets_typedef_ipcc.cocci",
+  "c": "tests/gadget_triplets_typedef_ipcc.c",
+  "res": "tests/gadget_triplets_typedef_ipcc.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/gcc_attr_with_func.cocci",
+  "c": "tests/gcc_attr_with_func.c",
+  "res": "tests/gcc_attr_with_func.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 5: should always_inline be a metavariable?\nwarning: line 14: should always_inline be a metavariable?\nwarning: line 23: should always_inline be a metavariable?\nwarning: line 35: should attr be a metavariable?\nwarning: line 42: should mult be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/gcc_attr_with_var_failure.cocci",
+  "c": "tests/gcc_attr_with_var_failure.c",
+  "res": "tests/gcc_attr_with_var_failure.res",
+  "exit": 0,
+  "stderr_tail": " be a metavariable?\nwarning: line 44: should myattr1_mid be a metavariable?\nwarning: line 52: should myattr2_mid be a metavariable?\nwarning: line 60: should myattr3_mid be a metavariable?\nwarning: line 69: should myattr4_mid be a metavariable?\nwarning: line 77: should myattr5_mid be a metavariable?\n",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/gcc_min_max.cocci",
+  "c": "tests/gcc_min_max.c",
+  "res": "tests/gcc_min_max.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/getc.cocci",
+  "c": "tests/getc.c",
+  "res": "tests/getc.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/gilles-question.cocci",
+  "c": "tests/gilles-question.c",
+  "res": "tests/gilles-question.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/globali.cocci",
+  "c": "tests/globali.c",
+  "res": "tests/globali.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/gotobreak.cocci",
+  "c": "tests/gotobreak.c",
+  "res": "tests/gotobreak.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/hasherr.cocci",
+  "c": "tests/hasherr.c",
+  "res": "tests/hasherr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/hashhash.cocci",
+  "c": "tests/hashhash.c",
+  "res": "tests/hashhash.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/hd.cocci",
+  "c": "tests/hd.c",
+  "res": "tests/hd.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should x be a metavariable?\nwarning: line 4: should y be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/headers.cocci",
+  "c": "tests/headers.c",
+  "res": "tests/headers.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/hex.cocci",
+  "c": "tests/hex.c",
+  "res": "tests/hex.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/hil1.cocci",
+  "c": "tests/hil1.c",
+  "res": "tests/hil1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/icomma.cocci",
+  "c": "tests/icomma.c",
+  "res": "tests/icomma.res",
+  "exit": 0,
+  "stderr_tail": "2\n3\n4\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/id3.cocci",
+  "c": "tests/id3.c",
+  "res": "tests/id3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/id4.cocci",
+  "c": "tests/id4.c",
+  "res": "tests/id4.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/idcon_ocaml.cocci",
+  "c": "tests/idcon_ocaml.c",
+  "res": "tests/idcon_ocaml.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/idcon_python.cocci",
+  "c": "tests/idcon_python.c",
+  "res": "tests/idcon_python.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/identcall.cocci",
+  "c": "tests/identcall.c",
+  "res": "tests/identcall.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/idstr.cocci",
+  "c": "tests/idstr.c",
+  "res": "tests/idstr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/if.cocci",
+  "c": "tests/if.c",
+  "res": "tests/if.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 11, node 19: g(...)[1,2,4,5,6,7,8] in main1 may be inconsistently modified\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifadd.cocci",
+  "c": "tests/ifadd.c",
+  "res": "tests/ifadd.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifbr.cocci",
+  "c": "tests/ifbr.c",
+  "res": "tests/ifbr.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 13: should ret be a metavariable?\nwarning: rule starting on line 1: metavariable E not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/ifd.cocci",
+  "c": "tests/ifd.c",
+  "res": "tests/ifd.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifdef1.cocci",
+  "c": "tests/ifdef1.c",
+  "res": "tests/ifdef1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifdef2.cocci",
+  "c": "tests/ifdef2.c",
+  "res": "tests/ifdef2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifdef3.cocci",
+  "c": "tests/ifdef3.c",
+  "res": "tests/ifdef3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifdef4.cocci",
+  "c": "tests/ifdef4.c",
+  "res": "tests/ifdef4.res",
+  "exit": 0,
+  "stderr_tail": "warning: Exemple4, node 12: statement[1,2,3,4,5] in init_IRQ may be inconsistently modified\nwarning: line 9: should desc be a metavariable?\nwarning: line 9: should irq_desc be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifdef5.cocci",
+  "c": "tests/ifdef5.c",
+  "res": "tests/ifdef5.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifdef6.cocci",
+  "c": "tests/ifdef6.c",
+  "res": "tests/ifdef6.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifdef6a.cocci",
+  "c": "tests/ifdef6a.c",
+  "res": "tests/ifdef6a.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifdefmeta1_failure.cocci",
+  "c": "tests/ifdefmeta1_failure.c",
+  "res": "tests/ifdefmeta1_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifdefmeta2.cocci",
+  "c": "tests/ifdefmeta2.c",
+  "res": "tests/ifdefmeta2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifdefmeta3.cocci",
+  "c": "tests/ifdefmeta3.c",
+  "res": "tests/ifdefmeta3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifdefmeta4_failure.cocci",
+  "c": "tests/ifdefmeta4_failure.c",
+  "res": "tests/ifdefmeta4_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifdefmeta_failure.cocci",
+  "c": "tests/ifdefmeta_failure.c",
+  "res": "tests/ifdefmeta_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifend.cocci",
+  "c": "tests/ifend.c",
+  "res": "tests/ifend.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifgoto.cocci",
+  "c": "tests/ifgoto.c",
+  "res": "tests/ifgoto.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifields.cocci",
+  "c": "tests/ifields.c",
+  "res": "tests/ifields.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifif.cocci",
+  "c": "tests/ifif.c",
+  "res": "tests/ifif.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifreturn.cocci",
+  "c": "tests/ifreturn.c",
+  "res": "tests/ifreturn.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifreturn3_spacingfailure.cocci",
+  "c": "tests/ifreturn3_spacingfailure.c",
+  "res": "tests/ifreturn3_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifreturn4.cocci",
+  "c": "tests/ifreturn4.c",
+  "res": "tests/ifreturn4.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifreturn6.cocci",
+  "c": "tests/ifreturn6.c",
+  "res": "tests/ifreturn6.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifzer.cocci",
+  "c": "tests/ifzer.c",
+  "res": "tests/ifzer.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ifzz.cocci",
+  "c": "tests/ifzz.c",
+  "res": "tests/ifzz.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/inc.cocci",
+  "c": "tests/inc.c",
+  "res": "tests/inc.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/incdir_failure.cocci",
+  "c": "tests/incdir_failure.c",
+  "res": "tests/incdir_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/incl.cocci",
+  "c": "tests/incl.c",
+  "res": "tests/incl.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/incl2.cocci",
+  "c": "tests/incl2.c",
+  "res": "tests/incl2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/inclifdef.cocci",
+  "c": "tests/inclifdef.c",
+  "res": "tests/inclifdef.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/include.cocci",
+  "c": "tests/include.c",
+  "res": "tests/include.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/incompatible_value.cocci",
+  "c": "tests/incompatible_value.c",
+  "res": "tests/incompatible_value.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/incpos.cocci",
+  "c": "tests/incpos.c",
+  "res": "tests/incpos.res",
+  "exit": 0,
+  "stderr_tail": "keeping first hdr 1\ndropping first hdr\ndropping first hdr\ndropping second hdr\ndropping second hdr\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/incpos1.cocci",
+  "c": "tests/incpos1.c",
+  "res": "tests/incpos1.res",
+  "exit": 0,
+  "stderr_tail": "keeping first hdr 2\ndropping first hdr\nkeeping second hdr 1 because of 2\ndropping second hdr\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/indentif.cocci",
+  "c": "tests/indentif.c",
+  "res": "tests/indentif.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 1: metavariable S not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/inherited.cocci",
+  "c": "tests/inherited.c",
+  "res": "tests/inherited.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/inhfresh.cocci",
+  "c": "tests/inhfresh.c",
+  "res": "tests/inhfresh.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/inhmet.cocci",
+  "c": "tests/inhmet.c",
+  "res": "tests/inhmet.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/inhpos.cocci",
+  "c": "tests/inhpos.c",
+  "res": "tests/inhpos.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/initializer.cocci",
+  "c": "tests/initializer.c",
+  "res": "tests/initializer.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 5: should var be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/initializer_many_fields.cocci",
+  "c": "tests/initializer_many_fields.c",
+  "res": "tests/initializer_many_fields.res",
+  "exit": 255,
+  "stderr_tail": "warning: line 4: should x be a metavariable?\n-o can not be applied because there are no modified files\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/initpython.cocci",
+  "c": "tests/initpython.c",
+  "res": "tests/initpython.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/inline.cocci",
+  "c": "tests/inline.c",
+  "res": "tests/inline.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/insdef.cocci",
+  "c": "tests/insdef.c",
+  "res": "tests/insdef.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/int2bool-local.cocci",
+  "c": "tests/int2bool-local.c",
+  "res": "tests/int2bool-local.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/introbrace.cocci",
+  "c": "tests/introbrace.c",
+  "res": "tests/introbrace.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/invert.cocci",
+  "c": "tests/invert.c",
+  "res": "tests/invert.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ip.cocci",
+  "c": "tests/ip.c",
+  "res": "tests/ip.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ip2.cocci",
+  "c": "tests/ip2.c",
+  "res": "tests/ip2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/isococci.cocci",
+  "c": "tests/isococci.c",
+  "res": "tests/isococci.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/isoif.cocci",
+  "c": "tests/isoif.c",
+  "res": "tests/isoif.res",
+  "exit": 0,
+  "stderr_tail": "warning: r: metavariable p1 not used in the - or context code\nwarning: r: metavariable E not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/isotest.cocci",
+  "c": "tests/isotest.c",
+  "res": "tests/isotest.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/isotest2.cocci",
+  "c": "tests/isotest2.c",
+  "res": "tests/isotest2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/iteration.cocci",
+  "c": "tests/iteration.c",
+  "res": "tests/iteration.res",
+  "exit": 0,
+  "stderr_tail": "p/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/tests/iteration.c::face=ovl-face1::linb=6::colb=4::cole=5][call /tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/tests/iteration.c::6]]\n",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/iteration_after_merge.cocci",
+  "c": "tests/iteration_after_merge.c",
+  "res": "tests/iteration_after_merge.res",
+  "exit": 0,
+  "stderr_tail": "iteration_after_merge.c: 14\niteration_after_merge.c: 15\nwarning: line 46: f, previously declared as a metavariable, is used as an identifier\n",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/iterator.cocci",
+  "c": "tests/iterator.c",
+  "res": "tests/iterator.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/iterprint.cocci",
+  "c": "tests/iterprint.c",
+  "res": "tests/iterprint.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/itnull.cocci",
+  "c": "tests/itnull.c",
+  "res": "tests/itnull.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/jloop1_failure.cocci",
+  "c": "tests/jloop1_failure.c",
+  "res": "tests/jloop1_failure.res",
+  "exit": 255,
+  "stderr_tail": "minus: parse error: \n  File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/tests/jloop1_failure.cocci\", line 10, column 3, charpos = 129\n  around = '...>',\n  whole content =    ...>\n\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/julia10.cocci",
+  "c": "tests/julia10.c",
+  "res": "tests/julia10.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/julia7.cocci",
+  "c": "tests/julia7.c",
+  "res": "tests/julia7.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/justremove.cocci",
+  "c": "tests/justremove.c",
+  "res": "tests/justremove.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/keep_comma.cocci",
+  "c": "tests/keep_comma.c",
+  "res": "tests/keep_comma.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/kfree_mismatch.cocci",
+  "c": "tests/kfree_mismatch.c",
+  "res": "tests/kfree_mismatch.res",
+  "exit": 255,
+  "stderr_tail": "-o can not be applied because there are no modified files\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/kfree_sensitive.cocci",
+  "c": "tests/kfree_sensitive.c",
+  "res": "tests/kfree_sensitive.res",
+  "exit": 255,
+  "stderr_tail": "-o can not be applied because there are no modified files\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/km.cocci",
+  "c": "tests/km.c",
+  "res": "tests/km.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/kmalloc.cocci",
+  "c": "tests/kmalloc.c",
+  "res": "tests/kmalloc.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/kmc.cocci",
+  "c": "tests/kmc.c",
+  "res": "tests/kmc.res",
+  "exit": 0,
+  "stderr_tail": "warning: r: metavariable x1 not used in the - or context code\nwarning: r: metavariable S not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/kmtest4.cocci",
+  "c": "tests/kmtest4.c",
+  "res": "tests/kmtest4.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/kr_failure.cocci",
+  "c": "tests/kr_failure.c",
+  "res": "tests/kr_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "tests/ktype.cocci",
+  "c": "tests/ktype.c",
+  "res": "tests/ktype.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 1: metavariable T2 not used in the - or context code\nwarning: rule starting on line 1: metavariable T not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ktype2.cocci",
+  "c": "tests/ktype2.c",
+  "res": "tests/ktype2.res",
+  "exit": 0,
+  "stderr_tail": "warning: r: metavariable T2 not used in the - or context code\nwarning: r: metavariable T not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/kvmalloc.cocci",
+  "c": "tests/kvmalloc.c",
+  "res": "tests/kvmalloc.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/labels_metastatement_alt.cocci",
+  "c": "tests/labels_metastatement_alt.c",
+  "res": "tests/labels_metastatement_alt.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/lessone.cocci",
+  "c": "tests/lessone.c",
+  "res": "tests/lessone.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/lfe.cocci",
+  "c": "tests/lfe.c",
+  "res": "tests/lfe.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/lid.cocci",
+  "c": "tests/lid.c",
+  "res": "tests/lid.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/line_before_last.cocci",
+  "c": "tests/line_before_last.c",
+  "res": "tests/line_before_last.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/lineseq.cocci",
+  "c": "tests/lineseq.c",
+  "res": "tests/lineseq.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/list_test.cocci",
+  "c": "tests/list_test.c",
+  "res": "tests/list_test.res",
+  "exit": 0,
+  "stderr_tail": "ld b be a metavariable?\nwarning: line 71: should h be a metavariable?\nwarning: line 73: should a be a metavariable?\nwarning: line 75: should b be a metavariable?\nwarning: line 82: should i be a metavariable?\nwarning: line 84: should a be a metavariable?\nwarning: line 86: should b be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/local.cocci",
+  "c": "tests/local.c",
+  "res": "tests/local.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/localglobal.cocci",
+  "c": "tests/localglobal.c",
+  "res": "tests/localglobal.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/localid.cocci",
+  "c": "tests/localid.c",
+  "res": "tests/localid.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/localmacroparams.cocci",
+  "c": "tests/localmacroparams.c",
+  "res": "tests/localmacroparams.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/log.cocci",
+  "c": "tests/log.c",
+  "res": "tests/log.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/long.cocci",
+  "c": "tests/long.c",
+  "res": "tests/long.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/longconst.cocci",
+  "c": "tests/longconst.c",
+  "res": "tests/longconst.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/longline2.cocci",
+  "c": "tests/longline2.c",
+  "res": "tests/longline2.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 5: should a be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/longlong.cocci",
+  "c": "tests/longlong.c",
+  "res": "tests/longlong.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/longlongint.cocci",
+  "c": "tests/longlongint.c",
+  "res": "tests/longlongint.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/loop.cocci",
+  "c": "tests/loop.c",
+  "res": "tests/loop.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/loops3a.cocci",
+  "c": "tests/loops3a.c",
+  "res": "tests/loops3a.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 1, node 11: for[1,2,3,4]* in double0 may be inconsistently modified\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/lvalue.cocci",
+  "c": "tests/lvalue.c",
+  "res": "tests/lvalue.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should x be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/macro.cocci",
+  "c": "tests/macro.c",
+  "res": "tests/macro.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/macro_before_bool.cocci",
+  "c": "tests/macro_before_bool.c",
+  "res": "tests/macro_before_bool.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/macro_int16.cocci",
+  "c": "tests/macro_int16.c",
+  "res": "tests/macro_int16.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/macro_params.cocci",
+  "c": "tests/macro_params.c",
+  "res": "tests/macro_params.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/match_const_spacingfailure.cocci",
+  "c": "tests/match_const_spacingfailure.c",
+  "res": "tests/match_const_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/match_init.cocci",
+  "c": "tests/match_init.c",
+  "res": "tests/match_init.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/match_no_meta.cocci",
+  "c": "tests/match_no_meta.c",
+  "res": "tests/match_no_meta.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/max.cocci",
+  "c": "tests/max.c",
+  "res": "tests/max.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 6: should i be a metavariable?\nwarning: line 14: should i be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/md1.cocci",
+  "c": "tests/md1.c",
+  "res": "tests/md1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/md2_spacingfailure.cocci",
+  "c": "tests/md2_spacingfailure.c",
+  "res": "tests/md2_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/md3.cocci",
+  "c": "tests/md3.c",
+  "res": "tests/md3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/mdadd_spacingfailure.cocci",
+  "c": "tests/mdadd_spacingfailure.c",
+  "res": "tests/mdadd_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/mdec.cocci",
+  "c": "tests/mdec.c",
+  "res": "tests/mdec.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/mdecl.cocci",
+  "c": "tests/mdecl.c",
+  "res": "tests/mdecl.res",
+  "exit": 0,
+  "stderr_tail": "File \"/tmp/ocaml_cocci_7620a1.ml\", line 24, characters 4-11:\n24 | let unbound = List.nth __script_args__ 4 in\n         ^^^^^^^\nWarning 26 [unused-var]: unused variable unbound.\nwarning: rule starting on line 14: inherited metavariable unbound not used in the -, +, or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/mdeclp.cocci",
+  "c": "tests/mdeclp.c",
+  "res": "tests/mdeclp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "tests/mdeclp2.cocci",
+  "c": "tests/mdeclp2.c",
+  "res": "tests/mdeclp2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "tests/mdeclrep.cocci",
+  "c": "tests/mdeclrep.c",
+  "res": "tests/mdeclrep.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/mdindex.cocci",
+  "c": "tests/mdindex.c",
+  "res": "tests/mdindex.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/memdup.cocci",
+  "c": "tests/memdup.c",
+  "res": "tests/memdup.res",
+  "exit": 255,
+  "stderr_tail": "-o can not be applied because there are no modified files\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/memdup_user.cocci",
+  "c": "tests/memdup_user.c",
+  "res": "tests/memdup_user.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/memory.cocci",
+  "c": "tests/memory.c",
+  "res": "tests/memory.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/merge_after_iteration.cocci",
+  "c": "tests/merge_after_iteration.c",
+  "res": "tests/merge_after_iteration.res",
+  "exit": 0,
+  "stderr_tail": "2\n",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/merge_vars.cocci",
+  "c": "tests/merge_vars.c",
+  "res": "tests/merge_vars.res",
+  "exit": 2,
+  "stderr_tail": "warning: line 12: should f be a metavariable?\nFatal error: exception File \"/tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/tests/merge_vars.cocci\", line 21, characters 0-6: Assertion failed\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/merge_vars_python.cocci",
+  "c": "tests/merge_vars_python.c",
+  "res": "tests/merge_vars_python.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/metaattr.cocci",
+  "c": "tests/metaattr.c",
+  "res": "tests/metaattr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/metahex_failure.cocci",
+  "c": "tests/metahex_failure.c",
+  "res": "tests/metahex_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "tests/metaline.cocci",
+  "c": "tests/metaline.c",
+  "res": "tests/metaline.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 43: x, previously declared as a metavariable, is used as an identifier\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/metaops.cocci",
+  "c": "tests/metaops.c",
+  "res": "tests/metaops.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/metaops0.cocci",
+  "c": "tests/metaops0.c",
+  "res": "tests/metaops0.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/metaruleelem.cocci",
+  "c": "tests/metaruleelem.c",
+  "res": "tests/metaruleelem.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/metastatement2.cocci",
+  "c": "tests/metastatement2.c",
+  "res": "tests/metastatement2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/metastatement_for.cocci",
+  "c": "tests/metastatement_for.c",
+  "res": "tests/metastatement_for.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/metastatement_if.cocci",
+  "c": "tests/metastatement_if.c",
+  "res": "tests/metastatement_if.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/min3.cocci",
+  "c": "tests/min3.c",
+  "res": "tests/min3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/mincom.cocci",
+  "c": "tests/mincom.c",
+  "res": "tests/mincom.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/minenum.cocci",
+  "c": "tests/minenum.c",
+  "res": "tests/minenum.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/minenum1.cocci",
+  "c": "tests/minenum1.c",
+  "res": "tests/minenum1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/minfn.cocci",
+  "c": "tests/minfn.c",
+  "res": "tests/minfn.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/mini_lock.cocci",
+  "c": "tests/mini_lock.c",
+  "res": "tests/mini_lock.res",
+  "exit": 255,
+  "stderr_tail": "-o can not be applied because there are no modified files\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/mini_null_ref.cocci",
+  "c": "tests/mini_null_ref.c",
+  "res": "tests/mini_null_ref.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/miniswap.cocci",
+  "c": "tests/miniswap.c",
+  "res": "tests/miniswap.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/minmax.cocci",
+  "c": "tests/minmax.c",
+  "res": "tests/minmax.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/minstruct.cocci",
+  "c": "tests/minstruct.c",
+  "res": "tests/minstruct.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/minusall_spacingfailure.cocci",
+  "c": "tests/minusall_spacingfailure.c",
+  "res": "tests/minusall_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/minusdots.cocci",
+  "c": "tests/minusdots.c",
+  "res": "tests/minusdots.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/miss_space.cocci",
+  "c": "tests/miss_space.c",
+  "res": "tests/miss_space.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/missingt.cocci",
+  "c": "tests/missingt.c",
+  "res": "tests/missingt.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/move_type.cocci",
+  "c": "tests/move_type.c",
+  "res": "tests/move_type.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/movecomments.cocci",
+  "c": "tests/movecomments.c",
+  "res": "tests/movecomments.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/multi.cocci",
+  "c": "tests/multi.c",
+  "res": "tests/multi.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/multi_initialize_finalize.cocci",
+  "c": "tests/multi_initialize_finalize.c",
+  "res": "tests/multi_initialize_finalize.res",
+  "exit": 0,
+  "stderr_tail": "i1\ni3\ni2\ni4\nf1\nf2\nf3\nf4\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/multichars.cocci",
+  "c": "tests/multichars.c",
+  "res": "tests/multichars.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should ab be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/multidec.cocci",
+  "c": "tests/multidec.c",
+  "res": "tests/multidec.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/multidecl3.cocci",
+  "c": "tests/multidecl3.c",
+  "res": "tests/multidecl3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/multipath_spacingfailure.cocci",
+  "c": "tests/multipath_spacingfailure.c",
+  "res": "tests/multipath_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/multiplus.cocci",
+  "c": "tests/multiplus.c",
+  "res": "tests/multiplus.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 3: metavariable T not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/multiremove.cocci",
+  "c": "tests/multiremove.c",
+  "res": "tests/multiremove.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/multistruct.cocci",
+  "c": "tests/multistruct.c",
+  "res": "tests/multistruct.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/multitype.cocci",
+  "c": "tests/multitype.c",
+  "res": "tests/multitype.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/multitypedef.cocci",
+  "c": "tests/multitypedef.c",
+  "res": "tests/multitypedef.res",
+  "exit": 0,
+  "stderr_tail": "warning: non_delayed_fn: metavariable T not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/multivars.cocci",
+  "c": "tests/multivars.c",
+  "res": "tests/multivars.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/mv.cocci",
+  "c": "tests/mv.c",
+  "res": "tests/mv.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should xxx be a metavariable?\nwarning: line 4: should kfree be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/na.cocci",
+  "c": "tests/na.c",
+  "res": "tests/na.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/nameless.cocci",
+  "c": "tests/nameless.c",
+  "res": "tests/nameless.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/nest.cocci",
+  "c": "tests/nest.c",
+  "res": "tests/nest.res",
+  "exit": 0,
+  "stderr_tail": "arting on line 12, node 14: statement[1,2,4,5,7] in info_func may be inconsistently modified\nwarning: rule starting on line 12, node 13: statement[1,2,4,5,6] in info_func may be inconsistently modified\nwarning: line 6: should hostno be a metavariable?\nwarning: line 18: should xxx be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/nestadd.cocci",
+  "c": "tests/nestadd.c",
+  "res": "tests/nestadd.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/nestedexp.cocci",
+  "c": "tests/nestedexp.c",
+  "res": "tests/nestedexp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/nestedstr_failure.cocci",
+  "c": "tests/nestedstr_failure.c",
+  "res": "tests/nestedstr_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/nestone.cocci",
+  "c": "tests/nestone.c",
+  "res": "tests/nestone.res",
+  "exit": 0,
+  "stderr_tail": "warning: one: metavariable S not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/nestseq.cocci",
+  "c": "tests/nestseq.c",
+  "res": "tests/nestseq.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/neststruct.cocci",
+  "c": "tests/neststruct.c",
+  "res": "tests/neststruct.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/nl.cocci",
+  "c": "tests/nl.c",
+  "res": "tests/nl.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should x be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/noa.cocci",
+  "c": "tests/noa.c",
+  "res": "tests/noa.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/nocast.cocci",
+  "c": "tests/nocast.c",
+  "res": "tests/nocast.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/noderef.cocci",
+  "c": "tests/noderef.c",
+  "res": "tests/noderef.res",
+  "exit": 255,
+  "stderr_tail": "-o can not be applied because there are no modified files\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/noret.cocci",
+  "c": "tests/noret.c",
+  "res": "tests/noret.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/not.cocci",
+  "c": "tests/not.c",
+  "res": "tests/not.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/notest.cocci",
+  "c": "tests/notest.c",
+  "res": "tests/notest.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/notnot.cocci",
+  "c": "tests/notnot.c",
+  "res": "tests/notnot.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 6: should true be a metavariable?\nwarning: line 6: should false be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/noty.cocci",
+  "c": "tests/noty.c",
+  "res": "tests/noty.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/noty2.cocci",
+  "c": "tests/noty2.c",
+  "res": "tests/noty2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/null_bool.cocci",
+  "c": "tests/null_bool.c",
+  "res": "tests/null_bool.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should x be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/null_type.cocci",
+  "c": "tests/null_type.c",
+  "res": "tests/null_type.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/oddifdef.cocci",
+  "c": "tests/oddifdef.c",
+  "res": "tests/oddifdef.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should x be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/of.cocci",
+  "c": "tests/of.c",
+  "res": "tests/of.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/omp.cocci",
+  "c": "tests/omp.c",
+  "res": "tests/omp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/oneline.cocci",
+  "c": "tests/oneline.c",
+  "res": "tests/oneline.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/op.cocci",
+  "c": "tests/op.c",
+  "res": "tests/op.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/opt.cocci",
+  "c": "tests/opt.c",
+  "res": "tests/opt.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/optional_qualifier.cocci",
+  "c": "tests/optional_qualifier.c",
+  "res": "tests/optional_qualifier.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/optional_storage.cocci",
+  "c": "tests/optional_storage.c",
+  "res": "tests/optional_storage.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/orexp.cocci",
+  "c": "tests/orexp.c",
+  "res": "tests/orexp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/orplus.cocci",
+  "c": "tests/orplus.c",
+  "res": "tests/orplus.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/output.cocci",
+  "c": "tests/output.c",
+  "res": "tests/output.res",
+  "exit": 0,
+  "stderr_tail": "f\n",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/output_init.cocci",
+  "c": "tests/output_init.c",
+  "res": "tests/output_init.res",
+  "exit": 0,
+  "stderr_tail": "Hello world.\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/overshoot.cocci",
+  "c": "tests/overshoot.c",
+  "res": "tests/overshoot.res",
+  "exit": 0,
+  "stderr_tail": "warning: aaa: metavariable f not used in the - or context code\nwarning: xxx: metavariable f not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/p1p2.cocci",
+  "c": "tests/p1p2.c",
+  "res": "tests/p1p2.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 9: should errp be a metavariable?\nwarning: line 20: should errp be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/p9.cocci",
+  "c": "tests/p9.c",
+  "res": "tests/p9.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/pa.cocci",
+  "c": "tests/pa.c",
+  "res": "tests/pa.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/packed.cocci",
+  "c": "tests/packed.c",
+  "res": "tests/packed.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/param.cocci",
+  "c": "tests/param.c",
+  "res": "tests/param.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/param_end.cocci",
+  "c": "tests/param_end.c",
+  "res": "tests/param_end.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 6: should x be a metavariable?\nwarning: line 14: should y be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/param_to_exp.cocci",
+  "c": "tests/param_to_exp.c",
+  "res": "tests/param_to_exp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/parameters_dots_spacingfailure.cocci",
+  "c": "tests/parameters_dots_spacingfailure.c",
+  "res": "tests/parameters_dots_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/parenmac.cocci",
+  "c": "tests/parenmac.c",
+  "res": "tests/parenmac.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/partial.cocci",
+  "c": "tests/partial.c",
+  "res": "tests/partial.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 1: metavariable S not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/partialmd.cocci",
+  "c": "tests/partialmd.c",
+  "res": "tests/partialmd.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/partialmd2.cocci",
+  "c": "tests/partialmd2.c",
+  "res": "tests/partialmd2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/partialmd3.cocci",
+  "c": "tests/partialmd3.c",
+  "res": "tests/partialmd3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/pb_distribute_type2_failure.cocci",
+  "c": "tests/pb_distribute_type2_failure.c",
+  "res": "tests/pb_distribute_type2_failure.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 8: should x be a metavariable?\n",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/pb_distribute_type3.cocci",
+  "c": "tests/pb_distribute_type3.c",
+  "res": "tests/pb_distribute_type3.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 7: should x be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/pb_distribute_type4.cocci",
+  "c": "tests/pb_distribute_type4.c",
+  "res": "tests/pb_distribute_type4.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 8: should x be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/pb_distribute_type_failure.cocci",
+  "c": "tests/pb_distribute_type_failure.c",
+  "res": "tests/pb_distribute_type_failure.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 6: should x be a metavariable?\n",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/pb_params_iso.cocci",
+  "c": "tests/pb_params_iso.c",
+  "res": "tests/pb_params_iso.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 23: should i be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/pb_parsing_macro.cocci",
+  "c": "tests/pb_parsing_macro.c",
+  "res": "tests/pb_parsing_macro.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/pb_tag_symbols.cocci",
+  "c": "tests/pb_tag_symbols.c",
+  "res": "tests/pb_tag_symbols.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/pcim.cocci",
+  "c": "tests/pcim.c",
+  "res": "tests/pcim.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/pcomma.cocci",
+  "c": "tests/pcomma.c",
+  "res": "tests/pcomma.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/pif.cocci",
+  "c": "tests/pif.c",
+  "res": "tests/pif.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/plus33.cocci",
+  "c": "tests/plus33.c",
+  "res": "tests/plus33.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/pmac.cocci",
+  "c": "tests/pmac.c",
+  "res": "tests/pmac.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/poscon.cocci",
+  "c": "tests/poscon.c",
+  "res": "tests/poscon.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/posiso.cocci",
+  "c": "tests/posiso.c",
+  "res": "tests/posiso.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/positionc.cocci",
+  "c": "tests/positionc.c",
+  "res": "tests/positionc.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/post.cocci",
+  "c": "tests/post.c",
+  "res": "tests/post.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/postcomment.cocci",
+  "c": "tests/postcomment.c",
+  "res": "tests/postcomment.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/pragma2.cocci",
+  "c": "tests/pragma2.c",
+  "res": "tests/pragma2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/pragma2a.cocci",
+  "c": "tests/pragma2a.c",
+  "res": "tests/pragma2a.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/pragma3.cocci",
+  "c": "tests/pragma3.c",
+  "res": "tests/pragma3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/pragma_and_block_a_failure.cocci",
+  "c": "tests/pragma_and_block_a_failure.c",
+  "res": "tests/pragma_and_block_a_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "tests/pragma_and_block_b.cocci",
+  "c": "tests/pragma_and_block_b.c",
+  "res": "tests/pragma_and_block_b.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/pragma_before_loop_failure.cocci",
+  "c": "tests/pragma_before_loop_failure.c",
+  "res": "tests/pragma_before_loop_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "tests/pragmainfo_multiline.cocci",
+  "c": "tests/pragmainfo_multiline.c",
+  "res": "tests/pragmainfo_multiline.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/pragmatest1.cocci",
+  "c": "tests/pragmatest1.c",
+  "res": "tests/pragmatest1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/pragmatest2.cocci",
+  "c": "tests/pragmatest2.c",
+  "res": "tests/pragmatest2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/print_return.cocci",
+  "c": "tests/print_return.c",
+  "res": "tests/print_return.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 6: should link be a metavariable?\nwarning: rule starting on line 1: metavariable E not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/proto.cocci",
+  "c": "tests/proto.c",
+  "res": "tests/proto.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/proto2.cocci",
+  "c": "tests/proto2.c",
+  "res": "tests/proto2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/protoassert.cocci",
+  "c": "tests/protoassert.c",
+  "res": "tests/protoassert.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/protox.cocci",
+  "c": "tests/protox.c",
+  "res": "tests/protox.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 14: should x be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/ptr_err_to_pe.cocci",
+  "c": "tests/ptr_err_to_pe.c",
+  "res": "tests/ptr_err_to_pe.res",
+  "exit": 255,
+  "stderr_tail": "-o can not be applied because there are no modified files\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/ptrar.cocci",
+  "c": "tests/ptrar.c",
+  "res": "tests/ptrar.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ptrconstptr_spacingfailure.cocci",
+  "c": "tests/ptrconstptr_spacingfailure.c",
+  "res": "tests/ptrconstptr_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/putloop.cocci",
+  "c": "tests/putloop.c",
+  "res": "tests/putloop.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 12: metavariable S not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/python_iteration.cocci",
+  "c": "tests/python_iteration.c",
+  "res": "tests/python_iteration.res",
+  "exit": 0,
+  "stderr_tail": "-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/tests/python_iteration.c::face=ovl-face1::linb=6::colb=4::cole=5][call /tmp/claude-1000/-home-roche-git-AlgoliaSaaS/32e3b5b7-d685-4d3a-9c3a-2452dfcf7530/scratchpad/coccinelle-src/tests/python_iteration.c::6]]\n",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/python_mdecl.cocci",
+  "c": "tests/python_mdecl.c",
+  "res": "tests/python_mdecl.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 14: inherited metavariable unbound not used in the -, +, or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/python_mdeclp.cocci",
+  "c": "tests/python_mdeclp.c",
+  "res": "tests/python_mdeclp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "tests/python_poscon.cocci",
+  "c": "tests/python_poscon.c",
+  "res": "tests/python_poscon.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/qcom.cocci",
+  "c": "tests/qcom.c",
+  "res": "tests/qcom.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/qualifier.cocci",
+  "c": "tests/qualifier.c",
+  "res": "tests/qualifier.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/quotes.cocci",
+  "c": "tests/quotes.c",
+  "res": "tests/quotes.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ran.cocci",
+  "c": "tests/ran.c",
+  "res": "tests/ran.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/range.cocci",
+  "c": "tests/range.c",
+  "res": "tests/range.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/rb.cocci",
+  "c": "tests/rb.c",
+  "res": "tests/rb.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/rcu3.cocci",
+  "c": "tests/rcu3.c",
+  "res": "tests/rcu3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/refl.cocci",
+  "c": "tests/refl.c",
+  "res": "tests/refl.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/regesc.cocci",
+  "c": "tests/regesc.c",
+  "res": "tests/regesc.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/regexp.cocci",
+  "c": "tests/regexp.c",
+  "res": "tests/regexp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/regexp2.cocci",
+  "c": "tests/regexp2.c",
+  "res": "tests/regexp2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/regexp3.cocci",
+  "c": "tests/regexp3.c",
+  "res": "tests/regexp3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/relevant_position.cocci",
+  "c": "tests/relevant_position.c",
+  "res": "tests/relevant_position.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/rem1.cocci",
+  "c": "tests/rem1.c",
+  "res": "tests/rem1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/rem2.cocci",
+  "c": "tests/rem2.c",
+  "res": "tests/rem2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/remaft.cocci",
+  "c": "tests/remaft.c",
+  "res": "tests/remaft.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/remcom.cocci",
+  "c": "tests/remcom.c",
+  "res": "tests/remcom.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/remcom2.cocci",
+  "c": "tests/remcom2.c",
+  "res": "tests/remcom2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/remodif.cocci",
+  "c": "tests/remodif.c",
+  "res": "tests/remodif.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/remove-code-in-branch1.cocci",
+  "c": "tests/remove-code-in-branch1.c",
+  "res": "tests/remove-code-in-branch1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/remove_call.cocci",
+  "c": "tests/remove_call.c",
+  "res": "tests/remove_call.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/remove_cast_attr.cocci",
+  "c": "tests/remove_cast_attr.c",
+  "res": "tests/remove_cast_attr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/remove_cast_attr_allminus.cocci",
+  "c": "tests/remove_cast_attr_allminus.c",
+  "res": "tests/remove_cast_attr_allminus.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/remove_macrodecl_attr.cocci",
+  "c": "tests/remove_macrodecl_attr.c",
+  "res": "tests/remove_macrodecl_attr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/remove_metaattr.cocci",
+  "c": "tests/remove_metaattr.c",
+  "res": "tests/remove_metaattr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/remove_param_attrs.cocci",
+  "c": "tests/remove_param_attrs.c",
+  "res": "tests/remove_param_attrs.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 23: should nocast be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/remove_struct_endattr.cocci",
+  "c": "tests/remove_struct_endattr.c",
+  "res": "tests/remove_struct_endattr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/remove_struct_endattr_allminus.cocci",
+  "c": "tests/remove_struct_endattr_allminus.c",
+  "res": "tests/remove_struct_endattr_allminus.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/remparam.cocci",
+  "c": "tests/remparam.c",
+  "res": "tests/remparam.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/rems.cocci",
+  "c": "tests/rems.c",
+  "res": "tests/rems.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/rems1.cocci",
+  "c": "tests/rems1.c",
+  "res": "tests/rems1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/remstruct_spacingfailure.cocci",
+  "c": "tests/remstruct_spacingfailure.c",
+  "res": "tests/remstruct_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 2: should mpuio_irq_chip be a metavariable?\nwarning: line 8: should xxx be a metavariable?\n",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/remu.cocci",
+  "c": "tests/remu.c",
+  "res": "tests/remu.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/replace_typedef.cocci",
+  "c": "tests/replace_typedef.c",
+  "res": "tests/replace_typedef.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/replacement3.cocci",
+  "c": "tests/replacement3.c",
+  "res": "tests/replacement3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/reserved.cocci",
+  "c": "tests/reserved.c",
+  "res": "tests/reserved.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/retest.cocci",
+  "c": "tests/retest.c",
+  "res": "tests/retest.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/retmacro.cocci",
+  "c": "tests/retmacro.c",
+  "res": "tests/retmacro.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/rets.cocci",
+  "c": "tests/rets.c",
+  "res": "tests/rets.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/return.cocci",
+  "c": "tests/return.c",
+  "res": "tests/return.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 18: metavariable S not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/return_implicit.cocci",
+  "c": "tests/return_implicit.c",
+  "res": "tests/return_implicit.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/retval.cocci",
+  "c": "tests/retval.c",
+  "res": "tests/retval.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/retval2.cocci",
+  "c": "tests/retval2.c",
+  "res": "tests/retval2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/reusevar.cocci",
+  "c": "tests/reusevar.c",
+  "res": "tests/reusevar.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 8: metavariable p1 not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ringbuf.cocci",
+  "c": "tests/ringbuf.c",
+  "res": "tests/ringbuf.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/roa.cocci",
+  "c": "tests/roa.c",
+  "res": "tests/roa.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/roinit.cocci",
+  "c": "tests/roinit.c",
+  "res": "tests/roinit.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/rptr.cocci",
+  "c": "tests/rptr.c",
+  "res": "tests/rptr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/saft.cocci",
+  "c": "tests/saft.c",
+  "res": "tests/saft.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/saft2.cocci",
+  "c": "tests/saft2.c",
+  "res": "tests/saft2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/same_expr.cocci",
+  "c": "tests/same_expr.c",
+  "res": "tests/same_expr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/sbef.cocci",
+  "c": "tests/sbef.c",
+  "res": "tests/sbef.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/sbef2.cocci",
+  "c": "tests/sbef2.c",
+  "res": "tests/sbef2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/scope_problem.cocci",
+  "c": "tests/scope_problem.c",
+  "res": "tests/scope_problem.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/scoped_guard.cocci",
+  "c": "tests/scoped_guard.c",
+  "res": "tests/scoped_guard.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/scoped_guard2.cocci",
+  "c": "tests/scoped_guard2.c",
+  "res": "tests/scoped_guard2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/sd_2.cocci",
+  "c": "tests/sd_2.c",
+  "res": "tests/sd_2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/semicolon.cocci",
+  "c": "tests/semicolon.c",
+  "res": "tests/semicolon.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/serio.cocci",
+  "c": "tests/serio.c",
+  "res": "tests/serio.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/sg.cocci",
+  "c": "tests/sg.c",
+  "res": "tests/sg.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/shared_brace_spacingfailure.cocci",
+  "c": "tests/shared_brace_spacingfailure.c",
+  "res": "tests/shared_brace_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 1: metavariable S not used in the - or context code\nwarning: rule starting on line 1: metavariable x not used in the - or context code\nwarning: rule starting on line 1: metavariable T not used in the - or context code\n",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/signed.cocci",
+  "c": "tests/signed.c",
+  "res": "tests/signed.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should x be a metavariable?\nwarning: line 10: should a be a metavariable?\nwarning: line 16: should m be a metavariable?\nwarning: line 23: should p be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/sis.cocci",
+  "c": "tests/sis.c",
+  "res": "tests/sis.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/sizeof.cocci",
+  "c": "tests/sizeof.c",
+  "res": "tests/sizeof.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/sizeof_julia.cocci",
+  "c": "tests/sizeof_julia.c",
+  "res": "tests/sizeof_julia.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/sizeptr.cocci",
+  "c": "tests/sizeptr.c",
+  "res": "tests/sizeptr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/sizestar.cocci",
+  "c": "tests/sizestar.c",
+  "res": "tests/sizestar.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/sizet1.cocci",
+  "c": "tests/sizet1.c",
+  "res": "tests/sizet1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/skip.cocci",
+  "c": "tests/skip.c",
+  "res": "tests/skip.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/sl2.cocci",
+  "c": "tests/sl2.c",
+  "res": "tests/sl2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/slen.cocci",
+  "c": "tests/slen.c",
+  "res": "tests/slen.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/sltest.cocci",
+  "c": "tests/sltest.c",
+  "res": "tests/sltest.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/smallfn_spacingfailure.cocci",
+  "c": "tests/smallfn_spacingfailure.c",
+  "res": "tests/smallfn_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/snprintf.cocci",
+  "c": "tests/snprintf.c",
+  "res": "tests/snprintf.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/sp.cocci",
+  "c": "tests/sp.c",
+  "res": "tests/sp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/spaces.cocci",
+  "c": "tests/spaces.c",
+  "res": "tests/spaces.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/spacing.cocci",
+  "c": "tests/spacing.c",
+  "res": "tests/spacing.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/spl.cocci",
+  "c": "tests/spl.c",
+  "res": "tests/spl.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/split_funcall1.cocci",
+  "c": "tests/split_funcall1.c",
+  "res": "tests/split_funcall1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/split_funcall2.cocci",
+  "c": "tests/split_funcall2.c",
+  "res": "tests/split_funcall2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/square.cocci",
+  "c": "tests/square.c",
+  "res": "tests/square.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/starprint.cocci",
+  "c": "tests/starprint.c",
+  "res": "tests/starprint.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/stat_spacingfailure.cocci",
+  "c": "tests/stat_spacingfailure.c",
+  "res": "tests/stat_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/static.cocci",
+  "c": "tests/static.c",
+  "res": "tests/static.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/stm1.cocci",
+  "c": "tests/stm1.c",
+  "res": "tests/stm1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/stm10.cocci",
+  "c": "tests/stm10.c",
+  "res": "tests/stm10.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/stm2.cocci",
+  "c": "tests/stm2.c",
+  "res": "tests/stm2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/stm3.cocci",
+  "c": "tests/stm3.c",
+  "res": "tests/stm3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/stm4.cocci",
+  "c": "tests/stm4.c",
+  "res": "tests/stm4.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/stm5.cocci",
+  "c": "tests/stm5.c",
+  "res": "tests/stm5.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/stm6.cocci",
+  "c": "tests/stm6.c",
+  "res": "tests/stm6.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/stm7.cocci",
+  "c": "tests/stm7.c",
+  "res": "tests/stm7.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/stm8.cocci",
+  "c": "tests/stm8.c",
+  "res": "tests/stm8.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/stm_exp.cocci",
+  "c": "tests/stm_exp.c",
+  "res": "tests/stm_exp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/stmt.cocci",
+  "c": "tests/stmt.c",
+  "res": "tests/stmt.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/stmt_removed_and_added.cocci",
+  "c": "tests/stmt_removed_and_added.c",
+  "res": "tests/stmt_removed_and_added.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/str_init.cocci",
+  "c": "tests/str_init.c",
+  "res": "tests/str_init.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 4: should x be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/strangeorder.cocci",
+  "c": "tests/strangeorder.c",
+  "res": "tests/strangeorder.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 1: metavariable f not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/strid.cocci",
+  "c": "tests/strid.c",
+  "res": "tests/strid.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/strid2.cocci",
+  "c": "tests/strid2.c",
+  "res": "tests/strid2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/string.cocci",
+  "c": "tests/string.c",
+  "res": "tests/string.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/string_choices.cocci",
+  "c": "tests/string_choices.c",
+  "res": "tests/string_choices.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/strtest.cocci",
+  "c": "tests/strtest.c",
+  "res": "tests/strtest.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/struct.cocci",
+  "c": "tests/struct.c",
+  "res": "tests/struct.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/struct_metavar.cocci",
+  "c": "tests/struct_metavar.c",
+  "res": "tests/struct_metavar.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/struct_typedef.cocci",
+  "c": "tests/struct_typedef.c",
+  "res": "tests/struct_typedef.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/structfoo.cocci",
+  "c": "tests/structfoo.c",
+  "res": "tests/structfoo.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 5: should my_foo be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/structptr_func.cocci",
+  "c": "tests/structptr_func.c",
+  "res": "tests/structptr_func.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/substruct.cocci",
+  "c": "tests/substruct.c",
+  "res": "tests/substruct.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/sw.cocci",
+  "c": "tests/sw.c",
+  "res": "tests/sw.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/swap.cocci",
+  "c": "tests/swap.c",
+  "res": "tests/swap.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/swap3.cocci",
+  "c": "tests/swap3.c",
+  "res": "tests/swap3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/switch.cocci",
+  "c": "tests/switch.c",
+  "res": "tests/switch.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/switchdecl.cocci",
+  "c": "tests/switchdecl.c",
+  "res": "tests/switchdecl.res",
+  "exit": 0,
+  "stderr_tail": "warning: switch_1: metavariable S_1 not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/symbol.cocci",
+  "c": "tests/symbol.c",
+  "res": "tests/symbol.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 12: should g be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/td.cocci",
+  "c": "tests/td.c",
+  "res": "tests/td.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/tdnl.cocci",
+  "c": "tests/tdnl.c",
+  "res": "tests/tdnl.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/tdplus.cocci",
+  "c": "tests/tdplus.c",
+  "res": "tests/tdplus.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/tern.cocci",
+  "c": "tests/tern.c",
+  "res": "tests/tern.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/test0.cocci",
+  "c": "tests/test0.c",
+  "res": "tests/test0.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/test1.cocci",
+  "c": "tests/test1.c",
+  "res": "tests/test1.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/test10.cocci",
+  "c": "tests/test10.c",
+  "res": "tests/test10.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/test11.cocci",
+  "c": "tests/test11.c",
+  "res": "tests/test11.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/test12.cocci",
+  "c": "tests/test12.c",
+  "res": "tests/test12.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/test2.cocci",
+  "c": "tests/test2.c",
+  "res": "tests/test2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/test3.cocci",
+  "c": "tests/test3.c",
+  "res": "tests/test3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/test4.cocci",
+  "c": "tests/test4.c",
+  "res": "tests/test4.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/test5.cocci",
+  "c": "tests/test5.c",
+  "res": "tests/test5.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/test6.cocci",
+  "c": "tests/test6.c",
+  "res": "tests/test6.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/test7.cocci",
+  "c": "tests/test7.c",
+  "res": "tests/test7.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/test8.cocci",
+  "c": "tests/test8.c",
+  "res": "tests/test8.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/test9.cocci",
+  "c": "tests/test9.c",
+  "res": "tests/test9.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/test_addr.cocci",
+  "c": "tests/test_addr.c",
+  "res": "tests/test_addr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/test_s.cocci",
+  "c": "tests/test_s.c",
+  "res": "tests/test_s.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/test_unsigned_meta.cocci",
+  "c": "tests/test_unsigned_meta.c",
+  "res": "tests/test_unsigned_meta.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 6: should x be a metavariable?\nwarning: line 13: should y be a metavariable?\nwarning: line 19: should q be a metavariable?\nwarning: line 28: should m be a metavariable?\nwarning: line 33: should x be a metavariable?\nwarning: line 39: should y be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/testand.cocci",
+  "c": "tests/testand.c",
+  "res": "tests/testand.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/testand2.cocci",
+  "c": "tests/testand2.c",
+  "res": "tests/testand2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/three_types.cocci",
+  "c": "tests/three_types.c",
+  "res": "tests/three_types.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/threea.cocci",
+  "c": "tests/threea.c",
+  "res": "tests/threea.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/tloop.cocci",
+  "c": "tests/tloop.c",
+  "res": "tests/tloop.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/top.cocci",
+  "c": "tests/top.c",
+  "res": "tests/top.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/topdec.cocci",
+  "c": "tests/topdec.c",
+  "res": "tests/topdec.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/topdecl.cocci",
+  "c": "tests/topdecl.c",
+  "res": "tests/topdecl.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/toplevel_macrostmt.cocci",
+  "c": "tests/toplevel_macrostmt.c",
+  "res": "tests/toplevel_macrostmt.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/toplevel_struct.cocci",
+  "c": "tests/toplevel_struct.c",
+  "res": "tests/toplevel_struct.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 5: should usb_stor_host_template be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/triplet.cocci",
+  "c": "tests/triplet.c",
+  "res": "tests/triplet.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/tup.cocci",
+  "c": "tests/tup.c",
+  "res": "tests/tup.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 10: metavariable C not used in the - or context code\nwarning: rule starting on line 10: metavariable B not used in the - or context code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/twomatch.cocci",
+  "c": "tests/twomatch.c",
+  "res": "tests/twomatch.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/twoproto.cocci",
+  "c": "tests/twoproto.c",
+  "res": "tests/twoproto.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ty.cocci",
+  "c": "tests/ty.c",
+  "res": "tests/ty.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ty1.cocci",
+  "c": "tests/ty1.c",
+  "res": "tests/ty1.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 7: should x be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ty_tyexp.cocci",
+  "c": "tests/ty_tyexp.c",
+  "res": "tests/ty_tyexp.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/tydisj.cocci",
+  "c": "tests/tydisj.c",
+  "res": "tests/tydisj.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/tyex.cocci",
+  "c": "tests/tyex.c",
+  "res": "tests/tyex.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/type.cocci",
+  "c": "tests/type.c",
+  "res": "tests/type.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/type1_spacingfailure.cocci",
+  "c": "tests/type1_spacingfailure.c",
+  "res": "tests/type1_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/type_and_var.cocci",
+  "c": "tests/type_and_var.c",
+  "res": "tests/type_and_var.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/type_and_var2.cocci",
+  "c": "tests/type_and_var2.c",
+  "res": "tests/type_and_var2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/type_annotated.cocci",
+  "c": "tests/type_annotated.c",
+  "res": "tests/type_annotated.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/type_constraints.cocci",
+  "c": "tests/type_constraints.c",
+  "res": "tests/type_constraints.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/typedef.cocci",
+  "c": "tests/typedef.c",
+  "res": "tests/typedef.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/typedef2.cocci",
+  "c": "tests/typedef2.c",
+  "res": "tests/typedef2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/typedef3_failure.cocci",
+  "c": "tests/typedef3_failure.c",
+  "res": "tests/typedef3_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/typeof.cocci",
+  "c": "tests/typeof.c",
+  "res": "tests/typeof.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/typeof_expr.cocci",
+  "c": "tests/typeof_expr.c",
+  "res": "tests/typeof_expr.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/typeofconst_i32l64.cocci",
+  "c": "tests/typeofconst_i32l64.c",
+  "res": "tests/typeofconst_i32l64.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/typeofconst_il32.cocci",
+  "c": "tests/typeofconst_il32.c",
+  "res": "tests/typeofconst_il32.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/typin.cocci",
+  "c": "tests/typin.c",
+  "res": "tests/typin.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/uc.cocci",
+  "c": "tests/uc.c",
+  "res": "tests/uc.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/unary.cocci",
+  "c": "tests/unary.c",
+  "res": "tests/unary.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/unbrace_spacingfailure.cocci",
+  "c": "tests/unbrace_spacingfailure.c",
+  "res": "tests/unbrace_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "fied\nwarning: rule starting on line 1, node 26: foreach[1,2,12]* in mlxsw_sp_flower_parse_actions may be inconsistently modified\nwarning: rule starting on line 1, node 320: }2[1,2,12,13] in mlxsw_sp_flower_parse_actions may be inconsistently modified\nwarning: line 13: should list be a metavariable?\n",
+  "verdict": "RES_MODULO_WHITESPACE",
+  "changed": true
+ },
+ {
+  "rule": "tests/undref.cocci",
+  "c": "tests/undref.c",
+  "res": "tests/undref.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/undref2.cocci",
+  "c": "tests/undref2.c",
+  "res": "tests/undref2.res",
+  "exit": 0,
+  "stderr_tail": "the value of f: unknown\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/undref3.cocci",
+  "c": "tests/undref3.c",
+  "res": "tests/undref3.res",
+  "exit": 0,
+  "stderr_tail": "the value of f: unknown\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/unelse.cocci",
+  "c": "tests/unelse.c",
+  "res": "tests/unelse.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/unfree.cocci",
+  "c": "tests/unfree.c",
+  "res": "tests/unfree.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/uninitialized_var.cocci",
+  "c": "tests/uninitialized_var.c",
+  "res": "tests/uninitialized_var.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/unl.cocci",
+  "c": "tests/unl.c",
+  "res": "tests/unl.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/unsigned_lesser_than_zero.cocci",
+  "c": "tests/unsigned_lesser_than_zero.c",
+  "res": "tests/unsigned_lesser_than_zero.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/unstruct.cocci",
+  "c": "tests/unstruct.c",
+  "res": "tests/unstruct.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/unused.cocci",
+  "c": "tests/unused.c",
+  "res": "tests/unused.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/updassign.cocci",
+  "c": "tests/updassign.c",
+  "res": "tests/updassign.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/use_after_iter.cocci",
+  "c": "tests/use_after_iter.c",
+  "res": "tests/use_after_iter.res",
+  "exit": 255,
+  "stderr_tail": "-o can not be applied because there are no modified files\n",
+  "verdict": "NO_OUTPUT"
+ },
+ {
+  "rule": "tests/useless_cast.cocci",
+  "c": "tests/useless_cast.c",
+  "res": "tests/useless_cast.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/varargs.cocci",
+  "c": "tests/varargs.c",
+  "res": "tests/varargs.res",
+  "exit": 0,
+  "stderr_tail": "warning: line 13: should ty_id be a metavariable?\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/varargs2.cocci",
+  "c": "tests/varargs2.c",
+  "res": "tests/varargs2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/varargs3.cocci",
+  "c": "tests/varargs3.c",
+  "res": "tests/varargs3.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": false
+ },
+ {
+  "rule": "tests/video1bis.cocci",
+  "c": "tests/video1bis.c",
+  "res": "tests/video1bis.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/void_spacingfailure.cocci",
+  "c": "tests/void_spacingfailure.c",
+  "res": "tests/void_spacingfailure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_DIFFERS",
+  "changed": true
+ },
+ {
+  "rule": "tests/vpos.cocci",
+  "c": "tests/vpos.c",
+  "res": "tests/vpos.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/wchar.cocci",
+  "c": "tests/wchar.c",
+  "res": "tests/wchar.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/weird_argument.cocci",
+  "c": "tests/weird_argument.c",
+  "res": "tests/weird_argument.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/weirdinit_failure.cocci",
+  "c": "tests/weirdinit_failure.c",
+  "res": "tests/weirdinit_failure.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "NO_CHANGE",
+  "changed": false
+ },
+ {
+  "rule": "tests/whitespace.cocci",
+  "c": "tests/whitespace.c",
+  "res": "tests/whitespace.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/wrongcheck.cocci",
+  "c": "tests/wrongcheck.c",
+  "res": "tests/wrongcheck.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/ws2.cocci",
+  "c": "tests/ws2.c",
+  "res": "tests/ws2.res",
+  "exit": 0,
+  "stderr_tail": "warning: rule starting on line 1: metavariable A not used in the + code\n",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/xfield.cocci",
+  "c": "tests/xfield.c",
+  "res": "tests/xfield.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/y2.cocci",
+  "c": "tests/y2.c",
+  "res": "tests/y2.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/zero.cocci",
+  "c": "tests/zero.c",
+  "res": "tests/zero.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ },
+ {
+  "rule": "tests/zeroline.cocci",
+  "c": "tests/zeroline.c",
+  "res": "tests/zeroline.res",
+  "exit": 0,
+  "stderr_tail": "",
+  "verdict": "RES_EXACT",
+  "changed": true
+ }
+]
