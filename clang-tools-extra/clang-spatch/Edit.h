@@ -95,11 +95,9 @@ std::optional<PatternEdit> buildInnerEdit(const Stmt &Target,
 /// writes there.
 ///
 /// Coccinelle takes some of the whitespace around a region it rewrites and
-/// leaves the rest. The rule is a fit to a probe matrix over `spatch` 1.1.1
-/// that varies the token on each side, the whitespace on each side and the
-/// number of target tokens in the region. Reading `unparse_c.ml` predicted
-/// the wrong answer three times when the deletion rule was written, so this
-/// was measured rather than read.
+/// leaves the rest. Every clause below was measured against `spatch` 1.1.1
+/// rather than read off its source, which is what stops a later reader
+/// deriving a different rule and calling this one a bug.
 ///
 /// - The whitespace before the region goes when the token before it is `(`,
 ///   and stays otherwise. A `[` does not take it.
@@ -110,7 +108,9 @@ std::optional<PatternEdit> buildInnerEdit(const Stmt &Target,
 /// - Otherwise it stays as written. Only those three followers were measured,
 ///   so any other one keeps what the target wrote.
 ///
-/// \p Text is updated in place when a space has to be written.
+/// \p Text is updated in place when a space has to be written, so a caller
+/// writes the returned range with the updated \p Text and not with the string
+/// it passed in.
 CharSourceRange inPlaceEditRange(CharSourceRange Range, std::string &Text,
                                  ASTContext &Context);
 

@@ -141,7 +141,6 @@ size_t spaceAfter(llvm::StringRef Buffer, size_t At) {
   return At;
 }
 
-
 /// Reads the buffer around a deletion, so the rules below can ask about lines
 /// rather than about offsets.
 class BufferLines {
@@ -293,8 +292,9 @@ CharSourceRange inPlaceEditRange(CharSourceRange Range, std::string &Text,
   const llvm::StringRef Buffer =
       SM.getBufferData(SM.getFileID(Lexer::makeFileCharRange(Range, SM, Opts)
                                         .getBegin()));
-  if (At->End > Buffer.size())
-    return Range;
+  // The offsets and the buffer come from one FileID, which is what lets the
+  // scans below index the buffer at all.
+  assert(At->End <= Buffer.size() && "offsets outside their own buffer");
 
   Span Wide = *At;
   // Coccinelle prints nothing between a `(` and what follows it.
@@ -326,15 +326,14 @@ CharSourceRange inPlaceEditRange(CharSourceRange Range, std::string &Text,
 const Stmt *innerEditTarget(unsigned PatternBegin, unsigned PatternEnd,
                             const NodePairs &Pairs,
                             ASTContext &PatternContext) {
-  // Outermost first, because `match` records a pattern node before it
-  // descends into it, so an implicit cast is found before the expression
-  // under it and both name the same characters.
+  // The first exact match wins. A pattern node and an implicit cast over it
+  // name the same characters, so either one gives the same range.
   for (const auto &Pair : Pairs) {
     const std::optional<Span> Here = spanOf(
-        CharSourceRange::getTokenRange(Pair.first->getSourceRange()),
+        CharSourceRange::getTokenRange(Pair.Pattern->getSourceRange()),
         PatternContext.getSourceManager(), PatternContext.getLangOpts());
     if (Here && Here->Begin == PatternBegin && Here->End == PatternEnd)
-      return Pair.second;
+      return Pair.Target;
   }
   return nullptr;
 }

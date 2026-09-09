@@ -240,6 +240,8 @@ public:
   /// the caller owns one per candidate.
   bool run(const Stmt *Pattern, const Stmt *Target, Bindings &Bound,
            NodePairs *Out = nullptr) {
+    assert((!Out || Out->empty()) &&
+           "run appends, so the caller owns one NodePairs per candidate");
     Pairs = Out;
     const bool Matched = match(Pattern, Target, Bound);
     Pairs = nullptr;
@@ -415,7 +417,7 @@ private:
     // Recorded before peeling, so a pattern written `(i = i2)` pairs with the
     // target's own parentheses and an edit on it takes them too.
     if (Pairs)
-      Pairs->emplace_back(Pattern, Target);
+      Pairs->push_back({Pattern, Target});
     const Stmt *P = peel(Pattern);
     const Stmt *T = peel(Target);
     if (!P || !T)
@@ -622,16 +624,6 @@ bool unify(const Stmt *Pattern, const Stmt *Target, const ParsedPattern &Parsed,
   return Unifier(Parsed, Context).run(Pattern, Target, Bound);
 }
 
-const Stmt *targetOf(const NodePairs &Pairs, const Stmt *Pattern) {
-  // Read back to front. A pattern node is reached once per successful match,
-  // so there is normally one entry, and taking the last one means a caller
-  // still gets the winning path if that ever stops holding.
-  for (const auto &Pair : llvm::reverse(Pairs))
-    if (Pair.first == Pattern)
-      return Pair.second;
-  return nullptr;
-}
-
 std::string bindingKey(const Binding &B, ASTContext &Context) {
   if (const auto *Ref = dyn_cast_or_null<DeclRefExpr>(peel(B.Node)))
     return "decl:" + llvm::utohexstr(reinterpret_cast<uintptr_t>(
@@ -651,6 +643,9 @@ std::vector<Match> findMatches(llvm::ArrayRef<const Stmt *> Patterns,
   std::vector<Match> Out;
   if (llvm::all_of(Patterns, [](const Stmt *P) { return !P; }))
     return Out;
+  assert((Opts.MayNest.empty() || Opts.MayNest.size() == Patterns.size()) &&
+         "MayNest is read per pattern, so a short one would silently stop the "
+         "patterns past its end from nesting");
   StmtCollector Collector;
   Collector.TraverseDecl(Context.getTranslationUnitDecl());
   Unifier Shared(Parsed, Context);

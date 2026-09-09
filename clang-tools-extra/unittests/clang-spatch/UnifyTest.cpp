@@ -78,10 +78,10 @@ std::vector<std::string> pairedWith(llvm::StringRef Pattern,
   std::vector<std::string> Out;
   for (const Match &M : findMatches(P->Items[0], *P, Ctx, Opts)) {
     for (const auto &Pair : M.Pairs) {
-      if (sourceTextOf(*Pair.first, PatCtx) != Wanted)
+      if (sourceTextOf(*Pair.Pattern, PatCtx) != Wanted)
         continue;
-      const SourceLocation Begin = Pair.second->getSourceRange().getBegin();
-      Out.push_back((sourceTextOf(*Pair.second, Ctx) + "@" +
+      const SourceLocation Begin = Pair.Target->getSourceRange().getBegin();
+      Out.push_back((sourceTextOf(*Pair.Target, Ctx) + "@" +
                      std::to_string(Ctx.getSourceManager().getFileOffset(Begin)))
                         .str());
     }

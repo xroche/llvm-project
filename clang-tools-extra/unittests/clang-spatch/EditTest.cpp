@@ -734,8 +734,11 @@ TEST(Edit, TheWhitespaceAfterAnInPlaceEditGoesByWhatFollowsIt) {
 TEST(Edit, AMarkedRegionCoveringNoNodeFallsBackToReplacingTheMatch) {
   // `cptr.cocci` marks a declaration without its initialiser and `unary.cocci`
   // marks the `-` of a unary operator. Neither region has a range of its own
-  // in the target, and both agree with Coccinelle byte for byte through the
-  // plus side reassembled over the whole match.
+  // in the target, so both go through the plus side reassembled over the whole
+  // match, and both reproduce the `.res` the corpus ships. Making the in-place
+  // edit unconditional broke five such agreements, so this guards the
+  // fallback rather than the feature, and a mutation of the feature leaves it
+  // green on purpose.
   EXPECT_EQ("static const char * const str = \"...\";\n",
             rewritten("@@\nidentifier str;\nexpression E;\n@@\n"
                       "-static const char *str\n"
@@ -767,12 +770,39 @@ TEST(Edit, AStatementPatternDoesNotMatchInsideOneItAlreadyMatched) {
 }
 
 TEST(Edit, TwoNestedMatchesWantingTheSameTextAreRefusedRatherThanMerged) {
-  // `spatch` exits 255 with `already tagged token` on this, so neither edit
-  // is applied. Here both are built and `Replacements` rejects the second,
-  // which the run counts.
+  // `spatch` exits 255 with `already tagged token` on this, so it applies
+  // neither edit. Here the run reports an edit it could not build, so it does
+  // not claim success. Which of the two refusal sites fired is not asserted.
   EXPECT_EQ("!1 edit(s) the run could not build",
             rewritten("@@\nexpression E;\n@@\n- f(E)\n+ 9\n",
                       "void m() { f(f(1)); }\n"));
+}
+
+TEST(Edit, TwoSeparateChangedRegionsInOneStatementFallBackToTheWholeMatch) {
+  // The `-` lines here mark `a` and `+ b` with the context line `+ mid`
+  // between them. Fused into one region they cover `a + mid + b`, which is
+  // exactly the range of the left-associative `(a + mid) + b` node, so the
+  // edit resolved and overwrote `mid`, which no `-` line marked. `spatch`
+  // rejects this patch outright, so there is no reference output to match;
+  // what matters is that the surgical edit is not taken.
+  EXPECT_EQ("void m(void) { int x, a, mid, b, tail;"
+            " x = f( + mid q , tail); }\n",
+            rewritten("@@\n@@\n  x = f(\n- a\n  + mid\n- + b\n+ q\n"
+                      "  , tail);\n",
+                      "void m(void) { int x, a, mid, b, tail;"
+                      " x = f(a + mid + b, tail); }\n"));
+}
+
+TEST(Edit, APlusRunNoMinusRunPrecedesFallsBackToTheWholeMatch) {
+  // The `+ z ,` line is written beside the match rather than over any `-`
+  // line, so placing it needs a position this step does not decide. Pairing
+  // counts it and the in-place edit stands down. Without that count the
+  // surgical edit rewrites `a` to `b` and drops the inserted argument
+  // altogether, giving `g(b )` and reporting success.
+  EXPECT_EQ("void g(int);\nvoid m(void) { int a, b, z; g( z , b ); }\n",
+            rewritten("@@\nidentifier a;\n@@\n  g(\n+ z ,\n- a\n+ b\n"
+                      "  );\n",
+                      "void g(int);\nvoid m(void) { int a, b, z; g(a ); }\n"));
 }
 
 } // namespace clang::spatch

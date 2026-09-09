@@ -27,7 +27,6 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringMap.h"
 #include <string>
-#include <utility>
 #include <vector>
 
 namespace clang::spatch {
@@ -49,25 +48,27 @@ struct Binding {
 /// What a match bound each metavariable to, in the target's tree.
 using Bindings = llvm::StringMap<Binding>;
 
+/// One pattern node and the target node it matched.
+///
+/// \c Pattern points into the pattern's own translation unit and \c Target
+/// into the code's, so a holder must keep both alive. Recorded before
+/// parentheses and implicit casts are peeled off, so a pattern written
+/// `(i = i2)` maps to the target's own parentheses and an edit on it takes
+/// them too.
+struct NodePair {
+  const Stmt *Pattern;
+  const Stmt *Target;
+};
+
 /// Which target node each pattern node matched, in the order the comparison
 /// reached them.
 ///
-/// An edit inside the matched node needs this. The `-` lines of a rule name a
-/// sub-node of the pattern, and the range to overwrite is the one that
-/// sub-node matched. Diffing the two sides as token sequences instead cannot
-/// do it: against `spatch`, a pattern `g(e, x)` with `- x` over `g(x, x)`
-/// rewrites the second argument, and a longest-common-subsequence alignment
-/// takes the first.
-///
-/// Pattern nodes are recorded before parentheses and implicit casts are peeled
-/// off, so a pattern written `(i = i2)` maps to the target's own parentheses
-/// and the edit takes them too. Declarations are not in here, because a
-/// declarator is not a \c Stmt.
-using NodePairs = std::vector<std::pair<const Stmt *, const Stmt *>>;
-
-/// The target node \p Pattern matched, or null when the comparison never
-/// reached it.
-const Stmt *targetOf(const NodePairs &Pairs, const Stmt *Pattern);
+/// An edit inside the matched node needs this, because the `-` lines name a
+/// sub-node of the pattern and the range to overwrite is the one it matched.
+/// A token-sequence diff gets that wrong: it aligns `g(e, x)`'s `- x` with
+/// `g(x, x)`'s first argument where `spatch` rewrites the second. Declarations
+/// are absent, because a declarator is not a \c Stmt.
+using NodePairs = std::vector<NodePair>;
 
 /// One place a pattern matched.
 struct Match {
@@ -107,18 +108,16 @@ struct MatchOptions {
   /// for it and every match would carry the vector.
   bool WantNodePairs = false;
   /// Which of the patterns handed in may also match inside a site they
-  /// already matched, one entry per pattern, or empty for none of them.
+  /// already matched, one entry per pattern in the same order, or empty for
+  /// none of them.
   ///
-  /// Coccinelle has no exclusion of a match's own subtrees. `- e1 + 27` over
-  /// `1 + (2 + (3 + 4))` rewrites all three depths, and `- foo(E);` over
-  /// `foo(foo(1));` rewrites the outer call only because the `-` side ends in
-  /// a semicolon and the inner call sits in an argument rather than at a
-  /// statement position. The terminator is stripped before the pattern is
-  /// parsed, so the two shapes reach the unifier as one node and the caller
-  /// has to say which was written.
-  ///
-  /// An earlier pattern still wins over a later one wherever the two want the
-  /// same text, because that is branch order and it is measured separately.
+  /// Coccinelle excludes no subtree of a match. A pattern written as a whole
+  /// statement matches at statement positions only, which is a restriction
+  /// this search cannot express, so the exclusion stands in for it. The
+  /// terminator that tells the two shapes apart is stripped before the
+  /// pattern is parsed, so the caller has to say which was written. An
+  /// earlier pattern still wins over a later one for the same text, because
+  /// that is branch order.
   llvm::ArrayRef<bool> MayNest;
 };
 

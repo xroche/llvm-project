@@ -257,23 +257,20 @@ alternativeOf(const std::vector<PatternItem> &Minus,
     return A;
   }
   // A rule that marks some of a statement's lines and not others changes part
-  // of it, and Coccinelle leaves the rest as the target wrote it. That is a
-  // different edit from replacing the statement, so it is built from the
-  // hunks rather than from the plus side as one text.
-  // A rule that marks some of a statement's lines and not others changes part
-  // of it, and Coccinelle leaves the rest as the target wrote it. Recorded
-  // here so the edit can go inside the match, and recorded as well as the
-  // plus side rather than instead of it: the marked region does not always
-  // cover a whole node, and replacing the match is the fallback when it does
-  // not.
+  // of it, and Coccinelle leaves the rest as the target wrote it. The hunk is
+  // recorded as well as the plus side and not instead of it, because the
+  // marked region does not always cover a whole node, and replacing the match
+  // is the fallback when it does not.
   const bool ChangesPartOfIt =
       llvm::any_of(A.Match->Spans, [](const PatternItem::Span &Sp) {
         return Sp.LineMarker == PatternItem::Marker::Context;
       });
-  // A `...` reaches the pattern source as a marker call, which moves the
-  // characters the region is located by, and a rule that writes more than one
-  // statement or more than one changed region needs a placement this step
-  // does not decide. Each is left to the fallback.
+  // A rule that writes more than one statement, or more than one changed
+  // region, needs a placement this step does not decide, so each is left to
+  // the fallback. The `...` test cannot fire today, because grouping never
+  // joins an ellipsis line into a statement, and it stays because an ellipsis
+  // reaches the pattern source as a marker call, which would move the
+  // characters the region is located by.
   if (ChangesPartOfIt && Plus.size() == 1 &&
       !llvm::StringRef(A.Match->Text).contains("...")) {
     unsigned Insertions = 0;
@@ -459,13 +456,15 @@ void runFlatRule(const Rule &R, const FlatRule &F,
       if (!Rewrites)
         continue;
       std::string EditError;
-      const unsigned ItemAt = Parsed->ItemOffsets[M.Pattern];
-      const Stmt *Inner =
-          A.Inner ? innerEditTarget(ItemAt + A.Inner->MinusOffset,
-                                    ItemAt + A.Inner->MinusOffset +
-                                        A.Inner->MinusLength,
-                                    M.Pairs, Parsed->Unit->getASTContext())
-                  : nullptr;
+      // Null when the marked region covers no whole node of the pattern, and
+      // the whole match is replaced instead.
+      const Stmt *Inner = nullptr;
+      if (A.Inner) {
+        const unsigned Begin =
+            Parsed->ItemOffsets[M.Pattern] + A.Inner->MinusOffset;
+        Inner = innerEditTarget(Begin, Begin + A.Inner->MinusLength, M.Pairs,
+                                Parsed->Unit->getASTContext());
+      }
       std::optional<PatternEdit> E =
           Inner ? buildInnerEdit(*Inner, A.Inner->PlusText, M.Bound, Context,
                                  EditError)

@@ -542,9 +542,6 @@ StringRef spanText(const PatternItem &It, const PatternItem::Span &Sp) {
 }
 
 TEST(SmplParser, AGroupedStatementSaysWhichPartEachPatchLineWrote) {
-  // Grouping joins the lines of one side with a single space, so which part
-  // of the text a `-` line wrote is not recoverable from the text. An edit
-  // inside the matched node replaces only that part.
   SemanticPatch P = parsed("@@\nidentifier i, i2;\nstatement S;\nconstant c;"
                            "\n@@\n  if(\n- (i = i2)\n+ i\n  +\n  c) S\n");
   ASSERT_EQ(1u, P.Rules[0].Minus.size());
@@ -591,7 +588,7 @@ TEST(SmplParser, PairingSplitsAStatementTheWayALineDiffSplitsOne) {
 TEST(SmplParser, PairingCountsAPlusRunThatNoMinusRunPrecedes) {
   // `binop` writes a whole statement on a `+` line before the `if` it also
   // rewrites. That is an insertion placed relative to the match, which is a
-  // different step, so pairing must report it rather than drop the line.
+  // different step, so pairing counts it rather than dropping the line.
   SemanticPatch P = parsed("@@\nidentifier i, i2;\nstatement S;\nconstant c;"
                            "\n@@\n+ i = i2;\n  if(\n- (i = i2)\n+ i\n"
                            "  +\n  c) S\n");

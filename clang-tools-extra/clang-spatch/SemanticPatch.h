@@ -194,8 +194,6 @@ struct PatternHunk {
   /// The `+` lines that replace them, as written in the plus item's \c Text.
   /// Empty when the hunk deletes.
   std::string PlusText;
-  /// The first `-` line of the run, for diagnostics.
-  unsigned Line = 0;
 };
 
 /// The hunks of one grouped statement.
@@ -239,10 +237,15 @@ inline std::vector<PatternHunk> pairHunks(const PatternItem &Minus,
       continue;
     }
     PatternHunk H;
-    H.Line = Rows[I].Span->Line;
     H.MinusOffset = Rows[I].Span->Offset;
     unsigned End = H.MinusOffset;
-    for (; I != Rows.size() && !Rows[I].IsPlus; ++I)
+    // Grouping joins consecutive lines with one space, so a `-` span that
+    // does not start there has a context span before it, and taking it into
+    // the run would overwrite text no `-` line marked.
+    for (; I != Rows.size() && !Rows[I].IsPlus &&
+           (Rows[I].Span->Offset == H.MinusOffset ||
+            Rows[I].Span->Offset == End + 1);
+         ++I)
       End = Rows[I].Span->Offset + Rows[I].Span->Length;
     H.MinusLength = End - H.MinusOffset;
     if (I != Rows.size() && Rows[I].IsPlus) {
