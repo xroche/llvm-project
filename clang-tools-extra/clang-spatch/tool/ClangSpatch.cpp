@@ -24,7 +24,9 @@
 #include "clang/Tooling/CommonOptionsParser.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "clang/Tooling/Tooling.h"
+#include "llvm/ADT/StringSet.h"
 #include "llvm/Support/CommandLine.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -184,6 +186,12 @@ int main(int argc, const char **argv) {
     // Every input is printed, edited or not. A patch that matches nothing
     // leaves the file unchanged, and that is the reference output for it, so
     // printing nothing would fail a comparison the tool actually passed.
+    // A path is matched by identity rather than by spelling. A Replacement
+    // names the file the way the compiler saw it, which is not the spelling on
+    // the command line: given a relative path, every edit was dropped and the
+    // input printed back unchanged, with the findings still reported and a
+    // zero exit status.
+    llvm::StringSet<> Consumed;
     for (const std::string &Path : Options->getSourcePathList()) {
       llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> Original =
           llvm::MemoryBuffer::getFile(Path);
@@ -193,10 +201,18 @@ int main(int argc, const char **argv) {
         return 5;
       }
       auto Found = Result.Edits.find(Path);
+      if (Found == Result.Edits.end())
+        for (auto It = Result.Edits.begin(), End = Result.Edits.end();
+             It != End; ++It)
+          if (llvm::sys::fs::equivalent(It->first(), Path)) {
+            Found = It;
+            break;
+          }
       if (Found == Result.Edits.end()) {
         llvm::outs() << (*Original)->getBuffer();
         continue;
       }
+      Consumed.insert(Found->first());
       llvm::Expected<std::string> Rewritten = tooling::applyAllReplacements(
           (*Original)->getBuffer(), Found->second);
       if (!Rewritten) {
@@ -206,6 +222,15 @@ int main(int argc, const char **argv) {
       }
       llvm::outs() << *Rewritten;
     }
+    // Edits for a file nobody printed are a rewrite that was asked for and
+    // silently lost, which must not read as success.
+    for (const auto &File : Result.Edits)
+      if (!Consumed.contains(File.first())) {
+        llvm::errs() << "clang-spatch: " << File.first()
+                     << ": edits were built for a file that is not in the "
+                        "source path list, so the rewrite is incomplete\n";
+        return 5;
+      }
   }
 
   for (const Unrun &U : Result.UnrunRules)
