@@ -17,6 +17,9 @@
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringMap.h"
+#include "llvm/ADT/StringSet.h"
 
 using namespace clang::ast_matchers;
 
@@ -143,9 +146,18 @@ const FunctionDecl *enclosingFunction(const Stmt *S, ASTContext &Context) {
 /// which is true and is not a reason to refuse: 339 of the 403 rules in the
 /// sample corpus have no `...` at all.
 struct FlatRule {
+  /// What running the rule is for.
+  enum class Purpose {
+    Rewrite, ///< A `-`/`+` rule: it reports its matches and edits them.
+    Report,  ///< A `*` rule: it reports its matches and changes nothing.
+    /// A rule that marks no line at all. It changes nothing and reports
+    /// nothing, and it is run for the metavariable values a later rule
+    /// inherits from it.
+    Bind
+  };
   const PatternItem *Match = nullptr; ///< The statement to match.
-  std::string PlusText;  ///< What replaces it. Empty for a pure deletion.
-  bool Rewrites = false; ///< Is this a `-`/`+` rule rather than `*`?
+  std::string PlusText; ///< What replaces it. Empty for a pure deletion.
+  Purpose Purpose = Purpose::Rewrite;
 };
 
 /// Do \p Items open with a `{` and close with a `}`?
@@ -185,8 +197,10 @@ std::optional<FlatRule> flattenOf(const Rule &R, std::string &Why) {
   FlatRule F;
   F.Match = &R.Minus.front();
   // A `*` rule reports and never rewrites, so its plus side is unread.
-  if (F.Match->Marker == PatternItem::Marker::Star)
+  if (F.Match->Marker == PatternItem::Marker::Star) {
+    F.Purpose = FlatRule::Purpose::Report;
     return F;
+  }
   if (F.Match->Marker != PatternItem::Marker::Minus) {
     // No `-` line is part of the statement, so the rule either changes
     // nothing or inserts beside it, and an insertion needs a position this
@@ -194,13 +208,17 @@ std::optional<FlatRule> flattenOf(const Rule &R, std::string &Why) {
     const bool Adds = llvm::any_of(R.Plus, [](const PatternItem &I) {
       return I.Marker == PatternItem::Marker::Plus;
     });
-    Why = Adds ? "a dot-free rule that only inserts needs the insertion "
-                 "placed relative to the match, which this version does not "
-                 "build"
-               : "the rule marks no line, so it asks for no change";
-    return std::nullopt;
+    if (Adds) {
+      Why = "a dot-free rule that only inserts needs the insertion placed "
+            "relative to the match, which this version does not build";
+      return std::nullopt;
+    }
+    // The rule asks for no change and is still worth running, because a
+    // later rule may declare `expression thisrule.X` and the values bound
+    // here are the only ones that declaration admits.
+    F.Purpose = FlatRule::Purpose::Bind;
+    return F;
   }
-  F.Rewrites = true;
   // One statement may be replaced by a sequence, so every plus-side statement
   // is part of the replacement text and none of them needs positioning. That
   // holds for an unmarked one too: `-if (e)` over `  kfree(e);` replaces the
@@ -222,9 +240,11 @@ std::optional<FlatRule> flattenOf(const Rule &R, std::string &Why) {
   return F;
 }
 
-/// Runs a rule that asks no question about control flow.
-void runFlatRule(const Rule &R, const FlatRule &F, ASTContext &Context,
-                 RunResult &Result) {
+/// Runs a rule that asks no question about control flow, once per environment
+/// in \p Seeds, and appends every environment its matches produced to \p Envs.
+void runFlatRule(const Rule &R, const FlatRule &F,
+                 llvm::ArrayRef<Bindings> Seeds, ASTContext &Context,
+                 RunResult &Result, std::vector<Bindings> &Envs) {
   SourceManager &SM = Context.getSourceManager();
   std::string Error;
   // The pattern is parsed rather than compiled to a matcher expression, so
@@ -244,32 +264,131 @@ void runFlatRule(const Rule &R, const FlatRule &F, ASTContext &Context,
     return;
   }
 
-  for (const Match &M : findMatches(Parsed->Items[0], *Parsed, Context)) {
-    const PresumedLoc PL =
-        SM.getPresumedLoc(M.Node.getSourceRange().getBegin());
-    if (PL.isInvalid()) {
-      ++Result.AnchorsUnattributed;
-      continue;
-    }
-    Result.Findings.push_back({PL.getFilename(), PL.getLine(), PL.getColumn(),
-                               R.Name, "matches the pattern"});
-    if (!F.Rewrites)
-      continue;
-    std::string EditError;
-    std::optional<PatternEdit> E =
-        buildEdit(M.Node, F.PlusText, M.Bound, Context, EditError);
-    if (!E) {
-      ++Result.EditsRefused;
-      continue;
-    }
-    if (llvm::Error Added =
-            Result.Edits[E->Replacement.getFilePath()].add(E->Replacement)) {
-      // Two matches asking for different text at one offset is a conflict
-      // Replacements detects, and it must not be dropped quietly.
-      llvm::consumeError(std::move(Added));
-      ++Result.EditsRefused;
+  const bool Rewrites = F.Purpose == FlatRule::Purpose::Rewrite;
+  MatchOptions Opts;
+  // A file-scope declaration of several things is withheld from a rewriting
+  // rule because its declarators share one `;`. That is a reason not to edit
+  // one, so a rule that builds no edit may still be shown it.
+  Opts.MultiDeclaratorOK = !Rewrites;
+  // One site can satisfy two environments, so it is taken by the first and
+  // skipped by the rest. Two edits over one range would otherwise conflict.
+  llvm::DenseSet<const void *> Taken;
+
+  for (const Bindings &Seed : Seeds) {
+    Opts.Inherited = &Seed;
+    for (const Match &M :
+         findMatches(Parsed->Items[0], *Parsed, Context, Opts)) {
+      const void *Id = M.Node.getMemoizationData();
+      if (Id && !Taken.insert(Id).second)
+        continue;
+      Envs.push_back(M.Bound);
+      const PresumedLoc PL =
+          SM.getPresumedLoc(M.Node.getSourceRange().getBegin());
+      if (PL.isInvalid()) {
+        ++Result.AnchorsUnattributed;
+        continue;
+      }
+      // Coccinelle prints nothing for a rule that marks no line, and the two
+      // tools' output is compared directly.
+      if (F.Purpose != FlatRule::Purpose::Bind)
+        Result.Findings.push_back({PL.getFilename(), PL.getLine(),
+                                   PL.getColumn(), R.Name,
+                                   "matches the pattern"});
+      if (!Rewrites)
+        continue;
+      std::string EditError;
+      std::optional<PatternEdit> E =
+          buildEdit(M.Node, F.PlusText, M.Bound, Context, EditError);
+      if (!E) {
+        ++Result.EditsRefused;
+        continue;
+      }
+      if (llvm::Error Added =
+              Result.Edits[E->Replacement.getFilePath()].add(E->Replacement)) {
+        // Two matches asking for different text at one offset is a conflict
+        // Replacements detects, and it must not be dropped quietly.
+        llvm::consumeError(std::move(Added));
+        ++Result.EditsRefused;
+      }
     }
   }
+}
+
+/// The environments each named rule's matches produced. A rule that ran and
+/// matched nothing has an entry holding none, and a rule that could not run
+/// has no entry at all: the difference decides whether a rule inheriting from
+/// it can be run.
+using RuleEnvs = llvm::StringMap<std::vector<Bindings>>;
+
+/// The environments \p R's inherited declarations admit, one entry each,
+/// holding the inherited values alone.
+///
+/// A rule with no inherited declaration gets a single empty environment, so
+/// that every caller runs the same loop. std::nullopt means the rule cannot be
+/// run at all, and \p Why then says why.
+std::optional<std::vector<Bindings>> inheritedSeeds(const Rule &R,
+                                                    const RuleEnvs &Envs,
+                                                    ASTContext &Context,
+                                                    std::string &Why) {
+  // The source rules in the order the declarations name them, so that the
+  // product below is the same on every run.
+  std::vector<std::string> Sources;
+  for (const MetaVar &M : R.MetaVars)
+    if (!M.InheritedFrom.empty() &&
+        !llvm::is_contained(Sources, M.InheritedFrom))
+      Sources.push_back(M.InheritedFrom);
+
+  std::vector<Bindings> Out(1);
+  for (const std::string &From : Sources) {
+    auto It = Envs.find(From);
+    if (It == Envs.end()) {
+      Why = "the rule inherits a metavariable from rule '" + From +
+            "', which did not run, so the values that metavariable may take "
+            "are unknown and matching without them would rewrite more than "
+            "the patch asks for";
+      return std::nullopt;
+    }
+    std::vector<std::string> Names;
+    for (const MetaVar &M : R.MetaVars)
+      if (M.InheritedFrom == From)
+        Names.push_back(M.Name);
+
+    // Projected onto the names this rule takes, and deduplicated: the source
+    // rule may have matched twenty times while binding the same two values.
+    std::vector<Bindings> Projected;
+    llvm::StringSet<> Seen;
+    for (const Bindings &Env : It->second) {
+      Bindings Take;
+      std::string Key;
+      bool Complete = true;
+      for (const std::string &N : Names) {
+        auto B = Env.find(N);
+        if (B == Env.end()) {
+          // The source rule matched without binding this name, which is what
+          // a disjunction branch that does not mention it does. Coccinelle
+          // leaves it unbound there, so the environment offers no value and
+          // contributes nothing here.
+          Complete = false;
+          break;
+        }
+        Take[N] = B->second;
+        Key += N + "=" + bindingKey(B->second, Context) + ";";
+      }
+      if (Complete && Seen.insert(Key).second)
+        Projected.push_back(std::move(Take));
+    }
+
+    std::vector<Bindings> Combined;
+    for (const Bindings &Have : Out)
+      for (const Bindings &Add : Projected) {
+        Bindings Merged = Have;
+        for (const auto &Entry : Add)
+          Merged[Entry.first()] = Entry.second;
+        Combined.push_back(std::move(Merged));
+      }
+    Out = std::move(Combined);
+  }
+  return Out;
 }
 
 } // namespace
@@ -278,18 +397,38 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
               RunResult &Result) {
   SourceManager &SM = Context.getSourceManager();
 
+  // Rules run in the order the patch writes them, which is what makes an
+  // inherited declaration readable: every rule a later one can name has
+  // already produced its environments.
+  RuleEnvs Envs;
+  // Recorded only for a rule that ran, so that an entry's absence says the
+  // rule was refused rather than that it matched nothing.
+  const auto record = [&](const Rule &R, std::vector<Bindings> Found) {
+    if (!R.Name.empty())
+      Envs[R.Name] = std::move(Found);
+  };
+
   for (const Rule &R : Patch.Rules) {
     std::string Why;
+    std::optional<std::vector<Bindings>> Seeds =
+        inheritedSeeds(R, Envs, Context, Why);
+    if (!Seeds) {
+      Result.UnrunRules.push_back({R.Name, Why});
+      continue;
+    }
+    std::vector<Bindings> Found;
     // A rule with no `...` asks nothing about control flow, so it takes the
     // flat path and needs no quantifier.
     const bool HasDots = llvm::any_of(R.Minus, [](const PatternItem &I) {
       return I.Kind == PatternItem::Kind::Dots;
     });
     if (!HasDots) {
-      if (std::optional<FlatRule> F = flattenOf(R, Why))
-        runFlatRule(R, *F, Context, Result);
-      else
+      if (std::optional<FlatRule> F = flattenOf(R, Why)) {
+        runFlatRule(R, *F, *Seeds, Context, Result, Found);
+        record(R, std::move(Found));
+      } else {
         Result.UnrunRules.push_back({R.Name, Why});
+      }
       continue;
     }
 
@@ -373,7 +512,32 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
     // reports and the rest are dropped.
     llvm::DenseSet<const Stmt *> Reported;
 
-    for (const Match &M : findMatches(Parsed->Items[0], *Parsed, Context)) {
+    // The names this rule inherits, so that the `when !=` below is read under
+    // the same environment as the anchor rather than under a free one.
+    std::vector<std::string> InheritedNames;
+    for (const MetaVar &MV : R.MetaVars)
+      if (!MV.InheritedFrom.empty())
+        InheritedNames.push_back(MV.Name);
+
+    // One anchor list over every inherited environment. A site two
+    // environments both reach is kept once, so the walk below is the same as
+    // it is for a rule that inherits nothing.
+    std::vector<Match> Anchors;
+    {
+      llvm::DenseSet<const void *> Taken;
+      MatchOptions Opts;
+      for (const Bindings &Seed : *Seeds) {
+        Opts.Inherited = &Seed;
+        for (Match &Anchor :
+             findMatches(Parsed->Items[0], *Parsed, Context, Opts)) {
+          const void *Id = Anchor.Node.getMemoizationData();
+          if (!Id || Taken.insert(Id).second)
+            Anchors.push_back(std::move(Anchor));
+        }
+      }
+    }
+
+    for (const Match &M : Anchors) {
       // A path property is a property of a control-flow graph, and a
       // declaration outside every function body sits in none.
       const Stmt *Call = M.Node.get<Stmt>();
@@ -427,6 +591,9 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
 
       const StmtPredicate IsForbidden = [&](const Stmt *S) {
         Bindings Bound;
+        for (const std::string &N : InheritedNames)
+          if (auto B = M.Bound.find(N); B != M.Bound.end())
+            Bound[N] = B->second;
         if (!unify(Parsed->Items[1], S, *Parsed, Context, Bound))
           return false;
         return boundDecl(Bound, Shared) == Res;
@@ -446,12 +613,14 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
         continue;
       }
       Reported.insert(Call);
+      Found.push_back(M.Bound);
       Result.Findings.push_back(
           {PL.getFilename(), PL.getLine(), PL.getColumn(), R.Name,
            std::string("the `when !=` construct is absent on ") +
                (*R.Quant == Rule::Quantifier::Exists ? "some" : "any") +
                " path from this anchor"});
     }
+    record(R, std::move(Found));
   }
 
   // Widening happens here rather than in `buildEdit`, because the rule needs

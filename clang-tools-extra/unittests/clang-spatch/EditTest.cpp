@@ -46,6 +46,24 @@ std::string rewritten(llvm::StringRef Patch, llvm::StringRef Code) {
   return *Out;
 }
 
+/// The reason every rule that could not run gives, one per line.
+std::string unrunReasons(llvm::StringRef Patch, llvm::StringRef Code) {
+  std::string Error;
+  std::optional<SemanticPatch> P = parseSemanticPatch(Patch, "t.cocci", Error);
+  if (!P)
+    return "!" + Error;
+  std::unique_ptr<ASTUnit> Unit =
+      tooling::buildASTFromCodeWithArgs(Code, {"-std=gnu11", "-w"}, "input.c");
+  if (!Unit)
+    return "!no AST";
+  RunResult Result;
+  runPatch(*P, Unit->getASTContext(), Result);
+  std::string Out;
+  for (const Unrun &U : Result.UnrunRules)
+    Out += U.Reason + "\n";
+  return Out;
+}
+
 } // namespace
 
 TEST(FlatRule, ADotFreeRuleRunsAndRewrites) {
@@ -308,15 +326,78 @@ TEST(FlatRule, ShapesOutsideTheFlatPathAreNamedRatherThanRun) {
             rewritten("@r@\n@@\n  foo();\n- bar();\n",
                       "void foo(void);\nvoid bar(void);\nvoid f(void) "
                       "{ foo(); bar(); }\n"));
-  EXPECT_EQ("!the rule marks no line, so it asks for no change",
-            rewritten("@r@\n@@\n  foo();\n",
-                      "void foo(void);\nvoid f(void) { foo(); }\n"));
   // A `+`-only rule never reaches the runner, because the parser rejects it
   // first with Coccinelle's own wording. The runner's guard for it stays as a
   // guard rather than a reachable path.
   EXPECT_EQ("!t.cocci:1: a '+' slice with no '-' line and no context line: "
             "Coccinelle reports \"minus slice can't be empty\"",
             rewritten("@r@\n@@\n+ foo();\n", "void f(void) { }\n"));
+}
+
+TEST(Inherited, ARuleThatMarksNoLineRunsForTheValuesItBinds) {
+  // It changes nothing, and refusing it left a rule declaring `r.E` with
+  // nothing to constrain it.
+  EXPECT_EQ("void foo(int);\nvoid f(void) { foo(1); }\n",
+            rewritten("@r@\nexpression E;\n@@\n  foo(E);\n",
+                      "void foo(int);\nvoid f(void) { foo(1); }\n"));
+}
+
+TEST(Inherited, AnInheritedMetavariableTakesOnlyTheValuesTheEarlierRuleBound) {
+  // Measured against `spatch` 1.1.1 on this input: it rewrites `h(1)` and
+  // leaves `h(2)` alone. Before inheritance was honoured, `expression r.X`
+  // matched any expression and both calls were rewritten.
+  EXPECT_EQ("void f(int);\nvoid h(int);\nvoid hh(int);\n"
+            "void g(void) { f(1); hh(1); h(2); }\n",
+            rewritten("@r@\nexpression X;\n@@\n  f(X);\n"
+                      "\n@@\nexpression r.X;\n@@\n- h(X);\n+ hh(X);\n",
+                      "void f(int);\nvoid h(int);\nvoid hh(int);\n"
+                      "void g(void) { f(1); h(1); h(2); }\n"));
+}
+
+TEST(Inherited, EveryValueTheEarlierRuleBoundIsTried) {
+  // `tests/skip.cocci` is the corpus case: one rule binds `E` twice over and
+  // the rule inheriting it has to delete both sites, so running the dependent
+  // rule once per environment is what the expected output needs.
+  EXPECT_EQ("void f(int);\nvoid g(void) { }\n",
+            rewritten("@r@\nexpression E;\n@@\n  f(E)\n"
+                      "\n@@\nexpression r.E;\n@@\n- f(E);\n",
+                      "void f(int);\nvoid g(void) { f(1); f(2); }\n"));
+}
+
+TEST(Inherited, ARuleInheritingFromOneThatDidNotRunIsRefused) {
+  // The values the declaration admits are unknown, and running the rule
+  // anyway is what rewrote more than the patch asked for. `tests/inherited`
+  // is the corpus case, where the binding rule holds a disjunction.
+  EXPECT_EQ("a dot-free rule holding a disjunction needs every branch matched "
+            "at the same point, which this version does not build\n"
+            "the rule inherits a metavariable from rule 'r', which did not "
+            "run, so the values that metavariable may take are unknown and "
+            "matching without them would rewrite more than the patch asks "
+            "for\n",
+            unrunReasons("@r@\nexpression X;\n@@\n(\n f(X);\n|\n g(1);\n)\n"
+                         "\n@@\nexpression r.X;\n@@\n- h(X);\n+ hh(X);\n",
+                         "void f(int);\nvoid g(int);\nvoid h(int);\n"
+                         "void k(void) { g(1); h(2); }\n"));
+}
+
+TEST(Inherited, ARuleThatRanAndBoundNothingLeavesTheDependentRuleWithNoSites) {
+  // Distinct from the refusal above: the constraint is known and admits
+  // nothing, so the dependent rule runs and matches nowhere.
+  EXPECT_EQ("void f(int);\nvoid h(int);\nvoid k(void) { h(2); }\n",
+            rewritten("@r@\nexpression X;\n@@\n  f(X);\n"
+                      "\n@@\nexpression r.X;\n@@\n- h(X);\n+ hh(X);\n",
+                      "void f(int);\nvoid h(int);\nvoid k(void) { h(2); }\n"));
+}
+
+TEST(Inherited, ATypeMetavariableNamingATypedefBindsTheNameItIntroduces) {
+  // `tests/typedef2.cocci` declares `type t, s;` and writes `typedef t s@p;`,
+  // where `s` stands for the alias rather than for a type written out. The
+  // dependent rule then rewrites one line per alias.
+  EXPECT_EQ("typedef int A, B;\nvoid f(void) { int x; int y; }\n",
+            rewritten("@r@\ntype t, s;\n@@\n  typedef t s;\n"
+                      "\n@@\ntype r.s;\nsymbol x, y;\n@@\n- s\n+ int\n"
+                      "  x;\n",
+                      "typedef int A, B;\nvoid f(void) { A x; int y; }\n"));
 }
 
 TEST(SourceTextOf, AMacroArgumentComesThroughAsWritten) {

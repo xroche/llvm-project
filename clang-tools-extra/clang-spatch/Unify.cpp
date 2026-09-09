@@ -12,6 +12,7 @@
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
 
 namespace clang::spatch {
 
@@ -336,7 +337,7 @@ private:
         return false;
       if (!matchWrittenType(PT->getTypeSourceInfo(), TT->getTypeSourceInfo(),
                             Bound) ||
-          !matchDeclaredName(*PT, *TT, Bound))
+          !matchTypedefName(*PT, *TT, Bound))
         return false;
     }
     return PIt == PEnd && TIt == TEnd;
@@ -362,6 +363,21 @@ private:
     if (!M || M->Kind != MetaVar::Kind::Identifier)
       return Pattern.getName() == Target.getName();
     return bindTo(*M, Binding{nullptr, Target.getLocation()}, Bound);
+  }
+
+  /// Matches the name a `typedef` pattern introduces against the one the
+  /// target introduces.
+  ///
+  /// This is the one position where a `type` metavariable stands for a name
+  /// being declared rather than for a type written out. `type t, s;` over
+  /// `typedef t s;` binds `t` to what the target aliased and `s` to the alias
+  /// it gave it.
+  bool matchTypedefName(const TypedefNameDecl &Pattern,
+                        const TypedefNameDecl &Target, Bindings &Bound) {
+    const MetaVar *M = Parsed.metaVarNamed(Pattern.getName());
+    if (M && M->Kind == MetaVar::Kind::Type)
+      return bindTo(*M, Binding{nullptr, Target.getLocation()}, Bound);
+    return matchDeclaredName(Pattern, Target, Bound);
   }
 
   /// The type metavariable \p T is, or null. `type T;` is synthesised as
@@ -494,25 +510,37 @@ std::string whyNotComparableInDecls(const DeclStmt &S) {
   return std::string();
 }
 
-/// Every declaration written at file scope that declares exactly one thing.
+/// Every declaration written at file scope, and by default only those that
+/// declare exactly one thing.
 ///
 /// There is no `DeclStmt` outside a function body, so a declaration there is
-/// reachable only from the translation unit's own declaration list. A
-/// declaration with more than one declarator is left out: the declarators
-/// share one `;`, and replacing one of them would take the terminator the
-/// others need.
-llvm::SmallVector<const Decl *, 8> fileScopeDeclarations(ASTContext &Context) {
+/// reachable only from the translation unit's own declaration list.
+///
+/// A declaration with more than one declarator is left out unless
+/// \p MultiDeclaratorOK. Its declarators share one `;`, so replacing one of
+/// them would take the terminator the others need. That bars rewriting one
+/// and does not bar reading a binding off one, so `typedef int A, B;` can
+/// still tell a rule that asks for no change what `A` and `B` alias.
+llvm::SmallVector<const Decl *, 8>
+fileScopeDeclarations(ASTContext &Context, bool MultiDeclaratorOK) {
   llvm::SmallVector<const Decl *, 8> Out;
   llvm::DenseMap<const void *, unsigned> PerDeclaration;
   const TranslationUnitDecl *TU = Context.getTranslationUnitDecl();
+  // Clang puts its own predefined typedefs, `__builtin_va_list` among them,
+  // at the head of every translation unit with no source location at all. No
+  // patch can name one, and a match on one has nowhere to be reported.
+  const auto Eligible = [](const Decl *D) {
+    return isa<DeclaratorDecl, TypedefNameDecl>(D) && !isa<FunctionDecl>(D) &&
+           !D->isImplicit() && D->getBeginLoc().isValid();
+  };
   // Clang gives every declarator of one declaration the same begin location,
   // which is what separates `int a, b;` from `int a; int b;`.
   for (const Decl *D : TU->decls())
-    if (isa<DeclaratorDecl, TypedefNameDecl>(D) && !isa<FunctionDecl>(D))
+    if (Eligible(D))
       ++PerDeclaration[D->getBeginLoc().getPtrEncoding()];
   for (const Decl *D : TU->decls())
-    if (isa<DeclaratorDecl, TypedefNameDecl>(D) && !isa<FunctionDecl>(D) &&
-        PerDeclaration[D->getBeginLoc().getPtrEncoding()] == 1)
+    if (Eligible(D) && (MultiDeclaratorOK ||
+                        PerDeclaration[D->getBeginLoc().getPtrEncoding()] == 1))
       Out.push_back(D);
   return Out;
 }
@@ -571,14 +599,22 @@ bool unify(const Stmt *Pattern, const Stmt *Target, const ParsedPattern &Parsed,
   return Unifier(Parsed, Context).run(Pattern, Target, Bound);
 }
 
+std::string bindingKey(const Binding &B, ASTContext &Context) {
+  if (const auto *Ref = dyn_cast_or_null<DeclRefExpr>(peel(B.Node)))
+    return "decl:" + llvm::utohexstr(reinterpret_cast<uintptr_t>(
+                         Ref->getDecl()->getCanonicalDecl()));
+  return "text:" + sourceTextOf(B.Range, Context).str();
+}
+
 std::vector<Match> findMatches(const Stmt *Pattern, const ParsedPattern &Parsed,
-                               ASTContext &Context) {
+                               ASTContext &Context, MatchOptions Opts) {
   std::vector<Match> Out;
   if (!Pattern)
     return Out;
   StmtCollector Collector;
   Collector.TraverseDecl(Context.getTranslationUnitDecl());
   Unifier Shared(Parsed, Context);
+  const Bindings Seed = Opts.Inherited ? *Opts.Inherited : Bindings();
 
   // A match's subtrees are skipped, so one written call is reported once even
   // when the pattern would also match something inside it.
@@ -592,7 +628,7 @@ std::vector<Match> findMatches(const Stmt *Pattern, const ParsedPattern &Parsed,
     });
     if (Inside)
       continue;
-    Bindings Bound;
+    Bindings Bound = Seed;
     if (!Shared.run(Pattern, S, Bound))
       continue;
     Claimed.push_back(S);
@@ -600,8 +636,9 @@ std::vector<Match> findMatches(const Stmt *Pattern, const ParsedPattern &Parsed,
   }
 
   if (const auto *DS = dyn_cast<DeclStmt>(peel(Pattern)))
-    for (const Decl *D : fileScopeDeclarations(Context)) {
-      Bindings Bound;
+    for (const Decl *D :
+         fileScopeDeclarations(Context, Opts.MultiDeclaratorOK)) {
+      Bindings Bound = Seed;
       if (Shared.runOnDecl(*DS, D, Bound))
         Out.push_back({DynTypedNode::create(*D), std::move(Bound)});
     }

@@ -58,6 +58,24 @@ struct Match {
   Bindings Bound;
 };
 
+/// What a search over the target is allowed to match.
+struct MatchOptions {
+  /// Metavariable values the match must agree with, or null for none.
+  ///
+  /// This is how an inherited declaration such as `expression r.X` is
+  /// honoured: the value an earlier rule bound is seeded here, and the
+  /// unifier's own consistency check rejects every site that disagrees with
+  /// it. Without a seed the declaration matches anything, which rewrites more
+  /// than the patch asked for.
+  const Bindings *Inherited = nullptr;
+  /// Also match a file-scope declaration that declares more than one thing.
+  ///
+  /// Such a declaration cannot be rewritten, because its declarators share
+  /// one `;` and replacing one would take the terminator the others need, so
+  /// only a rule that asks for no change may be given it.
+  bool MultiDeclaratorOK = false;
+};
+
 /// Does \p Pattern match \p Target, and if so what does it bind?
 ///
 /// \p Parsed says which declarations are metavariables, so a reference to one
@@ -88,7 +106,14 @@ std::string whyNotComparable(const Stmt *Pattern);
 /// a pattern that matches a call does not also report the same call reached
 /// through its own argument.
 std::vector<Match> findMatches(const Stmt *Pattern, const ParsedPattern &Parsed,
-                               ASTContext &Context);
+                               ASTContext &Context, MatchOptions Opts = {});
+
+/// A string that tells two bindings apart exactly as the unifier's own
+/// consistency check does.
+///
+/// Exposed so that a caller passing environments from one rule to the next can
+/// drop the duplicates among them without comparing every pair.
+std::string bindingKey(const Binding &B, ASTContext &Context);
 
 } // namespace clang::spatch
 

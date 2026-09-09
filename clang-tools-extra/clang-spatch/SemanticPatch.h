@@ -36,7 +36,7 @@ struct MetaVar {
   Kind Kind;
   std::string Name;
   /// Set when the declaration inherits from an earlier rule, as in `r.p`.
-  /// Recorded by the parser. No consumer reads it yet.
+  /// The name of that rule, with \c Name holding the metavariable alone.
   std::string InheritedFrom;
 };
 
