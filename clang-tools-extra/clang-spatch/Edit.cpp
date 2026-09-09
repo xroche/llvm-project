@@ -70,18 +70,13 @@ bool ownsItsTerminator(DynTypedNode Matched, ASTContext &Context) {
 }
 
 /// The range \p Matched occupies, extended over its terminating semicolon
-/// when both the target position and the pattern claim it.
-///
-/// The target position alone is not enough. A pattern written as a bare
-/// expression describes the expression and not the statement around it, so
-/// `- bar(F)` over `+ 4` leaves the `;` of `bar(12);` in place and yields
-/// `4;`. Deciding this on the target position alone took the terminator
-/// whenever the expression happened to be a statement on its own.
-CharSourceRange matchedRange(DynTypedNode Matched, bool PatternClaimsIt,
+/// only when the target position owns one and \p PatternEndsInSemicolon says
+/// the rule asked for it. See buildEdit for why the pattern decides too.
+CharSourceRange matchedRange(DynTypedNode Matched, bool PatternEndsInSemicolon,
                              ASTContext &Context) {
   const CharSourceRange Token =
       CharSourceRange::getTokenRange(Matched.getSourceRange());
-  if (!PatternClaimsIt || !ownsItsTerminator(Matched, Context))
+  if (!PatternEndsInSemicolon || !ownsItsTerminator(Matched, Context))
     return Token;
   return tooling::maybeExtendRange(Token, tok::semi, Context);
 }

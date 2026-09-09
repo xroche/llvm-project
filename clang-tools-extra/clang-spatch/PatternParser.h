@@ -108,23 +108,21 @@ struct ParsedPattern {
 /// unsupported line must not decide the fate of the others.
 std::optional<ParsedPattern>
 parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
-             llvm::ArrayRef<std::string> TypeNames,
-             llvm::ArrayRef<std::string> Statements, std::string &Error);
+             llvm::ArrayRef<std::string> Statements,
+             llvm::ArrayRef<std::string> TypeNames, std::string &Error);
 
 /// The declarations \p MetaVars and \p TypeNames need in order for
 /// \p Statements to parse.
 ///
-/// \p TypeNames are the names a `typedef X;` declaration says are type names.
-/// Such a name stands for itself, so it is declared rather than treated as a
-/// wildcard: a `type T` metavariable matches any type and one of these must
-/// match only itself.
+/// \p TypeNames stand for themselves rather than for any type, so each is
+/// declared. See SemanticPatch::TypeNames.
 ///
 /// Exposed for testing, because the type a metavariable is given is decided by
 /// how the pattern uses it and that inference is the part most likely to be
 /// wrong. An `expression x` used as `x->y` cannot be an `int`.
 std::string synthesiseDeclarations(llvm::ArrayRef<MetaVar> MetaVars,
-                                   llvm::ArrayRef<std::string> TypeNames,
-                                   llvm::ArrayRef<std::string> Statements);
+                                   llvm::ArrayRef<std::string> Statements,
+                                   llvm::ArrayRef<std::string> TypeNames);
 
 } // namespace clang::spatch
 

@@ -142,6 +142,24 @@ struct ScriptRule {
   unsigned Line = 0;
 };
 
+/// Every pattern statement of one grouped side, branches included.
+///
+/// A branch's statements are pattern statements of the rule, so a reader that
+/// stops at the top level sees none of them for a rule whose whole body is a
+/// disjunction.
+inline void collectStatements(const std::vector<PatternItem> &Side,
+                              std::vector<std::string> &Out) {
+  for (const PatternItem &I : Side) {
+    if (I.Kind == PatternItem::Kind::Disjunction) {
+      for (const std::vector<PatternItem> &Branch : I.Branches)
+        collectStatements(Branch, Out);
+      continue;
+    }
+    if (I.Kind == PatternItem::Kind::Statement)
+      Out.push_back(I.Text);
+  }
+}
+
 struct SemanticPatch {
   /// Virtual rule names the patch declares, as in `virtual report`.
   std::vector<std::string> Virtuals;

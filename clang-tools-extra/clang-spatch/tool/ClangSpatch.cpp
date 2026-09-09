@@ -98,24 +98,6 @@ private:
   RunResult &Result;
 };
 
-/// Every pattern statement of one grouped side, branches included.
-///
-/// A branch's statements are pattern statements of the rule, so a printer that
-/// stops at the top level reports `statements=0` for a rule whose whole body
-/// is a disjunction and hides it from any sweep over this output.
-void collectStatements(const std::vector<PatternItem> &Side,
-                       std::vector<std::string> &Out) {
-  for (const PatternItem &I : Side) {
-    if (I.Kind == PatternItem::Kind::Disjunction) {
-      for (const std::vector<PatternItem> &Branch : I.Branches)
-        collectStatements(Branch, Out);
-      continue;
-    }
-    if (I.Kind == PatternItem::Kind::Statement)
-      Out.push_back(I.Text);
-  }
-}
-
 } // namespace
 
 int main(int argc, const char **argv) {
@@ -171,7 +153,7 @@ int main(int argc, const char **argv) {
           continue;
         std::string Error;
         std::optional<ParsedPattern> P =
-            parsePattern(R.MetaVars, Patch->TypeNames, Stmts, Error);
+            parsePattern(R.MetaVars, Stmts, Patch->TypeNames, Error);
         if (!P) {
           llvm::outs() << "  SYNTH FAILED: " << Error << "\n";
           continue;

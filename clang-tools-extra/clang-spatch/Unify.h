@@ -117,11 +117,8 @@ std::vector<Match> findMatches(const Stmt *Pattern, const ParsedPattern &Parsed,
 ///
 /// This is what a disjunction means. Each branch is searched over the whole
 /// translation unit before the next one is, and a branch may not take text an
-/// earlier branch already took, so branch order beats nesting: measured on
-/// `spatch` 1.1.1, `( - p | - p->fld )` over `p->fld` rewrites the `p` and
-/// leaves the member access, and the same two branches the other way round
-/// rewrite the member access. Reported outermost first per branch, then sorted
-/// into source order.
+/// earlier branch already took, so branch order beats nesting. Matches are
+/// reported in source order.
 std::vector<Match> findMatches(llvm::ArrayRef<const Stmt *> Patterns,
                                const ParsedPattern &Parsed, ASTContext &Context,
                                MatchOptions Opts = {});

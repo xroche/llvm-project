@@ -523,17 +523,35 @@ TEST(SmplParser, EachBranchOfADisjunctionIsGroupedOncePerSide) {
                            "+ !E\n  )\n  { }\n|\n- foo(E);\n+ bar(E);\n)\n");
   ASSERT_EQ(1u, P.Rules[0].Minus.size());
   ASSERT_EQ(1u, P.Rules[0].Plus.size());
-  const PatternItem &M = P.Rules[0].Minus[0];
-  const PatternItem &Q = P.Rules[0].Plus[0];
-  ASSERT_EQ(ItemKind::Disjunction, M.Kind);
-  ASSERT_EQ(2u, M.Branches.size());
-  ASSERT_EQ(2u, Q.Branches.size());
-  ASSERT_EQ(1u, M.Branches[0].size());
-  EXPECT_EQ("if ( E == 0 ) { }", M.Branches[0][0].Text);
-  EXPECT_EQ("if ( !E ) { }", Q.Branches[0][0].Text);
-  EXPECT_EQ("foo(E);", M.Branches[1][0].Text);
-  EXPECT_EQ("bar(E);", Q.Branches[1][0].Text);
+  const PatternItem &Minus = P.Rules[0].Minus[0];
+  const PatternItem &Plus = P.Rules[0].Plus[0];
+  ASSERT_EQ(ItemKind::Disjunction, Minus.Kind);
+  ASSERT_EQ(2u, Minus.Branches.size());
+  ASSERT_EQ(2u, Plus.Branches.size());
+  ASSERT_EQ(1u, Minus.Branches[0].size());
+  EXPECT_EQ("if ( E == 0 ) { }", Minus.Branches[0][0].Text);
+  EXPECT_EQ("if ( !E ) { }", Plus.Branches[0][0].Text);
+  EXPECT_EQ("foo(E);", Minus.Branches[1][0].Text);
+  EXPECT_EQ("bar(E);", Plus.Branches[1][0].Text);
   EXPECT_TRUE(P.fullyUnderstood()) << refusalList(P);
+}
+
+TEST(SmplParser, CollectingASideDescendsIntoEveryBranch) {
+  // A rule whose whole body is a disjunction has all its pattern statements
+  // inside branches, so a reader that stops at the top level reports the rule
+  // as having none and hides it from any sweep over that output.
+  SemanticPatch P = parsed("@r@\nexpression E;\n@@\n"
+                           "(\n- foo(E);\n+ a(E);\n|\n- bar(E);\n+ b(E);\n)\n");
+  std::vector<std::string> Minus;
+  collectStatements(P.Rules[0].Minus, Minus);
+  ASSERT_EQ(2u, Minus.size());
+  EXPECT_EQ("foo(E);", Minus[0]);
+  EXPECT_EQ("bar(E);", Minus[1]);
+  std::vector<std::string> Plus;
+  collectStatements(P.Rules[0].Plus, Plus);
+  ASSERT_EQ(2u, Plus.size());
+  EXPECT_EQ("a(E);", Plus[0]);
+  EXPECT_EQ("b(E);", Plus[1]);
 }
 
 TEST(SmplParser, IndentedDisjunctionDelimiter) {
@@ -1503,9 +1521,8 @@ TEST(SmplParserSweep, EveryNativeSampleLandsInOneOfThreeStates) {
           if (Named)
             continue;
           std::string Error;
-          std::optional<ParsedPattern> Parsed =
-              parsePattern(Rule.MetaVars, R.Patch->TypeNames, {It->Text},
-                           Error);
+          std::optional<ParsedPattern> Parsed = parsePattern(
+              Rule.MetaVars, {It->Text}, R.Patch->TypeNames, Error);
           const bool Compiled = Parsed && Parsed->Items[0];
           if (Parsed && !Parsed->Items[0])
             Error = Parsed->Errors[0];

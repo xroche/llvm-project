@@ -22,8 +22,7 @@ MetaVar mv(enum MetaVar::Kind K, llvm::StringRef Name) {
 std::vector<std::string> parsedKinds(llvm::ArrayRef<MetaVar> MetaVars,
                                      llvm::ArrayRef<std::string> Stmts) {
   std::string Error;
-  std::optional<ParsedPattern> P =
-      parsePattern(MetaVars, {}, Stmts, Error);
+  std::optional<ParsedPattern> P = parsePattern(MetaVars, Stmts, {}, Error);
   std::vector<std::string> Out;
   if (!P) {
     Out.push_back("!" + Error);
@@ -39,7 +38,7 @@ std::vector<std::string> parsedKinds(llvm::ArrayRef<MetaVar> MetaVars,
 
 TEST(SynthesiseDeclarations, ABareMetavariableTakesAnyType) {
   const std::vector<MetaVar> MV = {mv(MetaVar::Kind::Expression, "E")};
-  const std::string S = synthesiseDeclarations(MV, {}, {"foo(E);"});
+  const std::string S = synthesiseDeclarations(MV, {"foo(E);"}, {});
   EXPECT_NE(std::string::npos, S.find("extern int E;")) << S;
 }
 
@@ -48,20 +47,21 @@ TEST(SynthesiseDeclarations, AMemberAccessBuildsATypeThatHasTheMember) {
   // carrying `y`. Clang reports `member reference type 'int' is not a
   // pointer` otherwise, and the whole rule then fails to parse.
   const std::vector<MetaVar> MV = {mv(MetaVar::Kind::Expression, "x")};
-  const std::string S = synthesiseDeclarations(MV, {}, {"x->y = 0;"});
+  const std::string S = synthesiseDeclarations(MV, {"x->y = 0;"}, {});
   EXPECT_NE(std::string::npos, S.find("struct __spatch_x_t { int y; };")) << S;
   EXPECT_NE(std::string::npos, S.find("struct __spatch_x_t *x;")) << S;
 }
 
 TEST(SynthesiseDeclarations, EveryMemberTheRuleNamesGoesIntoTheType) {
   const std::vector<MetaVar> MV = {mv(MetaVar::Kind::Expression, "p")};
-  const std::string S = synthesiseDeclarations(MV, {}, {"p->a = 1;", "p->b = 2;"});
+  const std::string S =
+      synthesiseDeclarations(MV, {"p->a = 1;", "p->b = 2;"}, {});
   EXPECT_NE(std::string::npos, S.find("int a; int b;")) << S;
 }
 
 TEST(SynthesiseDeclarations, ADotAccessIsNotAPointer) {
   const std::vector<MetaVar> MV = {mv(MetaVar::Kind::Expression, "s")};
-  const std::string S = synthesiseDeclarations(MV, {}, {"s.f = 0;"});
+  const std::string S = synthesiseDeclarations(MV, {"s.f = 0;"}, {});
   EXPECT_NE(std::string::npos, S.find("struct __spatch_s_t s;")) << S;
   EXPECT_EQ(std::string::npos, S.find("_t *s;")) << S;
 }
@@ -69,7 +69,7 @@ TEST(SynthesiseDeclarations, ADotAccessIsNotAPointer) {
 TEST(SynthesiseDeclarations, ATypeMetavariableBecomesATypedef) {
   const std::vector<MetaVar> MV = {mv(MetaVar::Kind::Type, "T")};
   EXPECT_NE(std::string::npos,
-            synthesiseDeclarations(MV, {}, {"T x;"}).find("typedef int T;"));
+            synthesiseDeclarations(MV, {"T x;"}, {}).find("typedef int T;"));
 }
 
 TEST(SynthesiseDeclarations, ADeclaredTypeNameBecomesATypedefOfItsOwn) {
@@ -77,53 +77,36 @@ TEST(SynthesiseDeclarations, ADeclaredTypeNameBecomesATypedefOfItsOwn) {
   // before this, so the pattern reached Clang with an undeclared type and
   // failed to parse while the declaration suppressed the refusal that would
   // have said so.
-  const std::string S = synthesiseDeclarations({}, {"myint"}, {"myint v = 0;"});
+  const std::string S = synthesiseDeclarations({}, {"myint v = 0;"}, {"myint"});
   EXPECT_NE(std::string::npos, S.find("typedef int myint;")) << S;
   // And not a second time as a variable, which is a redefinition.
   EXPECT_EQ(std::string::npos, S.find("extern int myint;")) << S;
 }
 
 TEST(SynthesiseDeclarations, AWideCharacterTypeNameTakesTheTypeCGivesIt) {
-  // A string literal initialiser compares element types exactly, so
-  // `char32_t e[] = U"";` does not parse against `typedef int char32_t;`.
-  // These three names come from <uchar.h> and <stddef.h>, and a patch
-  // declaring one means the standard type. `tests/wchar.cocci` needs all
-  // three.
-  const std::vector<std::string> Names = {"char16_t", "char32_t", "wchar_t"};
-  const std::vector<std::string> Stmts = {"char16_t a[] = u\"\";",
-                                          "char32_t b[] = U\"\";",
-                                          "wchar_t c[] = L\"\";"};
-  const std::string S = synthesiseDeclarations({}, Names, Stmts);
-  EXPECT_NE(std::string::npos, S.find("typedef __CHAR16_TYPE__ char16_t;")) << S;
-  EXPECT_NE(std::string::npos, S.find("typedef __CHAR32_TYPE__ char32_t;")) << S;
+  // `tests/wchar.cocci` writes all three.
+  const std::vector<std::string> TypeNames = {"char16_t", "char32_t",
+                                              "wchar_t"};
+  const std::vector<std::string> Stmts = {
+      "char16_t a[] = u\"\";", "char32_t b[] = U\"\";", "wchar_t c[] = L\"\";"};
+  const std::string S = synthesiseDeclarations({}, Stmts, TypeNames);
+  EXPECT_NE(std::string::npos, S.find("typedef __CHAR16_TYPE__ char16_t;"))
+      << S;
+  EXPECT_NE(std::string::npos, S.find("typedef __CHAR32_TYPE__ char32_t;"))
+      << S;
   EXPECT_NE(std::string::npos, S.find("typedef __WCHAR_TYPE__ wchar_t;")) << S;
   std::string Error;
-  std::optional<ParsedPattern> P = parsePattern({}, Names, Stmts, Error);
+  std::optional<ParsedPattern> P = parsePattern({}, Stmts, TypeNames, Error);
   ASSERT_TRUE(P.has_value()) << Error;
   for (unsigned I = 0; I != Stmts.size(); ++I)
     EXPECT_TRUE(P->Items[I]) << Stmts[I] << ": " << P->Errors[I];
-}
-
-TEST(SynthesiseDeclarations, ATypeNameTheRuleNeverWritesIsNotDeclared) {
-  // The list is the whole patch's, so most of it belongs to other rules, and
-  // the synthesised source is what a reader debugging a rule reads.
-  const std::string S = synthesiseDeclarations({}, {"mytype"}, {"foo(E);"});
-  EXPECT_EQ(std::string::npos, S.find("typedef")) << S;
-}
-
-TEST(SynthesiseDeclarations, ANameDeclaredBothWaysIsDeclaredOnce) {
-  // A `type T` metavariable is a wildcard and a declared type name stands for
-  // itself, so a name that is both takes the metavariable's declaration.
-  const std::vector<MetaVar> MV = {mv(MetaVar::Kind::Type, "T")};
-  const std::string S = synthesiseDeclarations(MV, {"T"}, {"T x;"});
-  EXPECT_EQ(S.find("typedef int T;"), S.rfind("typedef int T;")) << S;
 }
 
 TEST(SynthesiseDeclarations, ANameInsideALongerNameIsADifferentName) {
   // Scanning for `E` must not fire on `Extra`, which would give the pattern a
   // type derived from a use that is not its own.
   const std::vector<MetaVar> MV = {mv(MetaVar::Kind::Expression, "E")};
-  const std::string S = synthesiseDeclarations(MV, {}, {"foo(Extra->m, E);"});
+  const std::string S = synthesiseDeclarations(MV, {"foo(Extra->m, E);"}, {});
   EXPECT_NE(std::string::npos, S.find("extern int E;")) << S;
   EXPECT_EQ(std::string::npos, S.find("__spatch_E_t")) << S;
 }
@@ -155,7 +138,7 @@ TEST(ParsePattern, AMetavariableReferenceResolvesToADeclarationWeOwn) {
   // mistaken for the metavariable.
   const std::vector<MetaVar> MV = {mv(MetaVar::Kind::Expression, "E")};
   std::string Error;
-  std::optional<ParsedPattern> P = parsePattern(MV, {}, {"foo(E);"}, Error);
+  std::optional<ParsedPattern> P = parsePattern(MV, {"foo(E);"}, {}, Error);
   ASSERT_TRUE(P.has_value()) << Error;
   ASSERT_NE(nullptr, P->Items[0]);
   const auto *Call = dyn_cast<CallExpr>(P->Items[0]);
@@ -171,7 +154,7 @@ TEST(ParsePattern, AMetavariableReferenceResolvesToADeclarationWeOwn) {
 
 TEST(ParsePattern, AnArgumentEllipsisSurvivesAsAMarkerCall) {
   std::string Error;
-  std::optional<ParsedPattern> P = parsePattern({}, {}, {"foo(...);"}, Error);
+  std::optional<ParsedPattern> P = parsePattern({}, {"foo(...);"}, {}, Error);
   ASSERT_TRUE(P.has_value()) << Error;
   ASSERT_NE(nullptr, P->Items[0]);
   const auto *Call = dyn_cast<CallExpr>(P->Items[0]);

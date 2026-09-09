@@ -93,19 +93,47 @@ std::string unreadBranchReasons(llvm::StringRef Patch, llvm::StringRef Code) {
   return Out;
 }
 
-/// Does \p Patch over \p Code report a run this tool can call complete?
-bool ranCompletely(llvm::StringRef Patch, llvm::StringRef Code) {
+/// What \p Patch over \p Code reported about its own completeness, as
+/// `unrun=N unread=N complete=0|1`.
+///
+/// Spelled out rather than returned as one bool, because a bool any failure
+/// satisfies cannot say which failure happened: a patch that did not parse
+/// and a rule that ran with one branch unread both read as "not complete".
+std::string completeness(llvm::StringRef Patch, llvm::StringRef Code) {
   std::string Error;
   std::optional<SemanticPatch> P = parseSemanticPatch(Patch, "t.cocci", Error);
   if (!P)
-    return false;
+    return "!" + Error;
   std::unique_ptr<ASTUnit> Unit =
       tooling::buildASTFromCodeWithArgs(Code, {"-std=gnu11", "-w"}, "input.c");
   if (!Unit)
-    return false;
+    return "!no AST";
   RunResult Result;
   runPatch(*P, Unit->getASTContext(), Result);
-  return Result.UnrunRules.empty() && Result.complete();
+  return "unrun=" + std::to_string(Result.UnrunRules.size()) +
+         " unread=" + std::to_string(Result.UnreadBranches.size()) +
+         " complete=" + (Result.complete() ? "1" : "0");
+}
+
+/// The line of every finding, in the order the run reported them.
+std::string findingLines(llvm::StringRef Patch, llvm::StringRef Code) {
+  std::string Error;
+  std::optional<SemanticPatch> P = parseSemanticPatch(Patch, "t.cocci", Error);
+  if (!P)
+    return "!" + Error;
+  std::unique_ptr<ASTUnit> Unit =
+      tooling::buildASTFromCodeWithArgs(Code, {"-std=gnu11", "-w"}, "input.c");
+  if (!Unit)
+    return "!no AST";
+  RunResult Result;
+  runPatch(*P, Unit->getASTContext(), Result);
+  std::string Out;
+  for (const Finding &F : Result.Findings) {
+    if (!Out.empty())
+      Out += ",";
+    Out += std::to_string(F.Line);
+  }
+  return Out;
 }
 
 } // namespace
@@ -437,6 +465,17 @@ TEST(Disjunction, BranchOrderBeatsNesting) {
                       "void f(struct s *p) { p->fld; }\n"));
 }
 
+TEST(Disjunction, MatchesAreReportedInSourceOrderAcrossBranches) {
+  // Each branch is searched over the whole translation unit before the next,
+  // so the matches come out grouped by branch. A reader looks for them where
+  // they are in the file, so they are sorted back into source order. Branch 2
+  // here matches the earlier line.
+  EXPECT_EQ("4,5", findingLines("@r@\n@@\n(\n- foo();\n+ a();\n|\n- bar();\n"
+                                "+ b();\n)\n",
+                                "void foo(void);\nvoid bar(void);\n"
+                                "void k(void) {\n  bar();\n  foo();\n}\n"));
+}
+
 TEST(Disjunction, AFileScopeDeclarationAndTheStatementsInsideItAreOneClaim) {
   // A file-scope declaration is claimed among declarations by identity, and a
   // statement by range, and a declaration's initialiser is in the statement
@@ -473,7 +512,7 @@ TEST(Disjunction, ABranchThatCannotBeReadMakesTheRunIncomplete) {
                                 "(\n- k(NULL)\n+ 0\n|\n- k(p)\n+ g(p)\n)\n";
   const llvm::StringRef Code = "void k(int *);\nvoid g(int *);\n"
                                "void f(int *p) { k(p); }\n";
-  EXPECT_FALSE(ranCompletely(Patch, Code));
+  EXPECT_EQ("unrun=0 unread=1 complete=0", completeness(Patch, Code));
   EXPECT_EQ("branch 1 of the disjunction could not be read, so the sites it "
             "describes are left alone: pattern: the pattern statement did not "
             "parse as C: use of undeclared identifier 'NULL'\n",
@@ -487,17 +526,32 @@ TEST(Disjunction, ARuleWhoseEveryBranchIsUnreadableIsRefused) {
                          "void k(int *);\nvoid f(int *p) { k(p); }\n"));
 }
 
-TEST(Disjunction, BranchesAskingForDifferentThingsAreRefused) {
+TEST(Disjunction, AnInsertingBranchIsRefusedLikeAnInsertingRule) {
   // `tests/const_adding.cocci` deletes nothing in its first branch and
-  // inserts in its second, so which of the two a site gets is decided per
-  // site. Naming that is what keeps the first branch's purpose from being
-  // applied to every site.
+  // inserts in its second, so the insertion needs a position relative to the
+  // match. The refusal names the branch it came from.
   EXPECT_EQ("branch 2 of the disjunction: a dot-free rule that only inserts "
             "needs the insertion placed relative to the match, which this "
             "version does not build\n",
             unrunReasons("@r@\nidentifier I;\n@@\n"
                          "(\n  const int I;\n|\n+ const\n  int I;\n)\n",
                          "void f(void) { const int a; int b; }\n"));
+}
+
+TEST(Disjunction, BranchesAskingForDifferentThingsAreRefused) {
+  // One branch marks no line, so it only binds, and the other rewrites.
+  // Which of the two a site gets is then decided per site rather than per
+  // rule. Naming that is what keeps the first branch's purpose from being
+  // applied to every site. Both branches are acceptable on their own, which
+  // is what makes this reach the agreement check rather than an earlier
+  // refusal.
+  EXPECT_EQ("the branches of the disjunction ask for different things, so the "
+            "rule both rewrites and leaves alone depending on the branch, "
+            "which this version does not build\n",
+            unrunReasons("@r@\nexpression E;\n@@\n"
+                         "(\n  f(E);\n|\n- g(E);\n+ h(E);\n)\n",
+                         "void f(int);\nvoid g(int);\nvoid h(int);\n"
+                         "void k(void) { f(1); g(2); }\n"));
 }
 
 TEST(Disjunction, ADisjunctionInsideALargerPatternIsRefused) {

@@ -132,31 +132,11 @@ bool isSynthesisArtefact(unsigned ID) {
   return ID == diag::err_init_element_not_constant;
 }
 
-/// Does any of \p Stmts write \p Name as a whole word?
-bool mentionsWord(llvm::ArrayRef<std::string> Stmts, llvm::StringRef Name) {
-  for (const std::string &S : Stmts) {
-    llvm::StringRef T(S);
-    for (size_t At = T.find(Name); At != llvm::StringRef::npos;
-         At = T.find(Name, At + 1)) {
-      const bool LeftOK = At == 0 || !isIdentChar(T[At - 1]);
-      const size_t End = At + Name.size();
-      if (LeftOK && (End == T.size() || !isIdentChar(T[End])))
-        return true;
-    }
-  }
-  return false;
-}
-
-/// The type C's own wide-character type names have, spelled as the macro
-/// Clang predefines for it, or an empty string for any other name.
+/// The macro Clang predefines for one of C's wide-character type names, or an
+/// empty string for any other name.
 ///
-/// A `typedef X;` declaration says only that `X` is a type name, so any
-/// definition the synthesised source gives it is a guess, and `int` is the
-/// one that costs least. It is wrong for two of these three, because a string
-/// literal initialiser compares element types exactly: `char32_t e[] = U"";`
-/// is an error against `typedef int char32_t;`. These names come from
-/// `<uchar.h>` and `<stddef.h>`, and a patch that declares one means the
-/// standard type, so it gets the type the implementation gives it.
+/// A string literal initialiser compares element types exactly, so
+/// `char32_t e[] = U"";` does not parse against `typedef int char32_t;`.
 llvm::StringRef wideCharTypeMacro(llvm::StringRef Name) {
   if (Name == "char16_t")
     return "__CHAR16_TYPE__";
@@ -273,25 +253,22 @@ ArgDotsShape argumentDotsShape(llvm::StringRef Args) {
 }
 
 std::string synthesiseDeclarations(llvm::ArrayRef<MetaVar> MetaVars,
-                                   llvm::ArrayRef<std::string> TypeNames,
-                                   llvm::ArrayRef<std::string> Statements) {
+                                   llvm::ArrayRef<std::string> Statements,
+                                   llvm::ArrayRef<std::string> TypeNames) {
   std::string Out;
   llvm::raw_string_ostream OS(Out);
   OS << "/* synthesised by clang-spatch to parse one rule's patterns */\n";
   OS << "int " << DotsMarker << "();\n";
+  // The list is the whole patch's rather than this rule's, which costs an
+  // unused typedef in a rule that names none of them and changes no parse.
   for (const std::string &Name : TypeNames) {
-    // The list is the whole patch's, so most of it belongs to other rules,
-    // and this source is what a reader debugging one rule reads.
-    if (!mentionsWord(Statements, Name))
-      continue;
     // A name declared both ways is declared once, by the metavariable loop
     // below, because there it is a wildcard and here it stands for itself.
     if (llvm::any_of(MetaVars,
                      [&](const MetaVar &M) { return M.Name == Name; }))
       continue;
     const llvm::StringRef Macro = wideCharTypeMacro(Name);
-    OS << "typedef " << (Macro.empty() ? "int" : Macro) << " " << Name
-       << ";\n";
+    OS << "typedef " << (Macro.empty() ? "int" : Macro) << " " << Name << ";\n";
   }
   for (const MetaVar &M : MetaVars) {
     if (M.Kind == MetaVar::Kind::Position)
@@ -329,13 +306,13 @@ std::string synthesiseDeclarations(llvm::ArrayRef<MetaVar> MetaVars,
 
 std::optional<ParsedPattern>
 parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
-             llvm::ArrayRef<std::string> TypeNames,
-             llvm::ArrayRef<std::string> Statements, std::string &Error) {
+             llvm::ArrayRef<std::string> Statements,
+             llvm::ArrayRef<std::string> TypeNames, std::string &Error) {
   ParsedPattern P;
   P.Items.assign(Statements.size(), nullptr);
   P.Errors.assign(Statements.size(), std::string());
 
-  std::string Src = synthesiseDeclarations(MetaVars, TypeNames, Statements);
+  std::string Src = synthesiseDeclarations(MetaVars, Statements, TypeNames);
   // One function per statement, so a body can be mapped back to the statement
   // it came from by the index in its name.
   llvm::SmallVector<unsigned, 8> Wrapped;

@@ -259,38 +259,25 @@ bool onSide(const PatternItem &It, bool Minus) {
                      It.Marker == ItemMarker::Plus;
 }
 
-void groupInto(std::vector<PatternItem> &Side,
-               const std::vector<PatternItem> &Lines, bool Minus,
-               ArrayRef<MetaVar> MetaVars);
-
-/// One side of a disjunction: the same item with each branch grouped into that
-/// side's statements.
-///
-/// A branch is a rule body in miniature, so a branch of a transformed
-/// disjunction interleaves its `-`, `+` and context lines exactly as a rule
-/// does and has to be grouped once per side for the same reason. Appending the
-/// item unchanged left each branch holding one raw line per source line, which
-/// is not a shape any consumer of a grouped side can read.
-PatternItem groupedDisjunction(const PatternItem &It, bool Minus,
-                               ArrayRef<MetaVar> MetaVars) {
-  PatternItem Out = It;
-  Out.Branches.clear();
-  for (const std::vector<PatternItem> &Branch : It.Branches) {
-    std::vector<PatternItem> Grouped;
-    groupInto(Grouped, Branch, Minus, MetaVars);
-    Out.Branches.push_back(std::move(Grouped));
-  }
-  return Out;
-}
-
 /// Appends the lines of \p Lines that belong to one side, grouped into
 /// statements, to \p Side.
+///
+/// A branch of a disjunction is a rule body in miniature, so it interleaves
+/// its `-`, `+` and context lines the way a rule does and is grouped once per
+/// side for the same reason. Left ungrouped, a branch held one raw line per
+/// source line, which is not a shape any consumer of a grouped side can read.
 void groupInto(std::vector<PatternItem> &Side,
                const std::vector<PatternItem> &Lines, bool Minus,
                ArrayRef<MetaVar> MetaVars) {
   for (const PatternItem &It : Lines) {
     if (It.Kind == ItemKind::Disjunction) {
-      Side.push_back(groupedDisjunction(It, Minus, MetaVars));
+      PatternItem Grouped = It;
+      Grouped.Branches.clear();
+      for (const std::vector<PatternItem> &Branch : It.Branches) {
+        Grouped.Branches.emplace_back();
+        groupInto(Grouped.Branches.back(), Branch, Minus, MetaVars);
+      }
+      Side.push_back(std::move(Grouped));
       continue;
     }
     if (onSide(It, Minus))
@@ -304,7 +291,8 @@ void groupInto(std::vector<PatternItem> &Side,
 /// complete it, because they are on the other side. So did one that opens
 /// mid-statement, as the plus side of `- static const char *str` over
 /// `    = E;` does: it holds `= E;` and nothing to assign.
-void markUnfinished(std::vector<PatternItem> &Side, ArrayRef<MetaVar> MetaVars) {
+void markUnfinished(std::vector<PatternItem> &Side,
+                    ArrayRef<MetaVar> MetaVars) {
   for (PatternItem &It : Side) {
     if (It.Kind == ItemKind::Disjunction) {
       for (std::vector<PatternItem> &Branch : It.Branches)
@@ -1815,7 +1803,7 @@ void SmplParser::scanRefusedConstructs(unsigned LineNo, StringRef T, Rule &R,
   if (DotNames.empty() && T.contains("...")) {
     std::string Why;
     std::optional<ParsedPattern> P =
-        parsePattern(R.MetaVars, Patch.TypeNames, {T.str()}, Why);
+        parsePattern(R.MetaVars, {T.str()}, Patch.TypeNames, Why);
     if (!P)
       refuse(LineNo, "argument-level ellipsis in a pattern Clang cannot read",
              Why);
