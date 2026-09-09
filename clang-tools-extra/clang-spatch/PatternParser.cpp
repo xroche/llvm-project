@@ -1,0 +1,211 @@
+//===--- PatternParser.cpp - Parse an SmPL pattern with Clang -------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include "PatternParser.h"
+#include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
+#include "clang/AST/Stmt.h"
+#include "clang/Tooling/Tooling.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/StringExtras.h"
+#include "llvm/ADT/StringSet.h"
+#include "llvm/Support/raw_ostream.h"
+
+namespace clang::spatch {
+
+namespace {
+
+/// The prefix of the function each pattern statement is wrapped in. The index
+/// after it maps a body back to the statement it came from.
+constexpr llvm::StringLiteral ItemPrefix = "__spatch_item_";
+
+bool isIdentChar(char C) {
+  return isalnum(static_cast<unsigned char>(C)) || C == '_';
+}
+
+/// How a pattern uses one metavariable, which is what decides the type it has
+/// to be given. A bare use accepts any type; the rest do not.
+struct Usage {
+  llvm::StringSet<> Members; ///< Names after `->` or `.`.
+  bool Subscripted = false;  ///< Appears as `x[...]`.
+  bool Called = false;       ///< Appears as `x(...)`.
+  bool Arrow = false;        ///< At least one `->`, so the type is a pointer.
+};
+
+/// Scans \p Statements for every use of \p Name.
+Usage usageOf(llvm::StringRef Name, llvm::ArrayRef<std::string> Statements) {
+  Usage U;
+  for (const std::string &S : Statements) {
+    llvm::StringRef T(S);
+    size_t I = 0;
+    while (true) {
+      const size_t At = T.find(Name, I);
+      if (At == llvm::StringRef::npos)
+        break;
+      I = At + Name.size();
+      // A name inside a longer identifier is a different name.
+      if (At != 0 && isIdentChar(T[At - 1]))
+        continue;
+      if (I != T.size() && isIdentChar(T[I]))
+        continue;
+      llvm::StringRef Rest = T.drop_front(I).ltrim();
+      if (Rest.consume_front("->") || Rest.consume_front(".")) {
+        U.Arrow |= T.drop_front(I).ltrim().starts_with("->");
+        Rest = Rest.ltrim();
+        size_t N = 0;
+        while (N != Rest.size() && isIdentChar(Rest[N]))
+          ++N;
+        if (N != 0)
+          U.Members.insert(Rest.take_front(N));
+      } else if (Rest.starts_with("[")) {
+        U.Subscripted = true;
+      } else if (Rest.starts_with("(")) {
+        U.Called = true;
+      }
+    }
+  }
+  return U;
+}
+
+/// The C type text a metavariable with \p U has to be given, or empty when a
+/// plain `int` will do.
+std::string typeFor(llvm::StringRef Name, const Usage &U, std::string &Struct) {
+  if (!U.Members.empty()) {
+    // The pattern names the members, so a type that has them can be built.
+    // Every member is an int, because the pattern never constrains the member
+    // type and giving it one would reject a target that disagrees.
+    std::string Body;
+    llvm::raw_string_ostream OS(Body);
+    OS << "struct __spatch_" << Name << "_t {";
+    llvm::SmallVector<llvm::StringRef, 4> Names;
+    for (const auto &M : U.Members)
+      Names.push_back(M.first());
+    llvm::sort(Names);
+    for (llvm::StringRef M : Names)
+      OS << " int " << M << ";";
+    OS << " };\n";
+    Struct = Body;
+    return ("struct __spatch_" + Name + "_t " + (U.Arrow ? "*" : "")).str();
+  }
+  if (U.Called)
+    return "int (*" + Name.str() + ")()"; // handled by the caller's spelling
+  if (U.Subscripted)
+    return "int *";
+  return "int ";
+}
+
+} // namespace
+
+std::string synthesiseDeclarations(llvm::ArrayRef<MetaVar> MetaVars,
+                                   llvm::ArrayRef<std::string> Statements) {
+  std::string Out;
+  llvm::raw_string_ostream OS(Out);
+  OS << "/* synthesised by clang-spatch to parse one rule's patterns */\n";
+  OS << "int " << DotsMarker << "();\n";
+  for (const MetaVar &M : MetaVars) {
+    if (M.Kind == MetaVar::Kind::Position)
+      continue; // A position binds a location, so it needs no declaration.
+    if (M.Kind == MetaVar::Kind::Type) {
+      OS << "typedef int " << M.Name << ";\n";
+      continue;
+    }
+    const Usage U = usageOf(M.Name, Statements);
+    std::string Struct;
+    const std::string Type = typeFor(M.Name, U, Struct);
+    if (!Struct.empty())
+      OS << Struct;
+    if (U.Called && Struct.empty())
+      OS << "int " << M.Name << "();\n";
+    else
+      OS << "extern " << Type << M.Name << ";\n";
+  }
+  return Out;
+}
+
+std::optional<ParsedPattern>
+parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
+             llvm::ArrayRef<std::string> Statements, std::string &Error) {
+  ParsedPattern P;
+  P.Items.assign(Statements.size(), nullptr);
+  P.Errors.assign(Statements.size(), std::string());
+
+  std::string Src = synthesiseDeclarations(MetaVars, Statements);
+  // One function per statement, so a body can be mapped back to the statement
+  // it came from by the index in its name.
+  llvm::SmallVector<unsigned, 8> Wrapped;
+  for (unsigned I = 0; I != Statements.size(); ++I) {
+    llvm::StringRef T = llvm::StringRef(Statements[I]).trim();
+    if (T.empty() || T == "{" || T == "}") {
+      P.Errors[I] = "the pattern line carries no statement";
+      continue;
+    }
+    std::string Body = T.str();
+    // `...` is not C. It reaches the AST as a marker call instead, which the
+    // unifier reads as "zero or more arguments".
+    for (size_t At = Body.find("..."); At != std::string::npos;
+         At = Body.find("...", At))
+      Body.replace(At, 3, (DotsMarker + "()").str());
+    Src += "void " + ItemPrefix.str() + std::to_string(I) + "(void) {\n";
+    Src += Body;
+    if (!llvm::StringRef(Body).rtrim().ends_with(";") &&
+        !llvm::StringRef(Body).rtrim().ends_with("}"))
+      Src += ";";
+    Src += "\n}\n";
+    Wrapped.push_back(I);
+  }
+  P.Source = Src;
+
+  // Errors are wanted per statement rather than fatally, so diagnostics are
+  // collected and attributed below instead of stopping the parse.
+  std::unique_ptr<ASTUnit> Unit = tooling::buildASTFromCodeWithArgs(
+      Src, {"-std=gnu11", "-w", "-ferror-limit=0"}, "spatch-pattern.c");
+  if (!Unit) {
+    Error = "Clang could not be run on the synthesised pattern";
+    return std::nullopt;
+  }
+
+  ASTContext &Ctx = Unit->getASTContext();
+  for (Decl *D : Ctx.getTranslationUnitDecl()->decls()) {
+    const auto *FD = dyn_cast<FunctionDecl>(D);
+    if (!FD || !FD->hasBody()) {
+      // A metavariable's own declaration, which is how a reference to it is
+      // recognised later.
+      if (const auto *ND = dyn_cast<NamedDecl>(D))
+        for (const MetaVar &M : MetaVars)
+          if (ND->getName() == M.Name)
+            P.MetaVarDecls[ND->getCanonicalDecl()] = &M;
+      continue;
+    }
+    llvm::StringRef Name = FD->getName();
+    if (!Name.consume_front(ItemPrefix))
+      continue;
+    unsigned Index = 0;
+    if (Name.getAsInteger(10, Index) || Index >= Statements.size())
+      continue;
+    const auto *Body = dyn_cast<CompoundStmt>(FD->getBody());
+    if (!Body || Body->body_empty()) {
+      P.Errors[Index] = "the pattern statement did not parse as C";
+      continue;
+    }
+    // A pattern line is one statement. More than one means the line held a
+    // sequence, which the rule body is supposed to express instead.
+    if (Body->size() != 1) {
+      P.Errors[Index] = "the pattern line holds more than one statement";
+      continue;
+    }
+    P.Items[Index] = Body->body_front();
+  }
+
+  for (unsigned I : Wrapped)
+    if (!P.Items[I] && P.Errors[I].empty())
+      P.Errors[I] = "the pattern statement did not parse as C";
+
+  return P;
+}
+
+} // namespace clang::spatch

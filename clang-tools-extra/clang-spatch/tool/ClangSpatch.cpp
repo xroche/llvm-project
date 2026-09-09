@@ -19,6 +19,7 @@
 
 #include "../PatchRunner.h"
 #include "../PatternCompiler.h"
+#include "../PatternParser.h"
 #include "../SmplParser.h"
 #include "clang/Frontend/FrontendActions.h"
 #include "clang/Tooling/CommonOptionsParser.h"
@@ -44,6 +45,12 @@ static llvm::cl::opt<bool> AllowPartial(
     llvm::cl::desc("Run the rules that compiled even though the patch contains "
                    "constructs this tool does not support. Off by default, "
                    "because a partly applied patch is unsafe"),
+    llvm::cl::init(false), llvm::cl::cat(SpatchCategory));
+
+static llvm::cl::opt<bool> PrintPatterns(
+    "print-patterns",
+    llvm::cl::desc("Parse each rule's patterns with Clang and print what each "
+                   "statement became, then exit"),
     llvm::cl::init(false), llvm::cl::cat(SpatchCategory));
 
 static llvm::cl::opt<bool>
@@ -126,6 +133,31 @@ int main(int argc, const char **argv) {
                  << ", so no rule was run. Pass --allow-partial to run the "
                     "rules that did compile.\n";
     return 2;
+  }
+
+  if (PrintPatterns) {
+    for (const Rule &R : Patch->Rules) {
+      std::vector<std::string> Stmts;
+      for (const PatternItem &I : R.Body)
+        if (I.Kind == PatternItem::Kind::Statement)
+          Stmts.push_back(I.Text);
+      llvm::outs() << "rule " << (R.Name.empty() ? "<unnamed>" : R.Name)
+                   << " statements=" << Stmts.size() << "\n";
+      if (Stmts.empty())
+        continue;
+      std::string Error;
+      std::optional<ParsedPattern> P = parsePattern(R.MetaVars, Stmts, Error);
+      if (!P) {
+        llvm::outs() << "  SYNTH FAILED: " << Error << "\n";
+        continue;
+      }
+      for (unsigned I = 0; I != Stmts.size(); ++I)
+        llvm::outs() << "  [" << Stmts[I] << "] -> "
+                     << (P->Items[I] ? P->Items[I]->getStmtClassName()
+                                     : "UNPARSED: " + P->Errors[I])
+                     << "\n";
+    }
+    return 0;
   }
 
   if (PrintMatchers) {

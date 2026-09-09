@@ -5,6 +5,7 @@ set(LLVM_LINK_COMPONENTS
 add_clang_library(clangSpatch STATIC
   SmplParser.cpp
   PatternCompiler.cpp
+  PatternParser.cpp
   PathQuery.cpp
   PatchRunner.cpp
 )
@@ -16,6 +17,9 @@ clang_target_link_libraries(clangSpatch
   clangAnalysis
   clangBasic
   clangDynamicASTMatchers
+  clangFrontend
+  clangSerialization
+  clangTooling
   )
 
 add_subdirectory(tool)
