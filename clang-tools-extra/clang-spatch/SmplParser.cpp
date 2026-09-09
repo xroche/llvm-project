@@ -22,6 +22,7 @@
 #include "SmplParser.h"
 #include "PatternParser.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
@@ -113,6 +114,39 @@ int bracketDepth(StringRef T) {
   return Depth;
 }
 
+/// Is every word of \p T a type keyword or a declared type metavariable?
+///
+/// `- long long` over `  int x;` is one declaration split by the patch, and
+/// neither line is a pattern on its own. A type fragment carries no
+/// declarator, so it cannot be a statement and always continues.
+bool isTypeFragment(StringRef T, ArrayRef<MetaVar> MetaVars) {
+  static constexpr StringRef Keywords[] = {
+      "void",     "char",    "short",    "int",      "long",
+      "float",    "double",  "signed",   "unsigned", "_Bool",
+      "_Complex", "complex", "const",    "volatile", "restrict",
+      "static",   "extern",  "register", "inline",   "auto"};
+  T = T.trim();
+  if (T.empty() || T.find_first_of("()[]{};,*&") != StringRef::npos)
+    return false;
+  bool Any = false;
+  while (!T.empty()) {
+    const size_t N = T.find(' ');
+    const StringRef Word = T.take_front(N);
+    T = N == StringRef::npos ? StringRef() : T.drop_front(N + 1).ltrim();
+    if (Word.empty())
+      continue;
+    Any = true;
+    if (llvm::is_contained(Keywords, Word))
+      continue;
+    const bool IsTypeVar = llvm::any_of(MetaVars, [&](const MetaVar &M) {
+      return M.Kind == MetaVar::Kind::Type && M.Name == Word;
+    });
+    if (!IsTypeVar)
+      return false;
+  }
+  return Any;
+}
+
 /// Does the pattern line \p T continue onto the next one?
 ///
 /// A rule body is written a line at a time and a pattern is not, so `if (E)`
@@ -130,6 +164,8 @@ bool continuesOntoNextLine(StringRef T, ArrayRef<MetaVar> MetaVars) {
   if (T.empty())
     return false;
   if (bracketDepth(T) > 0)
+    return true;
+  if (isTypeFragment(T, MetaVars))
     return true;
   StringRef R = T.rtrim();
   // A dangling `else` or `do` needs the body that follows it.
@@ -156,6 +192,33 @@ bool continuesOntoNextLine(StringRef T, ArrayRef<MetaVar> MetaVars) {
   return false;
 }
 
+/// Does \p T open with an operator where an operand belongs, so that it is
+/// the tail of a statement rather than the start of one?
+bool opensMidStatement(StringRef T) {
+  T = T.ltrim();
+  return !T.empty() && StringRef("&|+*/%^<>=!?:,.)]").contains(T.front());
+}
+
+/// Does \p Next carry on from \p Above rather than start a statement?
+///
+/// `-static const char *str` over `    = E;` is one declaration, and the
+/// backward test cannot see it: the line above ends in an identifier, which
+/// is how a complete expression pattern ends too. What settles it is the line
+/// below opening with an operator.
+///
+/// The line above having ended a statement stops this, so two independent
+/// patterns are not fused when the second opens with a `*` or a `.`. So does
+/// an opening brace, because joining a block's brace to the first statement
+/// inside it builds unbalanced text, and every item of a rule shares one
+/// translation unit, so the imbalance breaks the statements after it too.
+bool continuesTheLineAbove(StringRef Above, StringRef Next) {
+  Above = Above.rtrim();
+  if (Above.empty() || Above.ends_with(";") || Above.ends_with("}") ||
+      Above.ends_with("{"))
+    return false;
+  return opensMidStatement(Next);
+}
+
 /// Appends \p It to one side's statement sequence, joining it onto the
 /// statement already there when that one is unfinished.
 void appendToSide(std::vector<PatternItem> &Side, const PatternItem &It,
@@ -173,7 +236,8 @@ void appendToSide(std::vector<PatternItem> &Side, const PatternItem &It,
     Side.push_back(It);
     return;
   }
-  if (!continuesOntoNextLine(Side.back().Text, MetaVars)) {
+  if (!continuesOntoNextLine(Side.back().Text, MetaVars) &&
+      !continuesTheLineAbove(Side.back().Text, It.Text)) {
     Side.push_back(It);
     return;
   }
@@ -203,11 +267,14 @@ void groupSides(Rule &R) {
       appendToSide(R.Plus, It, R.MetaVars);
   }
   // A group that closed while its text was still open never got the lines
-  // that complete it, because they are on the other side.
+  // that complete it, because they are on the other side. So did one that
+  // opens mid-statement, as the plus side of `- static const char *str` over
+  // `    = E;` does: it holds `= E;` and nothing to assign.
   for (std::vector<PatternItem> *Side : {&R.Minus, &R.Plus})
     for (PatternItem &It : *Side)
       if (It.Kind == ItemKind::Statement)
-        It.Unfinished = continuesOntoNextLine(It.Text, R.MetaVars);
+        It.Unfinished = continuesOntoNextLine(It.Text, R.MetaVars) ||
+                        opensMidStatement(It.Text);
 }
 
 /// The first whitespace-separated word of \p S.

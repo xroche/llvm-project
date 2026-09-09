@@ -1651,6 +1651,65 @@ TEST(SmplParser, AChangedLineMarksTheStatementItWasJoinedInto) {
   EXPECT_EQ(PatternItem::Marker::Plus, P.Rules[0].Plus[0].Marker);
 }
 
+TEST(SmplParser, ATypeFragmentTakesTheDeclaratorBelowIt) {
+  // `tests/longlong.cocci` is this shape. A run of type keywords carries no
+  // declarator, so it cannot be a statement, and the backward test could not
+  // tell it from a complete expression pattern: both end in a word.
+  SemanticPatch P =
+      parsed("@r@\nidentifier x;\n@@\n- long long\n+ int\n  x;\n");
+  ASSERT_EQ(1u, P.Rules.size());
+  ASSERT_EQ(1u, P.Rules[0].Minus.size()) << refusalList(P);
+  ASSERT_EQ(1u, P.Rules[0].Plus.size()) << refusalList(P);
+  EXPECT_EQ("long long x;", P.Rules[0].Minus[0].Text);
+  EXPECT_EQ("int x;", P.Rules[0].Plus[0].Text);
+}
+
+TEST(SmplParser, ALineOpeningWithAnOperatorJoinsTheOneAboveIt) {
+  // `tests/cptr.cocci` is this shape. The line above ends in an identifier,
+  // which is how a complete expression pattern ends too, so what settles it
+  // is the line below opening with `=`.
+  SemanticPatch P = parsed("@r@\nexpression E;\nidentifier s;\n@@\n"
+                           "- const char *s\n+ const char * const s\n"
+                           "    = E;\n");
+  ASSERT_EQ(1u, P.Rules.size());
+  ASSERT_EQ(1u, P.Rules[0].Minus.size()) << refusalList(P);
+  EXPECT_EQ("const char *s = E;", P.Rules[0].Minus[0].Text);
+  EXPECT_EQ("const char * const s = E;", P.Rules[0].Plus[0].Text);
+}
+
+TEST(SmplParser, TwoCompleteStatementsAreNotFusedByALeadingOperator) {
+  // A line opening with `*` or `.` is a continuation only when the line above
+  // did not finish a statement. Without that test these two patterns join
+  // into one item holding a sequence.
+  SemanticPatch P = parsed("@r@\n@@\n- foo();\n- *p = 0;\n");
+  ASSERT_EQ(1u, P.Rules.size());
+  ASSERT_EQ(2u, P.Rules[0].Minus.size()) << refusalList(P);
+  EXPECT_EQ("foo();", P.Rules[0].Minus[0].Text);
+  EXPECT_EQ("*p = 0;", P.Rules[0].Minus[1].Text);
+}
+
+TEST(SmplParser, AnOpeningBraceIsNotJoinedToTheStatementInsideIt) {
+  // The joined text would leave a brace unclosed, and every item of a rule
+  // shares one translation unit, so the imbalance takes the items after it
+  // with it. `tests/defineinit.cocci` and `tests/strangeorder.cocci` both
+  // lost a later statement metavariable that way.
+  SemanticPatch P = parsed("@r@\nexpression E;\n@@\n  {\n- .foo = E\n  }\n");
+  ASSERT_EQ(1u, P.Rules.size());
+  ASSERT_LE(2u, P.Rules[0].Minus.size()) << refusalList(P);
+  EXPECT_EQ("{", P.Rules[0].Minus[0].Text);
+}
+
+TEST(SmplParser, AStatementOpeningWithAnOperatorIsAFragment) {
+  // The plus side here is `= E;`, with nothing to assign to. Marking it
+  // finished would let the runner write it back over the whole declaration.
+  SemanticPatch P =
+      parsed("@r@\nexpression E;\n@@\n- const char *s\n    = E;\n");
+  ASSERT_EQ(1u, P.Rules.size());
+  ASSERT_EQ(1u, P.Rules[0].Plus.size()) << refusalList(P);
+  EXPECT_EQ("= E;", P.Rules[0].Plus[0].Text);
+  EXPECT_TRUE(P.Rules[0].Plus[0].Unfinished);
+}
+
 TEST(SmplParser, AnExpressionPatternStandsAloneWithoutASemicolon) {
   // Coccinelle removes an expression by writing it with no terminator, and
   // treating every such line as an unfinished statement joined 842 files'
