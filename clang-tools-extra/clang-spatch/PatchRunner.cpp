@@ -13,6 +13,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
+#include "clang/Basic/FileManager.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/DenseSet.h"
@@ -432,6 +433,24 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
                (*R.Quant == Rule::Quantifier::Exists ? "some" : "any") +
                " path from this anchor"});
     }
+  }
+
+  // Widening happens here rather than in `buildEdit`, because the rule needs
+  // every deletion of a file at once: two deletions separated by a blank line
+  // are one region to Coccinelle, and widening them one at a time keeps the
+  // blank line that separated them.
+  for (auto &File : Result.Edits) {
+    auto Entry = SM.getFileManager().getOptionalFileRef(File.first());
+    if (!Entry)
+      continue;
+    const FileID FID = SM.translateFile(*Entry);
+    if (FID.isInvalid())
+      continue;
+    bool Invalid = false;
+    const llvm::StringRef Buffer = SM.getBufferData(FID, &Invalid);
+    if (Invalid)
+      continue;
+    File.second = widenDeletions(File.first(), Buffer, File.second);
   }
 }
 

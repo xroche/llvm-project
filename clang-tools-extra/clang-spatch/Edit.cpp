@@ -12,7 +12,9 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Tooling/Transformer/SourceCode.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringExtras.h"
+#include <vector>
 
 namespace clang::spatch {
 
@@ -78,6 +80,127 @@ CharSourceRange matchedRange(DynTypedNode Matched, ASTContext &Context) {
   return tooling::maybeExtendRange(Token, tok::semi, Context);
 }
 
+/// Is \p C whitespace that does not end a line?
+bool isHorizontalSpace(char C) { return C == ' ' || C == '\t' || C == '\r'; }
+
+bool isSpace(char C) { return isHorizontalSpace(C) || C == '\n'; }
+
+bool allSpace(llvm::StringRef Text) {
+  return llvm::all_of(Text, [](char C) { return isSpace(C); });
+}
+
+/// A half-open offset range into a file's contents.
+struct Span {
+  size_t Begin = 0;
+  size_t End = 0;
+};
+
+/// Reads the buffer around a deletion, so the rules below can ask about lines
+/// rather than about offsets.
+class BufferLines {
+public:
+  explicit BufferLines(llvm::StringRef Buffer) : Buffer(Buffer) {}
+
+  /// The offset of the first character of the line holding \p At.
+  size_t startOfLine(size_t At) const {
+    const size_t NL = Buffer.rfind('\n', At);
+    return NL == llvm::StringRef::npos ? 0 : NL + 1;
+  }
+
+  /// The offset just past the newline that ends the line holding \p At, or the
+  /// end of the buffer when the last line has no newline.
+  size_t pastEndOfLine(size_t At) const {
+    const size_t NL = Buffer.find('\n', At);
+    return NL == llvm::StringRef::npos ? Buffer.size() : NL + 1;
+  }
+
+  bool onlySpaceBetween(size_t Begin, size_t End) const {
+    return allSpace(Buffer.slice(Begin, End));
+  }
+
+  /// How many whitespace-only lines sit directly above \p LineBegin, and where
+  /// the first of them starts.
+  std::pair<unsigned, size_t> blankLinesAbove(size_t LineBegin) const {
+    unsigned Count = 0;
+    size_t At = LineBegin;
+    while (At > 0) {
+      const size_t Above = startOfLine(At - 1);
+      if (!onlySpaceBetween(Above, At - 1))
+        break;
+      At = Above;
+      ++Count;
+    }
+    return {Count, At};
+  }
+
+  /// How many whitespace-only lines sit directly below \p PastLineEnd, and
+  /// where the last of them ends. A whitespace-only tail with no newline of
+  /// its own is not counted, because removing it would join two lines.
+  std::pair<unsigned, size_t> blankLinesBelow(size_t PastLineEnd) const {
+    unsigned Count = 0;
+    size_t At = PastLineEnd;
+    while (At < Buffer.size()) {
+      const size_t NL = Buffer.find('\n', At);
+      if (NL == llvm::StringRef::npos || !onlySpaceBetween(At, NL))
+        break;
+      At = NL + 1;
+      ++Count;
+    }
+    return {Count, At};
+  }
+
+  /// The last character before \p At that is not whitespace, or 0.
+  char lastNonSpaceBefore(size_t At) const {
+    for (size_t I = At; I-- > 0;)
+      if (!isSpace(Buffer[I]))
+        return Buffer[I];
+    return 0;
+  }
+
+  /// The first character at or after \p At that is not whitespace, or 0.
+  char firstNonSpaceAfter(size_t At) const {
+    for (size_t I = At; I < Buffer.size(); ++I)
+      if (!isSpace(Buffer[I]))
+        return Buffer[I];
+    return 0;
+  }
+
+  llvm::StringRef text() const { return Buffer; }
+
+private:
+  llvm::StringRef Buffer;
+};
+
+/// The span a deletion of \p Group should cover once the whitespace it would
+/// leave behind is taken with it.
+Span widenedSpan(const BufferLines &Lines, Span Group) {
+  const size_t LineBegin = Lines.startOfLine(Group.Begin);
+  const size_t PastLineEnd = Lines.pastEndOfLine(Group.End);
+  const bool WholeLines = Lines.onlySpaceBetween(LineBegin, Group.Begin) &&
+                          Lines.onlySpaceBetween(Group.End, PastLineEnd);
+
+  if (!WholeLines) {
+    // Kept code shares the line, so the line stays and only the space the
+    // deletion opened up goes.
+    Span S = Group;
+    while (S.End < Lines.text().size() &&
+           isHorizontalSpace(Lines.text()[S.End]))
+      ++S.End;
+    if (Lines.onlySpaceBetween(S.End, Lines.pastEndOfLine(S.End)))
+      while (S.Begin > 0 && isHorizontalSpace(Lines.text()[S.Begin - 1]))
+        --S.Begin;
+    return S;
+  }
+
+  const auto [Above, AboveBegin] = Lines.blankLinesAbove(LineBegin);
+  const auto [Below, BelowEnd] = Lines.blankLinesBelow(PastLineEnd);
+  if (Lines.lastNonSpaceBefore(LineBegin) == '{' && Above == 0)
+    return {LineBegin, BelowEnd};
+  if (Below > 0 || Lines.firstNonSpaceAfter(PastLineEnd) == '}')
+    return {AboveBegin, PastLineEnd};
+  return {LineBegin, PastLineEnd};
+}
+
 } // namespace
 
 llvm::StringRef sourceTextOf(const Stmt &S, ASTContext &Context) {
@@ -109,6 +232,48 @@ std::optional<PatternEdit> buildEdit(DynTypedNode Matched,
   const std::string Text = substitute(PlusText, Bound, Context);
   return PatternEdit{tooling::Replacement(Context.getSourceManager(), Range,
                                           Text, Context.getLangOpts())};
+}
+
+tooling::Replacements widenDeletions(llvm::StringRef FilePath,
+                                     llvm::StringRef Buffer,
+                                     const tooling::Replacements &Reps) {
+  const BufferLines Lines(Buffer);
+  const std::vector<tooling::Replacement> Sorted(Reps.begin(), Reps.end());
+  tooling::Replacements Out;
+  bool Failed = false;
+  auto keep = [&](const tooling::Replacement &R) {
+    if (llvm::Error E = Out.add(R)) {
+      llvm::consumeError(std::move(E));
+      Failed = true;
+    }
+  };
+
+  for (size_t I = 0; I < Sorted.size();) {
+    if (!Sorted[I].getReplacementText().empty() || Sorted[I].getLength() == 0) {
+      keep(Sorted[I]);
+      ++I;
+      continue;
+    }
+    // Coccinelle deletes a run of statements as one region, so two deletions
+    // with nothing but whitespace between them are widened together. Widening
+    // them apart leaves the blank line that separated them.
+    Span Group{Sorted[I].getOffset(),
+               Sorted[I].getOffset() + Sorted[I].getLength()};
+    size_t J = I + 1;
+    for (; J < Sorted.size() && Sorted[J].getReplacementText().empty() &&
+           Sorted[J].getLength() > 0 &&
+           Lines.onlySpaceBetween(Group.End, Sorted[J].getOffset());
+         ++J)
+      Group.End = Sorted[J].getOffset() + Sorted[J].getLength();
+    const Span Wide = widenedSpan(Lines, Group);
+    keep(tooling::Replacement(FilePath, Wide.Begin, Wide.End - Wide.Begin, ""));
+    I = J;
+  }
+
+  // A conflict means the widened spans overlap, which the grouping above is
+  // meant to prevent. The unwidened set is still correct, so it is what a
+  // caller gets rather than a partly widened one.
+  return Failed ? Reps : Out;
 }
 
 } // namespace clang::spatch

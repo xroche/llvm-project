@@ -62,6 +62,30 @@ llvm::StringRef sourceTextOf(const Stmt &S, ASTContext &Context);
 /// The source text of \p Range exactly as written, its last token included.
 llvm::StringRef sourceTextOf(SourceRange Range, ASTContext &Context);
 
+/// Widens every pure deletion in \p Reps so that deleting a statement does not
+/// leave its indentation, its line or a newly blank line behind.
+///
+/// \p Buffer is the contents of \p FilePath, which is the file every widened
+/// replacement is built against. A replacement with text in it is returned
+/// unchanged: only a deletion can leave whitespace behind.
+///
+/// Coccinelle deletes on a token stream whose whitespace is attached to the
+/// tokens, so its output has no leftover line where a statement was. The rule
+/// reproduced here was measured against `spatch` rather than read off its
+/// source, which applies nine ordered passes over that stream:
+///
+/// - A deletion that covers whole lines takes those lines, newline included.
+/// - Blank lines directly above it go too, once the deletion is followed by a
+///   blank line or is the last thing in its block.
+/// - A deletion that directly follows a `{` takes the blank lines below it
+///   instead, so opening a block does not leave a gap at the top.
+/// - A deletion that shares its line with kept code takes the horizontal
+///   whitespace after it, and the whitespace before it as well when nothing
+///   but the newline follows.
+tooling::Replacements widenDeletions(llvm::StringRef FilePath,
+                                     llvm::StringRef Buffer,
+                                     const tooling::Replacements &Reps);
+
 } // namespace clang::spatch
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_SPATCH_EDIT_H

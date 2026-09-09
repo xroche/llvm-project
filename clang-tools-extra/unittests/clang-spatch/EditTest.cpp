@@ -77,9 +77,74 @@ TEST(FlatRule, EveryMatchIsRewrittenRatherThanTheFirst) {
 }
 
 TEST(FlatRule, AMinusWithNoPlusDeletesTheStatement) {
-  EXPECT_EQ("void foo(int);\nvoid f(int x) {  }\n",
+  // The space the statement stood in goes with it, so the brace pair is
+  // `{ }` and not `{  }`. Measured against `spatch` on this input.
+  EXPECT_EQ("void foo(int);\nvoid f(int x) { }\n",
             rewritten("@r@\nexpression E;\n@@\n- foo(E);\n",
                       "void foo(int);\nvoid f(int x) { foo(x); }\n"));
+}
+
+// The six tests below pin the whitespace a deletion takes with it. Every
+// expected output was read off `spatch` on the same input, because the rule
+// is a fit to the reference implementation and not a design of its own. Before
+// them the tool made the substantive edit and left the statement's line, its
+// indentation, or a newly blank line behind, which was 20 of the 186
+// disagreements with Coccinelle's own `.res` files.
+
+TEST(Whitespace, ADeletedStatementTakesItsWholeLine) {
+  EXPECT_EQ("void del(void);\nvoid a(void);\n"
+            "void f(void) {\n  a();\n  a();\n}\n",
+            rewritten("@r@\n@@\n- del();\n",
+                      "void del(void);\nvoid a(void);\n"
+                      "void f(void) {\n  a();\n  del();\n  a();\n}\n"));
+}
+
+TEST(Whitespace, ADeletionAtTheEndOfABlockTakesTheBlankLineAboveIt) {
+  EXPECT_EQ("void del(void);\nvoid a(void);\n"
+            "void f(void) {\n  a();\n}\n",
+            rewritten("@r@\n@@\n- del();\n",
+                      "void del(void);\nvoid a(void);\n"
+                      "void f(void) {\n  a();\n\n  del();\n}\n"));
+}
+
+TEST(Whitespace, ADeletionAfterTheOpeningBraceTakesTheBlankLineBelowIt) {
+  // The rule is directional: above the deletion a blank line survives unless
+  // the deletion ends the block, and below it one survives unless the
+  // deletion opens the block. Deleting the first statement of a block would
+  // otherwise leave a gap under the brace.
+  EXPECT_EQ("void del(void);\nvoid a(void);\n"
+            "void f(void) {\n  a();\n}\n",
+            rewritten("@r@\n@@\n- del();\n",
+                      "void del(void);\nvoid a(void);\n"
+                      "void f(void) {\n  del();\n\n  a();\n}\n"));
+}
+
+TEST(Whitespace, ADeletionFollowedByABlankLineTakesTheBlankLineAboveIt) {
+  EXPECT_EQ("void del(void);\nvoid a(void);\n"
+            "void f(void) {\n  a();\n\n  a();\n}\n",
+            rewritten("@r@\n@@\n- del();\n",
+                      "void del(void);\nvoid a(void);\n"
+                      "void f(void) {\n  a();\n\n  del();\n\n  a();\n}\n"));
+}
+
+TEST(Whitespace, ADeletionSharingItsLineWithKeptCodeKeepsTheLine) {
+  EXPECT_EQ("void del(void);\nvoid a(void);\n"
+            "void f(void) {\n  a(); a();\n}\n",
+            rewritten("@r@\n@@\n- del();\n",
+                      "void del(void);\nvoid a(void);\n"
+                      "void f(void) {\n  a(); del(); a();\n}\n"));
+}
+
+TEST(Whitespace, TwoDeletionsSeparatedByWhitespaceAreWidenedAsOneRegion) {
+  // Widening them one at a time keeps the blank line that separated the pair
+  // from the statement above, because neither deletion on its own is
+  // preceded by a blank line. `tests/argument.cocci` is this shape.
+  EXPECT_EQ("void del1(void);\nvoid del2(void);\nvoid a(void);\n"
+            "void f(void) {\n  a();\n\n  a();\n}\n",
+            rewritten("@r@\n@@\n- del1();\n\n@s@\n@@\n- del2();\n",
+                      "void del1(void);\nvoid del2(void);\nvoid a(void);\n"
+                      "void f(void) {\n  a();\n\n  del1();\n  del2();\n"
+                      "\n  a();\n}\n"));
 }
 
 TEST(FlatRule, AStarRuleMatchesAndChangesNothing) {
