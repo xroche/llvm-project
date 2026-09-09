@@ -202,6 +202,23 @@ std::optional<FlatRule> flattenOf(const Rule &R, std::string &Why) {
   return F;
 }
 
+/// The reason a parsed pattern cannot be matched, or an empty string.
+std::string whyNotMatchable(const Stmt *Pattern) {
+  const std::string Class = uncomparableIn(Pattern);
+  if (Class.empty())
+    return Class;
+  // Clang error-recovers, so a tree can come back from text it could not
+  // read. The wrapper-line attribution in the pattern parser misses a
+  // diagnostic reported outside the wrapper's own lines, and the recovery
+  // node is what is left of it.
+  if (Class == "RecoveryExpr")
+    return "the pattern did not parse as C, and Clang recovered rather than "
+           "refusing it";
+  return "the pattern holds a " + Class +
+         ", and the unifier decides that class by its children alone, so it "
+         "would match a construct the rule does not describe";
+}
+
 /// Runs a rule that asks no question about control flow.
 void runFlatRule(const Rule &R, const FlatRule &F, ASTContext &Context,
                  RunResult &Result) {
@@ -217,6 +234,10 @@ void runFlatRule(const Rule &R, const FlatRule &F, ASTContext &Context,
   }
   if (!Parsed->Items[0]) {
     Result.UnrunRules.push_back({R.Name, "pattern: " + Parsed->Errors[0]});
+    return;
+  }
+  if (std::string Why = whyNotMatchable(Parsed->Items[0]); !Why.empty()) {
+    Result.UnrunRules.push_back({R.Name, Why});
     return;
   }
 
@@ -302,6 +323,14 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
     }
     if (!Parsed->Items[1]) {
       Result.UnrunRules.push_back({R.Name, "when !=: " + Parsed->Errors[1]});
+      continue;
+    }
+    if (std::string Why = whyNotMatchable(Parsed->Items[0]); !Why.empty()) {
+      Result.UnrunRules.push_back({R.Name, "anchor: " + Why});
+      continue;
+    }
+    if (std::string Why = whyNotMatchable(Parsed->Items[1]); !Why.empty()) {
+      Result.UnrunRules.push_back({R.Name, "when !=: " + Why});
       continue;
     }
 

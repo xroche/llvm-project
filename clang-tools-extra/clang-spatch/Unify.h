@@ -50,6 +50,18 @@ struct Match {
 bool unify(const Stmt *Pattern, const Stmt *Target, const ParsedPattern &Parsed,
            ASTContext &Context, Bindings &Bound);
 
+/// What in \p Pattern the unifier cannot compare, or an empty string when it
+/// can compare all of it.
+///
+/// Most node classes are decided by their class plus their children in order,
+/// and that is unsound for a class whose identity also lies somewhere that is
+/// not a child. A declaration carries its type and its declared names there,
+/// a `goto` its label, a cast its target type, so `long long x;` compared that
+/// way matches `char c;` and every other childless declaration. Every class
+/// the comparison has been reasoned about is listed; anything else is named
+/// here rather than approximated.
+std::string uncomparableIn(const Stmt *Pattern);
+
 /// Every place \p Pattern matches inside \p Context's translation unit.
 ///
 /// Reported outermost first, and a match's subtrees are not searched again, so

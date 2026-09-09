@@ -143,6 +143,18 @@ TEST(FlatRule, LeavingAFragmentOnThePlusSideIsRefused) {
                       "void b(void);\nvoid f(int a) { if (a) b(); }\n"));
 }
 
+TEST(FlatRule, ADeclarationPatternIsRefusedRatherThanMatchedLoosely) {
+  // A `DeclStmt` with no initialiser has no children, and its type and its
+  // declared name are not children either, so comparing class plus children
+  // made this pattern match `char c;` and `struct S { int f; } s;` as well,
+  // and rewrite all three to the literal text `int x;`.
+  EXPECT_EQ("!the pattern holds a DeclStmt, and the unifier decides that "
+            "class by its children alone, so it would match a construct the "
+            "rule does not describe",
+            rewritten("@r@\nidentifier x;\n@@\n- long long x;\n+ int x;\n",
+                      "int f(void) { long long b; char c; return 0; }\n"));
+}
+
 TEST(FlatRule, ShapesOutsideTheFlatPathAreNamedRatherThanRun) {
   // Each of these is a real Coccinelle shape and none is silently
   // approximated, because a rule that half-runs leaves code matching neither

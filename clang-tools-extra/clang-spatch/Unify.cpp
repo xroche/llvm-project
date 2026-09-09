@@ -239,6 +239,25 @@ private:
   }
 };
 
+/// Is \p S's identity fully given by its class and its children in order?
+bool isComparableByStructure(const Stmt &S) {
+  // `sizeof` over a type keeps the type off the child list, so `sizeof(int)`
+  // and `sizeof(long)` are the same node plus the same no children.
+  if (const auto *T = dyn_cast<UnaryExprOrTypeTraitExpr>(&S))
+    return !T->isArgumentType();
+  return isa<CompoundStmt, IfStmt, WhileStmt, DoStmt, ForStmt, ReturnStmt,
+             BreakStmt, ContinueStmt, NullStmt, SwitchStmt, CaseStmt,
+             DefaultStmt, ParenExpr, ArraySubscriptExpr, InitListExpr, StmtExpr,
+             AbstractConditionalOperator>(&S);
+}
+
+/// The classes `Unifier::match` decides by more than class and children.
+bool isComparedExplicitly(const Stmt &S) {
+  return isa<BinaryOperator, UnaryOperator, DeclRefExpr, MemberExpr, CallExpr,
+             IntegerLiteral, FloatingLiteral, CharacterLiteral, StringLiteral>(
+      &S);
+}
+
 /// Collects every statement of a translation unit, outermost first.
 class StmtCollector : public RecursiveASTVisitor<StmtCollector> {
 public:
@@ -250,6 +269,20 @@ public:
 };
 
 } // namespace
+
+std::string uncomparableIn(const Stmt *Pattern) {
+  if (!Pattern)
+    return std::string();
+  const Stmt *P = peel(Pattern);
+  if (!P)
+    return std::string();
+  if (!isComparedExplicitly(*P) && !isComparableByStructure(*P))
+    return P->getStmtClassName();
+  for (const Stmt *Child : P->children())
+    if (std::string Why = uncomparableIn(Child); !Why.empty())
+      return Why;
+  return std::string();
+}
 
 bool unify(const Stmt *Pattern, const Stmt *Target, const ParsedPattern &Parsed,
            ASTContext &Context, Bindings &Bound) {
