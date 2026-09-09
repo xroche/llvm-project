@@ -22,6 +22,7 @@
 
 #include "PatternParser.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Stmt.h"
 #include "llvm/ADT/StringMap.h"
 #include <string>
@@ -48,7 +49,12 @@ using Bindings = llvm::StringMap<Binding>;
 
 /// One place a pattern matched.
 struct Match {
-  const Stmt *Node = nullptr; ///< The target subtree the pattern matched.
+  /// The target node the pattern matched.
+  ///
+  /// Not narrowed to a `Stmt`, because a declaration pattern also matches a
+  /// declaration written outside any function body, and such a declaration
+  /// is not one: there is no `DeclStmt` at file scope.
+  DynTypedNode Node;
   Bindings Bound;
 };
 

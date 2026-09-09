@@ -21,6 +21,7 @@
 #include "SemanticPatch.h"
 #include "Unify.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ASTTypeTraits.h"
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/StringRef.h"
 #include <optional>
@@ -47,7 +48,7 @@ struct PatternEdit {
 /// `Replacement::setFromSourceRange` would take the spelling location and
 /// rewrite the macro's definition, changing every other expansion of it and
 /// reporting success.
-std::optional<PatternEdit> buildEdit(const Stmt &Matched,
+std::optional<PatternEdit> buildEdit(DynTypedNode Matched,
                                      llvm::StringRef PlusText,
                                      const Bindings &Bound, ASTContext &Context,
                                      std::string &Error);

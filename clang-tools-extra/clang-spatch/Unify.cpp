@@ -10,6 +10,7 @@
 #include "Edit.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallVector.h"
 
 namespace clang::spatch {
@@ -235,6 +236,13 @@ public:
     return match(Pattern, Target, Bound);
   }
 
+  /// Matches a declaration pattern against a declaration that is not inside
+  /// any function body, so it has no `DeclStmt` to be compared through.
+  bool runOnDecl(const DeclStmt &Pattern, llvm::ArrayRef<const Decl *> Target,
+                 Bindings &Bound) {
+    return matchDecls(Pattern, Target, Bound);
+  }
+
 private:
   const ParsedPattern &Parsed;
   ASTContext &Context;        ///< The code's.
@@ -302,10 +310,10 @@ private:
   ///
   /// None of the three is a child of the `DeclStmt`, so comparing class plus
   /// children made every childless declaration match every other one.
-  bool matchDecls(const DeclStmt &Pattern, const DeclStmt &Target,
+  bool matchDecls(const DeclStmt &Pattern, llvm::ArrayRef<const Decl *> Target,
                   Bindings &Bound) {
     auto PIt = Pattern.decl_begin(), PEnd = Pattern.decl_end();
-    auto TIt = Target.decl_begin(), TEnd = Target.decl_end();
+    auto TIt = Target.begin(), TEnd = Target.end();
     for (; PIt != PEnd && TIt != TEnd; ++PIt, ++TIt) {
       const auto *PD = dyn_cast<DeclaratorDecl>(*PIt);
       const auto *TD = dyn_cast<DeclaratorDecl>(*TIt);
@@ -404,7 +412,9 @@ private:
         return false;
       return matchArgs(*PC, *TC, Bound);
     } else if (const auto *PD = dyn_cast<DeclStmt>(P)) {
-      return matchDecls(*PD, *cast<DeclStmt>(T), Bound);
+      const auto *TD = cast<DeclStmt>(T);
+      const llvm::SmallVector<const Decl *, 4> Decls(TD->decls());
+      return matchDecls(*PD, Decls, Bound);
     } else if (const auto *PCast = dyn_cast<CStyleCastExpr>(P)) {
       const auto *TCast = cast<CStyleCastExpr>(T);
       return matchWrittenType(PCast->getTypeInfoAsWritten(),
@@ -482,6 +492,29 @@ std::string whyNotComparableInDecls(const DeclStmt &S) {
              ", which the type comparison does not handle";
   }
   return std::string();
+}
+
+/// Every declaration written at file scope that declares exactly one thing.
+///
+/// There is no `DeclStmt` outside a function body, so a declaration there is
+/// reachable only from the translation unit's own declaration list. A
+/// declaration with more than one declarator is left out: the declarators
+/// share one `;`, and replacing one of them would take the terminator the
+/// others need.
+llvm::SmallVector<const Decl *, 8> fileScopeDeclarations(ASTContext &Context) {
+  llvm::SmallVector<const Decl *, 8> Out;
+  llvm::DenseMap<const void *, unsigned> PerDeclaration;
+  const TranslationUnitDecl *TU = Context.getTranslationUnitDecl();
+  // Clang gives every declarator of one declaration the same begin location,
+  // which is what separates `int a, b;` from `int a; int b;`.
+  for (const Decl *D : TU->decls())
+    if (isa<DeclaratorDecl, TypedefNameDecl>(D) && !isa<FunctionDecl>(D))
+      ++PerDeclaration[D->getBeginLoc().getPtrEncoding()];
+  for (const Decl *D : TU->decls())
+    if (isa<DeclaratorDecl, TypedefNameDecl>(D) && !isa<FunctionDecl>(D) &&
+        PerDeclaration[D->getBeginLoc().getPtrEncoding()] == 1)
+      Out.push_back(D);
+  return Out;
 }
 
 /// Collects every statement of a translation unit, outermost first.
@@ -563,8 +596,15 @@ std::vector<Match> findMatches(const Stmt *Pattern, const ParsedPattern &Parsed,
     if (!Shared.run(Pattern, S, Bound))
       continue;
     Claimed.push_back(S);
-    Out.push_back({S, std::move(Bound)});
+    Out.push_back({DynTypedNode::create(*S), std::move(Bound)});
   }
+
+  if (const auto *DS = dyn_cast<DeclStmt>(peel(Pattern)))
+    for (const Decl *D : fileScopeDeclarations(Context)) {
+      Bindings Bound;
+      if (Shared.runOnDecl(*DS, D, Bound))
+        Out.push_back({DynTypedNode::create(*D), std::move(Bound)});
+    }
   return Out;
 }
 

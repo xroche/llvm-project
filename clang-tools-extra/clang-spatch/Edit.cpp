@@ -48,29 +48,32 @@ std::string substitute(llvm::StringRef Text, const Bindings &Bound,
   return Out;
 }
 
-/// Is \p S a statement of a block rather than a part of a larger statement?
+/// Does \p Matched own the semicolon that follows it?
 ///
-/// C has no node for an expression statement, so a call written as a
-/// statement is a `CallExpr` whose parent is the enclosing `CompoundStmt`.
-/// That is what separates it from the same `CallExpr` used as an operand.
-bool isStatementOfABlock(const Stmt &S, ASTContext &Context) {
-  for (const DynTypedNode &P : Context.getParents(S))
+/// A declaration does. A statement of a block does too, and C has no node for
+/// an expression statement, so a call written as a statement is a `CallExpr`
+/// whose parent is the enclosing `CompoundStmt`. That parent is what
+/// separates it from the same `CallExpr` used as an operand: extending
+/// unconditionally rewrote `return -1;` to `return 1`.
+bool ownsItsTerminator(DynTypedNode Matched, ASTContext &Context) {
+  if (Matched.get<Decl>())
+    return true;
+  const auto *S = Matched.get<Stmt>();
+  if (!S)
+    return false;
+  for (const DynTypedNode &P : Context.getParents(*S))
     if (P.get<CompoundStmt>())
       return true;
   return false;
 }
 
-/// The range \p S occupies, extended over its terminating semicolon when it
-/// is a statement of a block, so that replacing one does not leave the
-/// terminator behind.
-///
-/// The semicolon belongs to the enclosing statement rather than to a part of
-/// it, so extending unconditionally rewrote `return -1;` to `return 1` and
-/// dropped the terminator.
-CharSourceRange statementRange(const Stmt &S, ASTContext &Context) {
+/// The range \p Matched occupies, extended over its terminating semicolon
+/// when it owns one, so that replacing it does not leave the terminator
+/// behind.
+CharSourceRange matchedRange(DynTypedNode Matched, ASTContext &Context) {
   const CharSourceRange Token =
-      CharSourceRange::getTokenRange(S.getSourceRange());
-  if (!isStatementOfABlock(S, Context))
+      CharSourceRange::getTokenRange(Matched.getSourceRange());
+  if (!ownsItsTerminator(Matched, Context))
     return Token;
   return tooling::maybeExtendRange(Token, tok::semi, Context);
 }
@@ -87,11 +90,11 @@ llvm::StringRef sourceTextOf(SourceRange Range, ASTContext &Context) {
                               Context.getLangOpts());
 }
 
-std::optional<PatternEdit> buildEdit(const Stmt &Matched,
+std::optional<PatternEdit> buildEdit(DynTypedNode Matched,
                                      llvm::StringRef PlusText,
                                      const Bindings &Bound, ASTContext &Context,
                                      std::string &Error) {
-  const CharSourceRange Range = statementRange(Matched, Context);
+  const CharSourceRange Range = matchedRange(Matched, Context);
   // Every range is validated before a Replacement is built from it, because
   // `Replacement::setFromSourceRange` takes the spelling location
   // unconditionally. A node spelled inside a macro body would otherwise get an

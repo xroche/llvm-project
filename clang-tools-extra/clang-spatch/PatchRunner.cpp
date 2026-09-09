@@ -225,7 +225,8 @@ void runFlatRule(const Rule &R, const FlatRule &F, ASTContext &Context,
   }
 
   for (const Match &M : findMatches(Parsed->Items[0], *Parsed, Context)) {
-    const PresumedLoc PL = SM.getPresumedLoc(M.Node->getBeginLoc());
+    const PresumedLoc PL =
+        SM.getPresumedLoc(M.Node.getSourceRange().getBegin());
     if (PL.isInvalid()) {
       ++Result.AnchorsUnattributed;
       continue;
@@ -236,7 +237,7 @@ void runFlatRule(const Rule &R, const FlatRule &F, ASTContext &Context,
       continue;
     std::string EditError;
     std::optional<PatternEdit> E =
-        buildEdit(*M.Node, F.PlusText, M.Bound, Context, EditError);
+        buildEdit(M.Node, F.PlusText, M.Bound, Context, EditError);
     if (!E) {
       ++Result.EditsRefused;
       continue;
@@ -353,7 +354,13 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
     llvm::DenseSet<const Stmt *> Reported;
 
     for (const Match &M : findMatches(Parsed->Items[0], *Parsed, Context)) {
-      const Stmt *Call = M.Node;
+      // A path property is a property of a control-flow graph, and a
+      // declaration outside every function body sits in none.
+      const Stmt *Call = M.Node.get<Stmt>();
+      if (!Call) {
+        ++Result.AnchorsUnattributed;
+        continue;
+      }
       if (Reported.contains(Call))
         continue;
       const ValueDecl *Res = boundDecl(M.Bound, Shared);

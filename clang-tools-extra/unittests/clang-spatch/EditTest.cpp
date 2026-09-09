@@ -178,6 +178,32 @@ TEST(FlatRule, SizeofOverATypeComparesThatType) {
                       "int f(void) { return sizeof(int) + sizeof(long); }\n"));
 }
 
+TEST(FlatRule, ADeclarationOutsideAnyFunctionBodyIsMatched) {
+  // There is no `DeclStmt` at file scope, so a walk over statements never
+  // reaches this declaration. `tests/longlong.cocci` and `tests/cptr.cocci`
+  // both rewrote the copy inside `main` and left the file-scope one alone.
+  EXPECT_EQ("int a;\nint f(void) { return 0; }\n",
+            rewritten("@r@\nidentifier x;\n@@\n- long long x;\n+ int x;\n",
+                      "long long a;\nint f(void) { return 0; }\n"));
+}
+
+TEST(FlatRule, ATypedefOutsideAnyFunctionBodyIsMatched) {
+  // `tests/fntypedef.cocci` is this shape, and a typedef is not a
+  // `DeclaratorDecl`, so it needs naming alongside one.
+  EXPECT_EQ("typedef void (*t)(int a, int b);\n",
+            rewritten("@r@\n@@\n- typedef void (*t)(int a);\n"
+                      "+ typedef void (*t)(int a, int b);\n",
+                      "typedef void (*t)(int a);\n"));
+}
+
+TEST(FlatRule, AFileScopeDeclarationOfTwoThingsIsLeftAlone) {
+  // The two declarators share one `;`, so replacing either one of them takes
+  // the terminator the other needs.
+  EXPECT_EQ("long long a, b;\n",
+            rewritten("@r@\nidentifier x;\n@@\n- long long x;\n+ int x;\n",
+                      "long long a, b;\n"));
+}
+
 TEST(FlatRule, ADeclarationTheComparisonCannotReadIsRefused) {
   // An anonymous tag has no name to compare, and comparing its members
   // instead would accept a different type that happens to agree.

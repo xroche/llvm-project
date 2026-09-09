@@ -37,7 +37,7 @@ std::vector<std::string> matches(llvm::StringRef Pattern,
     return {"!" + P->Errors[0]};
   ASTContext &Ctx = Unit->getASTContext();
   for (const Match &M : findMatches(P->Items[0], *P, Ctx)) {
-    std::string Line = sourceTextOf(*M.Node, Ctx).str();
+    std::string Line = sourceTextOf(M.Node.getSourceRange(), Ctx).str();
     std::vector<std::string> Names;
     for (const auto &B : M.Bound)
       Names.push_back(
