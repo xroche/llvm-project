@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 
 #include "Edit.h"
+#include "clang/AST/ASTTypeTraits.h"
+#include "clang/AST/ParentMapContext.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Lex/Lexer.h"
 #include "clang/Tooling/Transformer/SourceCode.h"
@@ -46,12 +48,30 @@ std::string substitute(llvm::StringRef Text, const Bindings &Bound,
   return Out;
 }
 
-/// The range \p S occupies, extended over the semicolon that ends it when the
-/// statement has one, so that replacing a statement does not leave its
+/// Is \p S a statement of a block rather than a part of a larger statement?
+///
+/// C has no node for an expression statement, so a call written as a
+/// statement is a `CallExpr` whose parent is the enclosing `CompoundStmt`.
+/// That is what separates it from the same `CallExpr` used as an operand.
+bool isStatementOfABlock(const Stmt &S, ASTContext &Context) {
+  for (const DynTypedNode &P : Context.getParents(S))
+    if (P.get<CompoundStmt>())
+      return true;
+  return false;
+}
+
+/// The range \p S occupies, extended over its terminating semicolon when it
+/// is a statement of a block, so that replacing one does not leave the
 /// terminator behind.
+///
+/// The semicolon belongs to the enclosing statement rather than to a part of
+/// it, so extending unconditionally rewrote `return -1;` to `return 1` and
+/// dropped the terminator.
 CharSourceRange statementRange(const Stmt &S, ASTContext &Context) {
   const CharSourceRange Token =
       CharSourceRange::getTokenRange(S.getSourceRange());
+  if (!isStatementOfABlock(S, Context))
+    return Token;
   return tooling::maybeExtendRange(Token, tok::semi, Context);
 }
 

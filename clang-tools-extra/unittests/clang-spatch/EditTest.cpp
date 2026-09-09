@@ -87,6 +87,15 @@ TEST(FlatRule, AStarRuleMatchesAndChangesNothing) {
   EXPECT_EQ(Code.str(), rewritten("@r@\nexpression E;\n@@\n* foo(E);\n", Code));
 }
 
+TEST(FlatRule, ASubExpressionMatchKeepsTheStatementTerminator) {
+  // The semicolon belongs to the `return`, not to the operand replaced.
+  // Extending the edit over it unconditionally produced `return 10` and the
+  // file no longer compiled, which is what `tests/hashhash.cocci`,
+  // `tests/hil1.cocci` and `tests/sizeof.cocci` disagreed with Coccinelle on.
+  EXPECT_EQ("int f(void) { return 10; }\n",
+            rewritten("@r@\n@@\n- 12\n+ 10\n", "int f(void) { return 12; }\n"));
+}
+
 TEST(FlatRule, ShapesOutsideTheFlatPathAreNamedRatherThanRun) {
   // Each of these is a real Coccinelle shape and none is silently
   // approximated, because a rule that half-runs leaves code matching neither
