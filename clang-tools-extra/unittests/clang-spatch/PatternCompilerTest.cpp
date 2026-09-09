@@ -246,4 +246,90 @@ TEST(RunPatch, BothQuantifiersAgreeWithCoccinelleOnTheSameFour) {
   EXPECT_EQ(std::vector<unsigned>({15u, 19u}), reportedLines("forall"));
 }
 
+TEST(RunPatch, ALockHeldAcrossANonTerminatingLoopIsReported) {
+  // Coccinelle 1.3.3's verdicts on this file, taken from the oracle. A loop
+  // gets a synthetic fall-through node there even when its condition can
+  // never be false, so its exit is reachable and the lock at line 5 is a
+  // leak. Clang nulls the same edge instead of dropping it, which is why the
+  // walk treats a null successor with no block behind it as the exit.
+  const llvm::StringRef Code = "void mutex_lock(int *l);\n"    // 1
+                               "void mutex_unlock(int *l);\n"  // 2
+                               "void other(void);\n"           // 3
+                               "void heldAcrossAnInfiniteLoop" // 4
+                               "(int *l) {\n"
+                               "  mutex_lock(l);\n"         // 5
+                               "  for (;;) { other(); }\n"  // 6
+                               "}\n"                        // 7
+                               "void releasedInsideTheLoop" // 8
+                               "(int *l) {\n"
+                               "  mutex_lock(l);\n"                // 9
+                               "  for (;;) { mutex_unlock(l); }\n" // 10
+                               "}\n"                               // 11
+                               "void releasedAfterAFiniteLoop"     // 12
+                               "(int *l, int n) {\n"
+                               "  mutex_lock(l);\n"           // 13
+                               "  while (n--) { other(); }\n" // 14
+                               "  mutex_unlock(l);\n"         // 15
+                               "}\n";                         // 16
+
+  auto reportedLines = [&](llvm::StringRef Quantifier) {
+    const std::string Patch = ("@r " + Quantifier +
+                               "@\nexpression l;\n@@\n\n* mutex_lock(l);\n"
+                               "  ... when != mutex_unlock(l)\n")
+                                  .str();
+    std::string Error;
+    std::optional<SemanticPatch> P =
+        parseSemanticPatch(Patch, "t.cocci", Error);
+    std::vector<unsigned> Lines;
+    if (!P || !P->fullyUnderstood())
+      return Lines;
+    std::unique_ptr<ASTUnit> Unit =
+        tooling::buildASTFromCodeWithArgs(Code, {"-std=c11", "-w"});
+    RunResult R;
+    runPatch(*P, Unit->getASTContext(), R);
+    for (const Finding &F : R.Findings)
+      Lines.push_back(F.Line);
+    llvm::sort(Lines);
+    return Lines;
+  };
+
+  // Measured against spatch 1.3.3 on this exact source rather than reasoned
+  // about. The lock at 9 is reported under `exists` because the synthetic
+  // fall-through bypasses the loop body holding the release, and not under
+  // `forall` because the path through the body does release it. The lock at 13
+  // is released on the path that leaves the loop, so neither quantifier
+  // reports it.
+  EXPECT_EQ(std::vector<unsigned>({5u, 9u}), reportedLines("exists"));
+  EXPECT_EQ(std::vector<unsigned>({5u}), reportedLines("forall"));
+}
+
+TEST(RunPatch, DeadCodeAfterANonTerminatingLoopDivergesFromCoccinelle) {
+  // A known gap, pinned so it is not mistaken for a regression. Coccinelle
+  // walks its synthetic fall-through into whatever follows the loop even when
+  // no execution reaches it, so it sees the release and stays quiet. Clang
+  // keeps the unreachable block in the function's block list without wiring
+  // the nulled edge to it, so the release is invisible here and the lock is
+  // reported. Wiring it would mean guessing which orphan block the edge meant.
+  const llvm::StringRef Code = "void mutex_lock(int *l);\n"
+                               "void mutex_unlock(int *l);\n"
+                               "void other(void);\n"
+                               "void releasedByDeadCode(int *l) {\n"
+                               "  mutex_lock(l);\n" // line 5
+                               "  for (;;) { other(); }\n"
+                               "  mutex_unlock(l);\n"
+                               "}\n";
+  std::string Error;
+  std::optional<SemanticPatch> P =
+      parseSemanticPatch("@r exists@\nexpression l;\n@@\n\n* mutex_lock(l);\n"
+                         "  ... when != mutex_unlock(l)\n",
+                         "t.cocci", Error);
+  ASSERT_TRUE(P.has_value()) << Error;
+  std::unique_ptr<ASTUnit> Unit =
+      tooling::buildASTFromCodeWithArgs(Code, {"-std=c11", "-w"});
+  RunResult R;
+  runPatch(*P, Unit->getASTContext(), R);
+  ASSERT_EQ(1u, R.Findings.size());
+  EXPECT_EQ(5u, R.Findings[0].Line) << "Coccinelle reports nothing here";
+}
+
 } // namespace clang::spatch

@@ -23,10 +23,18 @@ uint64_t pointKey(Point P) {
 /// exit means some path avoids it. Without it the walk is plain reachability,
 /// and every forbidden point entered is appended to \p Found.
 ///
-/// An unreachable successor edge converts to a null block and is skipped. That
-/// is what makes a construct count as absent when the function can never reach
-/// it, and it needs no special case because Clang's CFG already declines to
-/// give such an edge a block.
+/// A successor edge whose reachable target is null is still an edge. Clang
+/// nulls it and keeps the block on the side, reachable through
+/// `AdjacentBlock::getPossiblyUnreachableBlock`, so `for (;;)` gives its header
+/// `Succs (2): B2 NULL` with the code after the loop still there. Coccinelle
+/// keeps the same edge as a synthetic `[forfall]` node and walks into whatever
+/// follows the loop even when no execution gets there, so the walk follows the
+/// unreachable block too and only treats the edge as leaving the function when
+/// there is no block behind it at all.
+///
+/// Skipping these edges made `exists` miss a lock held across a
+/// non-terminating loop. Treating them all as the exit instead reported a lock
+/// that is released by dead code after such a loop, which Coccinelle does not.
 bool walk(const CFGIndex &Index, Point Start, const StmtPredicate &Forbidden,
           bool StopAtForbidden, llvm::SmallVectorImpl<Point> *Found) {
   const unsigned ExitID = Index.exitBlock();
@@ -58,9 +66,14 @@ bool walk(const CFGIndex &Index, Point Start, const StmtPredicate &Forbidden,
       Work.push_back({P.Block, P.Elem + 1});
       continue;
     }
-    for (CFGBlock *S : B->succs())
-      if (S)
+    for (const CFGBlock::AdjacentBlock &A : B->succs()) {
+      if (CFGBlock *S = A.getReachableBlock())
         Work.push_back({S->getBlockID(), 0});
+      else if (CFGBlock *U = A.getPossiblyUnreachableBlock())
+        Work.push_back({U->getBlockID(), 0});
+      else
+        ReachedExit = true;
+    }
   }
   return ReachedExit;
 }

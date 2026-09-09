@@ -9,13 +9,20 @@
 // Answers the question a statement-level `...` asks in a semantic patch: on the
 // paths between two program points, does some forbidden construct occur?
 //
-// Both quantifiers reduce to reachability over the control-flow graph, with no
-// fixpoint. The semantics were fixed by measuring Coccinelle's own verdicts on
-// a five-case corpus, and two of them are not what a first reading suggests.
+// Both quantifiers are computed here as reachability over the control-flow
+// graph, with no fixpoint. Coccinelle computes `forall` as CTL's `AU`, which is
+// an alternating least fixpoint, so this is a weaker construction that happens
+// to agree on every case measured against it rather than an equivalent one.
+// The semantics were fixed by measuring Coccinelle's own verdicts, and two of
+// them are not what a first reading suggests.
 // `Forall` is a property of the whole function rather than of one exit, because
 // a per-exit reading reports a function that releases on another branch, which
 // Coccinelle does not. And a construct the function can never reach counts as
 // absent, which is what separates a control-flow answer from a syntactic one.
+//
+// A loop that cannot terminate still reaches the exit here, because Clang nulls
+// the pruned fall-through edge rather than dropping it and Coccinelle keeps the
+// same edge as a synthetic node.
 //
 // Reaching the exit is not the same as returning. Clang ties a `noreturn` call
 // such as `abort()` to the exit block, so a path that terminates the process
