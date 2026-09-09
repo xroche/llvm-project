@@ -252,6 +252,71 @@ void appendToSide(std::vector<PatternItem> &Side, const PatternItem &It,
     Side.back().Marker = It.Marker;
 }
 
+/// Does \p It belong to the side \p Minus names?
+bool onSide(const PatternItem &It, bool Minus) {
+  return Minus ? It.Marker != ItemMarker::Plus
+               : It.Marker == ItemMarker::Context ||
+                     It.Marker == ItemMarker::Plus;
+}
+
+void groupInto(std::vector<PatternItem> &Side,
+               const std::vector<PatternItem> &Lines, bool Minus,
+               ArrayRef<MetaVar> MetaVars);
+
+/// One side of a disjunction: the same item with each branch grouped into that
+/// side's statements.
+///
+/// A branch is a rule body in miniature, so a branch of a transformed
+/// disjunction interleaves its `-`, `+` and context lines exactly as a rule
+/// does and has to be grouped once per side for the same reason. Appending the
+/// item unchanged left each branch holding one raw line per source line, which
+/// is not a shape any consumer of a grouped side can read.
+PatternItem groupedDisjunction(const PatternItem &It, bool Minus,
+                               ArrayRef<MetaVar> MetaVars) {
+  PatternItem Out = It;
+  Out.Branches.clear();
+  for (const std::vector<PatternItem> &Branch : It.Branches) {
+    std::vector<PatternItem> Grouped;
+    groupInto(Grouped, Branch, Minus, MetaVars);
+    Out.Branches.push_back(std::move(Grouped));
+  }
+  return Out;
+}
+
+/// Appends the lines of \p Lines that belong to one side, grouped into
+/// statements, to \p Side.
+void groupInto(std::vector<PatternItem> &Side,
+               const std::vector<PatternItem> &Lines, bool Minus,
+               ArrayRef<MetaVar> MetaVars) {
+  for (const PatternItem &It : Lines) {
+    if (It.Kind == ItemKind::Disjunction) {
+      Side.push_back(groupedDisjunction(It, Minus, MetaVars));
+      continue;
+    }
+    if (onSide(It, Minus))
+      appendToSide(Side, It, MetaVars);
+  }
+}
+
+/// Marks every statement of \p Side that grouping left incomplete.
+///
+/// A group that closed while its text was still open never got the lines that
+/// complete it, because they are on the other side. So did one that opens
+/// mid-statement, as the plus side of `- static const char *str` over
+/// `    = E;` does: it holds `= E;` and nothing to assign.
+void markUnfinished(std::vector<PatternItem> &Side, ArrayRef<MetaVar> MetaVars) {
+  for (PatternItem &It : Side) {
+    if (It.Kind == ItemKind::Disjunction) {
+      for (std::vector<PatternItem> &Branch : It.Branches)
+        markUnfinished(Branch, MetaVars);
+      continue;
+    }
+    if (It.Kind == ItemKind::Statement)
+      It.Unfinished = continuesOntoNextLine(It.Text, MetaVars) ||
+                      opensMidStatement(It.Text);
+  }
+}
+
 /// Fills in \p R.Minus and \p R.Plus from \p R.Body.
 ///
 /// Grouping the two sides separately is what SmPL means by a context line. A
@@ -260,21 +325,10 @@ void appendToSide(std::vector<PatternItem> &Side, const PatternItem &It,
 /// grouping by same marker left 11 fewer statements of the 211-patch sample
 /// parsing.
 void groupSides(Rule &R) {
-  for (const PatternItem &It : R.Body) {
-    if (It.Marker != ItemMarker::Plus)
-      appendToSide(R.Minus, It, R.MetaVars);
-    if (It.Marker == ItemMarker::Context || It.Marker == ItemMarker::Plus)
-      appendToSide(R.Plus, It, R.MetaVars);
-  }
-  // A group that closed while its text was still open never got the lines
-  // that complete it, because they are on the other side. So did one that
-  // opens mid-statement, as the plus side of `- static const char *str` over
-  // `    = E;` does: it holds `= E;` and nothing to assign.
-  for (std::vector<PatternItem> *Side : {&R.Minus, &R.Plus})
-    for (PatternItem &It : *Side)
-      if (It.Kind == ItemKind::Statement)
-        It.Unfinished = continuesOntoNextLine(It.Text, R.MetaVars) ||
-                        opensMidStatement(It.Text);
+  groupInto(R.Minus, R.Body, /*Minus=*/true, R.MetaVars);
+  groupInto(R.Plus, R.Body, /*Minus=*/false, R.MetaVars);
+  markUnfinished(R.Minus, R.MetaVars);
+  markUnfinished(R.Plus, R.MetaVars);
 }
 
 /// The first whitespace-separated word of \p S.

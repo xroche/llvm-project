@@ -487,6 +487,28 @@ TEST(SmplParser, ColumnZeroDisjunction) {
   EXPECT_TRUE(P.fullyUnderstood()) << refusalList(P);
 }
 
+TEST(SmplParser, EachBranchOfADisjunctionIsGroupedOncePerSide) {
+  // A branch is a rule body in miniature, so it interleaves its `-`, `+` and
+  // context lines the way a rule does and has to be grouped per side for the
+  // same reason. Left ungrouped, a branch held one raw line per source line
+  // and no consumer of a grouped side could read it.
+  SemanticPatch P = parsed("@r@\nexpression E;\n@@\n(\n  if (\n- E == 0\n"
+                           "+ !E\n  )\n  { }\n|\n- foo(E);\n+ bar(E);\n)\n");
+  ASSERT_EQ(1u, P.Rules[0].Minus.size());
+  ASSERT_EQ(1u, P.Rules[0].Plus.size());
+  const PatternItem &M = P.Rules[0].Minus[0];
+  const PatternItem &Q = P.Rules[0].Plus[0];
+  ASSERT_EQ(ItemKind::Disjunction, M.Kind);
+  ASSERT_EQ(2u, M.Branches.size());
+  ASSERT_EQ(2u, Q.Branches.size());
+  ASSERT_EQ(1u, M.Branches[0].size());
+  EXPECT_EQ("if ( E == 0 ) { }", M.Branches[0][0].Text);
+  EXPECT_EQ("if ( !E ) { }", Q.Branches[0][0].Text);
+  EXPECT_EQ("foo(E);", M.Branches[1][0].Text);
+  EXPECT_EQ("bar(E);", Q.Branches[1][0].Text);
+  EXPECT_TRUE(P.fullyUnderstood()) << refusalList(P);
+}
+
 TEST(SmplParser, IndentedDisjunctionDelimiter) {
   // Indented, '|' is a bitwise or, so the alternation meant here is not
   // applied. An indented '(' or ')' is an ordinary parenthesis, which is

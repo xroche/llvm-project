@@ -137,8 +137,18 @@ const FunctionDecl *enclosingFunction(const Stmt *S, ASTContext &Context) {
   return nullptr;
 }
 
-/// A rule body with no `...`, reduced to one statement to match and the text
-/// that replaces it.
+/// What running a dot-free rule is for.
+enum class RulePurpose {
+  Rewrite, ///< A `-`/`+` rule: it reports its matches and edits them.
+  Report,  ///< A `*` rule: it reports its matches and changes nothing.
+  /// A rule that marks no line at all. It changes nothing and reports
+  /// nothing, and it is run for the metavariable values a later rule
+  /// inherits from it.
+  Bind
+};
+
+/// A rule body with no `...`, reduced to the statements it matches and the
+/// text that replaces each.
 ///
 /// A dot-free rule asks no question about control flow, so it needs no
 /// quantifier and no path query. `runPatch` used to refuse every one of them
@@ -146,21 +156,19 @@ const FunctionDecl *enclosingFunction(const Stmt *S, ASTContext &Context) {
 /// which is true and is not a reason to refuse: 339 of the 403 rules in the
 /// sample corpus have no `...` at all.
 struct FlatRule {
-  /// What running the rule is for.
-  enum class Purpose {
-    Rewrite, ///< A `-`/`+` rule: it reports its matches and edits them.
-    Report,  ///< A `*` rule: it reports its matches and changes nothing.
-    /// A rule that marks no line at all. It changes nothing and reports
-    /// nothing, and it is run for the metavariable values a later rule
-    /// inherits from it.
-    Bind
+  /// One statement to match and the text that replaces it. A rule body that
+  /// is a disjunction has one per branch, in source order, and an earlier
+  /// branch takes any text a later one also wants.
+  struct Alternative {
+    const PatternItem *Match = nullptr; ///< The statement to match.
+    std::string PlusText; ///< What replaces it. Empty for a pure deletion.
+    /// Was the `-` side written as a whole statement rather than as a bare
+    /// expression? It decides whether the edit takes the terminator with it.
+    bool MatchEndsInSemicolon = false;
   };
-  const PatternItem *Match = nullptr; ///< The statement to match.
-  std::string PlusText; ///< What replaces it. Empty for a pure deletion.
-  /// Was the `-` side written as a whole statement rather than as a bare
-  /// expression? It decides whether the edit takes the terminator with it.
-  bool MatchEndsInSemicolon = false;
-  Purpose Purpose = Purpose::Rewrite;
+
+  std::vector<Alternative> Alts;
+  RulePurpose Purpose = RulePurpose::Rewrite;
 };
 
 /// Do \p Items open with a `{` and close with a `}`?
@@ -177,18 +185,36 @@ bool opensABracedGroup(const std::vector<PatternItem> &Items) {
   return First.ends_with("{") && (Last.ends_with("}") || Last.ends_with("};"));
 }
 
-std::optional<FlatRule> flattenOf(const Rule &R, std::string &Why) {
-  for (const std::vector<PatternItem> *Side : {&R.Minus, &R.Plus})
+/// Is \p Items a rule body that is nothing but one disjunction?
+bool isOneDisjunction(const std::vector<PatternItem> &Items) {
+  return Items.size() == 1 &&
+         Items.front().Kind == PatternItem::Kind::Disjunction;
+}
+
+/// One alternative from one `-`/`+` side pair, which is either a whole rule
+/// body or one branch of a disjunction.
+///
+/// \p Purpose is set from the markers, so a caller running several
+/// alternatives can check they agree.
+std::optional<FlatRule::Alternative>
+alternativeOf(const std::vector<PatternItem> &Minus,
+              const std::vector<PatternItem> &Plus,
+              RulePurpose &Purpose, std::string &Why) {
+  for (const std::vector<PatternItem> *Side : {&Minus, &Plus})
     for (const PatternItem &I : *Side)
       if (I.Kind != PatternItem::Kind::Statement) {
-        Why = "a dot-free rule holding a disjunction needs every branch "
-              "matched at the same point, which this version does not build";
+        Why = I.Kind == PatternItem::Kind::Disjunction
+                  ? "a disjunction that is not the whole rule body needs its "
+                    "branches matched inside a larger pattern, which this "
+                    "version does not build"
+                  : "a `...` on a side of a dot-free rule body, which this "
+                    "version does not build";
         return std::nullopt;
       }
-  if (R.Minus.size() != 1) {
-    if (R.Minus.empty())
+  if (Minus.size() != 1) {
+    if (Minus.empty())
       Why = "a dot-free rule with nothing to match on the `-` side";
-    else if (opensABracedGroup(R.Minus))
+    else if (opensABracedGroup(Minus))
       Why = "the `-` side is a brace-delimited group, so its lines are parts "
             "of one construct rather than a sequence of statements, and "
             "matching it needs a pattern for a node inside the braces";
@@ -197,19 +223,19 @@ std::optional<FlatRule> flattenOf(const Rule &R, std::string &Why) {
             "statement adjacency, which this version does not build";
     return std::nullopt;
   }
-  FlatRule F;
-  F.Match = &R.Minus.front();
-  F.MatchEndsInSemicolon = llvm::StringRef(F.Match->Text).rtrim().ends_with(";");
+  FlatRule::Alternative A;
+  A.Match = &Minus.front();
+  A.MatchEndsInSemicolon = llvm::StringRef(A.Match->Text).rtrim().ends_with(";");
   // A `*` rule reports and never rewrites, so its plus side is unread.
-  if (F.Match->Marker == PatternItem::Marker::Star) {
-    F.Purpose = FlatRule::Purpose::Report;
-    return F;
+  if (A.Match->Marker == PatternItem::Marker::Star) {
+    Purpose = RulePurpose::Report;
+    return A;
   }
-  if (F.Match->Marker != PatternItem::Marker::Minus) {
+  if (A.Match->Marker != PatternItem::Marker::Minus) {
     // No `-` line is part of the statement, so the rule either changes
     // nothing or inserts beside it, and an insertion needs a position this
     // version does not decide.
-    const bool Adds = llvm::any_of(R.Plus, [](const PatternItem &I) {
+    const bool Adds = llvm::any_of(Plus, [](const PatternItem &I) {
       return I.Marker == PatternItem::Marker::Plus;
     });
     if (Adds) {
@@ -220,8 +246,8 @@ std::optional<FlatRule> flattenOf(const Rule &R, std::string &Why) {
     // The rule asks for no change and is still worth running, because a
     // later rule may declare `expression thisrule.X` and the values bound
     // here are the only ones that declaration admits.
-    F.Purpose = FlatRule::Purpose::Bind;
-    return F;
+    Purpose = RulePurpose::Bind;
+    return A;
   }
   // One statement may be replaced by a sequence, so every plus-side statement
   // is part of the replacement text and none of them needs positioning. That
@@ -231,16 +257,71 @@ std::optional<FlatRule> flattenOf(const Rule &R, std::string &Why) {
   // A fragment is the case to refuse. `  if (a)` over `-   b();` leaves the
   // `if` head alone on the plus side, and writing that back would drop the
   // body and report success.
-  for (const PatternItem &I : R.Plus) {
+  for (const PatternItem &I : Plus) {
     if (I.Unfinished) {
       Why = "the rule takes part of a statement away and leaves a fragment, "
             "which needs an edit inside the matched node rather than over it";
       return std::nullopt;
     }
-    if (!F.PlusText.empty())
-      F.PlusText += " ";
-    F.PlusText += I.Text;
+    if (!A.PlusText.empty())
+      A.PlusText += " ";
+    A.PlusText += I.Text;
   }
+  Purpose = RulePurpose::Rewrite;
+  return A;
+}
+
+std::optional<FlatRule> flattenOf(const Rule &R, std::string &Why) {
+  FlatRule F;
+  if (!isOneDisjunction(R.Minus) || !isOneDisjunction(R.Plus)) {
+    std::optional<FlatRule::Alternative> A =
+        alternativeOf(R.Minus, R.Plus, F.Purpose, Why);
+    if (!A)
+      return std::nullopt;
+    F.Alts.push_back(std::move(*A));
+    return F;
+  }
+
+  // The branches are one search over several patterns rather than several
+  // searches, because a branch may not take text an earlier branch already
+  // took and that decision needs all of them at once. Grouping gives the two
+  // sides the same branch count, since a branch is grouped once per side.
+  const std::vector<std::vector<PatternItem>> &MinusBranches =
+      R.Minus.front().Branches;
+  const std::vector<std::vector<PatternItem>> &PlusBranches =
+      R.Plus.front().Branches;
+  if (MinusBranches.size() != PlusBranches.size()) {
+    Why = "the two sides of the disjunction hold a different number of "
+          "branches, so no branch can be paired with its replacement";
+    return std::nullopt;
+  }
+  std::optional<RulePurpose> Agreed;
+  for (unsigned I = 0, E = MinusBranches.size(); I != E; ++I) {
+    RulePurpose P = RulePurpose::Rewrite;
+    std::optional<FlatRule::Alternative> A =
+        alternativeOf(MinusBranches[I], PlusBranches[I], P, Why);
+    if (!A) {
+      Why = "branch " + std::to_string(I + 1) + " of the disjunction: " + Why;
+      return std::nullopt;
+    }
+    // A rule that deletes in one branch and inserts in another asks for two
+    // different edits from one match, and which one applies is decided per
+    // site rather than per rule. Refusing says so instead of applying the
+    // first branch's purpose to every site.
+    if (Agreed && *Agreed != P) {
+      Why = "the branches of the disjunction ask for different things, so the "
+            "rule both rewrites and leaves alone depending on the branch, "
+            "which this version does not build";
+      return std::nullopt;
+    }
+    Agreed = P;
+    F.Alts.push_back(std::move(*A));
+  }
+  if (F.Alts.empty()) {
+    Why = "a disjunction with no branch to match";
+    return std::nullopt;
+  }
+  F.Purpose = *Agreed;
   return F;
 }
 
@@ -251,24 +332,53 @@ void runFlatRule(const Rule &R, const FlatRule &F,
                  RunResult &Result, std::vector<Bindings> &Envs) {
   SourceManager &SM = Context.getSourceManager();
   std::string Error;
+  // Every alternative is parsed in one call, so the branches of a disjunction
+  // share one translation unit and one set of metavariable declarations, and
+  // an alternative keeps the index its branch has.
+  std::vector<std::string> Texts;
+  for (const FlatRule::Alternative &A : F.Alts)
+    Texts.push_back(A.Match->Text);
   // The pattern is parsed rather than compiled to a matcher expression, so
   // every statement form Clang can read is available and not only a call.
   std::optional<ParsedPattern> Parsed =
-      parsePattern(R.MetaVars, {F.Match->Text}, Error);
+      parsePattern(R.MetaVars, Texts, Error);
   if (!Parsed) {
     Result.UnrunRules.push_back({R.Name, "pattern: " + Error});
     return;
   }
-  if (!Parsed->Items[0]) {
-    Result.UnrunRules.push_back({R.Name, "pattern: " + Parsed->Errors[0]});
-    return;
+
+  // The patterns that can be read, in branch order, so that the first one
+  // matching at a site is the earliest branch that matches there.
+  std::vector<const Stmt *> Patterns;
+  std::string FirstUnread;
+  for (unsigned I = 0, E = Texts.size(); I != E; ++I) {
+    std::string Why = Parsed->Items[I]
+                          ? whyNotComparable(Parsed->Items[I])
+                          : "pattern: " + Parsed->Errors[I];
+    if (Why.empty()) {
+      Patterns.push_back(Parsed->Items[I]);
+      continue;
+    }
+    if (FirstUnread.empty())
+      FirstUnread = Why;
+    // A rule with one alternative and nothing to match is refused. One branch
+    // of a disjunction is not: the other branches still describe sites this
+    // patch changes, and Coccinelle applies them. Dropping it silently would
+    // under-apply the patch and still report success, so the branch is
+    // recorded and the run says it is incomplete.
+    if (F.Alts.size() > 1)
+      Result.UnreadBranches.push_back(
+          {R.Name, "branch " + std::to_string(I + 1) + " of the disjunction "
+                       "could not be read, so the sites it describes are "
+                       "left alone: " + Why});
+    Patterns.push_back(nullptr);
   }
-  if (std::string Why = whyNotComparable(Parsed->Items[0]); !Why.empty()) {
-    Result.UnrunRules.push_back({R.Name, Why});
+  if (llvm::all_of(Patterns, [](const Stmt *P) { return !P; })) {
+    Result.UnrunRules.push_back({R.Name, FirstUnread});
     return;
   }
 
-  const bool Rewrites = F.Purpose == FlatRule::Purpose::Rewrite;
+  const bool Rewrites = F.Purpose == RulePurpose::Rewrite;
   MatchOptions Opts;
   // A file-scope declaration of several things is withheld from a rewriting
   // rule because its declarators share one `;`. That is a reason not to edit
@@ -280,11 +390,11 @@ void runFlatRule(const Rule &R, const FlatRule &F,
 
   for (const Bindings &Seed : Seeds) {
     Opts.Inherited = &Seed;
-    for (const Match &M :
-         findMatches(Parsed->Items[0], *Parsed, Context, Opts)) {
+    for (const Match &M : findMatches(Patterns, *Parsed, Context, Opts)) {
       const void *Id = M.Node.getMemoizationData();
       if (Id && !Taken.insert(Id).second)
         continue;
+      const FlatRule::Alternative &A = F.Alts[M.Pattern];
       Envs.push_back(M.Bound);
       const PresumedLoc PL =
           SM.getPresumedLoc(M.Node.getSourceRange().getBegin());
@@ -294,7 +404,7 @@ void runFlatRule(const Rule &R, const FlatRule &F,
       }
       // Coccinelle prints nothing for a rule that marks no line, and the two
       // tools' output is compared directly.
-      if (F.Purpose != FlatRule::Purpose::Bind)
+      if (F.Purpose != RulePurpose::Bind)
         Result.Findings.push_back({PL.getFilename(), PL.getLine(),
                                    PL.getColumn(), R.Name,
                                    "matches the pattern"});
@@ -302,7 +412,7 @@ void runFlatRule(const Rule &R, const FlatRule &F,
         continue;
       std::string EditError;
       std::optional<PatternEdit> E =
-          buildEdit(M.Node, F.PlusText, F.MatchEndsInSemicolon, M.Bound,
+          buildEdit(M.Node, A.PlusText, A.MatchEndsInSemicolon, M.Bound,
                     Context, EditError);
       if (!E) {
         ++Result.EditsRefused;

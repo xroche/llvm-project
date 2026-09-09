@@ -37,6 +37,10 @@ struct Unrun {
 struct RunResult {
   std::vector<Finding> Findings;
   std::vector<Unrun> UnrunRules;
+  /// Branches of a disjunction that could not be read. The rule's other
+  /// branches ran, so the rewrite is partial: the sites this branch describes
+  /// are left alone and the run must not read as a complete one.
+  std::vector<Unrun> UnreadBranches;
   /// The edits the patch's `-` and `+` lines ask for, keyed by file. Empty for
   /// a rule that only matches, as a `*` rule or a report rule does.
   llvm::StringMap<tooling::Replacements> Edits;
@@ -65,7 +69,7 @@ struct RunResult {
   bool complete() const {
     return AnchorsUnlocated == 0 && AnchorsUnsupportedResource == 0 &&
            AnchorsUnattributed == 0 && FunctionsSkipped == 0 &&
-           EditsRefused == 0;
+           EditsRefused == 0 && UnreadBranches.empty();
   }
 };
 

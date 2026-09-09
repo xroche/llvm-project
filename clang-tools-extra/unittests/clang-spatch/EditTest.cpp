@@ -64,6 +64,39 @@ std::string unrunReasons(llvm::StringRef Patch, llvm::StringRef Code) {
   return Out;
 }
 
+/// The reason every branch that could not be read gives, one per line.
+std::string unreadBranchReasons(llvm::StringRef Patch, llvm::StringRef Code) {
+  std::string Error;
+  std::optional<SemanticPatch> P = parseSemanticPatch(Patch, "t.cocci", Error);
+  if (!P)
+    return "!" + Error;
+  std::unique_ptr<ASTUnit> Unit =
+      tooling::buildASTFromCodeWithArgs(Code, {"-std=gnu11", "-w"}, "input.c");
+  if (!Unit)
+    return "!no AST";
+  RunResult Result;
+  runPatch(*P, Unit->getASTContext(), Result);
+  std::string Out;
+  for (const Unrun &U : Result.UnreadBranches)
+    Out += U.Reason + "\n";
+  return Out;
+}
+
+/// Does \p Patch over \p Code report a run this tool can call complete?
+bool ranCompletely(llvm::StringRef Patch, llvm::StringRef Code) {
+  std::string Error;
+  std::optional<SemanticPatch> P = parseSemanticPatch(Patch, "t.cocci", Error);
+  if (!P)
+    return false;
+  std::unique_ptr<ASTUnit> Unit =
+      tooling::buildASTFromCodeWithArgs(Code, {"-std=gnu11", "-w"}, "input.c");
+  if (!Unit)
+    return false;
+  RunResult Result;
+  runPatch(*P, Unit->getASTContext(), Result);
+  return Result.UnrunRules.empty() && Result.complete();
+}
+
 } // namespace
 
 TEST(FlatRule, ADotFreeRuleRunsAndRewrites) {
@@ -351,6 +384,106 @@ TEST(FlatRule, ShapesOutsideTheFlatPathAreNamedRatherThanRun) {
             rewritten("@r@\n@@\n+ foo();\n", "void f(void) { }\n"));
 }
 
+TEST(Disjunction, EveryBranchIsTriedAndTheOnesThatMatchApply) {
+  // Two branches matching at different sites both fire, and a branch that
+  // matches nowhere does not stop the others. `tests/orexp.cocci` is the
+  // corpus case, where only the second branch has a site.
+  EXPECT_EQ("void foo(int);\nvoid bar(int);\n"
+            "void f(void) { 4; 5; }\n",
+            rewritten("@r@\nexpression E, F;\n@@\n"
+                      "(\n- foo(E)\n+ 4\n|\n- bar(F)\n+ 5\n)\n",
+                      "void foo(int);\nvoid bar(int);\n"
+                      "void f(void) { foo(1); bar(2); }\n"));
+}
+
+TEST(Disjunction, AnEarlierBranchTakesTheTextALaterOneWanted) {
+  // The specific branch written first takes the member access, and the
+  // general branch does not then also fire on the `p` inside it.
+  // `tests/disjexpr.cocci` is the corpus case for this order.
+  EXPECT_EQ("struct s { int fld; };\nvoid g(int);\nvoid h(struct s *);\n"
+            "void f(struct s *p) { g(p->fld); }\n",
+            rewritten("@r@\nidentifier fld; symbol p;\n@@\n"
+                      "(\n- p->fld\n+ g(p->fld)\n|\n- p\n+ h(p)\n)\n",
+                      "struct s { int fld; };\nvoid g(int);\n"
+                      "void h(struct s *);\n"
+                      "void f(struct s *p) { p->fld; }\n"));
+}
+
+TEST(Disjunction, BranchOrderBeatsNesting) {
+  // The same two branches the other way round. Measured on `spatch` 1.1.1:
+  // the general branch takes the `p` nested inside the member access, and
+  // the specific branch is then left with nothing, so the output keeps the
+  // `->fld` it would have replaced. Searching each branch over the whole
+  // translation unit in turn is what reproduces this; a walk that offers
+  // every branch one site at a time gives the member access to the specific
+  // branch instead, because the general one does not match it.
+  EXPECT_EQ("struct s { int fld; };\nvoid g(int);\nvoid h(struct s *);\n"
+            "void f(struct s *p) { h(p)->fld; }\n",
+            rewritten("@r@\nidentifier fld; symbol p;\n@@\n"
+                      "(\n- p\n+ h(p)\n|\n- p->fld\n+ g(p->fld)\n)\n",
+                      "struct s { int fld; };\nvoid g(int);\n"
+                      "void h(struct s *);\n"
+                      "void f(struct s *p) { p->fld; }\n"));
+}
+
+TEST(Disjunction, ABranchThatCannotBeReadLeavesTheOthersRunning) {
+  // `NULL` reaches the pattern parser undeclared, because the target's `NULL`
+  // has already been preprocessed and no spelling of it in the synthesised
+  // source matches every target. `tests/condexp.cocci` is the corpus case.
+  // The other branch still describes sites this patch changes, so it runs.
+  EXPECT_EQ("void k(int *);\nvoid g(int *);\nvoid f(int *p) { g(p); }\n",
+            rewritten("@r@\nsymbol p;\n@@\n"
+                      "(\n- k(NULL)\n+ 0\n|\n- k(p)\n+ g(p)\n)\n",
+                      "void k(int *);\nvoid g(int *);\n"
+                      "void f(int *p) { k(p); }\n"));
+}
+
+TEST(Disjunction, ABranchThatCannotBeReadMakesTheRunIncomplete) {
+  // The sites that branch describes are left alone, so the rewrite is partial
+  // and must not read as a finished one.
+  const llvm::StringRef Patch = "@r@\nsymbol p;\n@@\n"
+                                "(\n- k(NULL)\n+ 0\n|\n- k(p)\n+ g(p)\n)\n";
+  const llvm::StringRef Code = "void k(int *);\nvoid g(int *);\n"
+                               "void f(int *p) { k(p); }\n";
+  EXPECT_FALSE(ranCompletely(Patch, Code));
+  EXPECT_EQ("branch 1 of the disjunction could not be read, so the sites it "
+            "describes are left alone: pattern: the pattern statement did not "
+            "parse as C: use of undeclared identifier 'NULL'\n",
+            unreadBranchReasons(Patch, Code));
+}
+
+TEST(Disjunction, ARuleWhoseEveryBranchIsUnreadableIsRefused) {
+  EXPECT_EQ("pattern: the pattern statement did not parse as C: use of "
+            "undeclared identifier 'NULL'\n",
+            unrunReasons("@r@\n@@\n(\n- k(NULL)\n+ 0\n|\n- m(NULL)\n+ 1\n)\n",
+                         "void k(int *);\nvoid f(int *p) { k(p); }\n"));
+}
+
+TEST(Disjunction, BranchesAskingForDifferentThingsAreRefused) {
+  // `tests/const_adding.cocci` deletes nothing in its first branch and
+  // inserts in its second, so which of the two a site gets is decided per
+  // site. Naming that is what keeps the first branch's purpose from being
+  // applied to every site.
+  EXPECT_EQ("branch 2 of the disjunction: a dot-free rule that only inserts "
+            "needs the insertion placed relative to the match, which this "
+            "version does not build\n",
+            unrunReasons("@r@\nidentifier I;\n@@\n"
+                         "(\n  const int I;\n|\n+ const\n  int I;\n)\n",
+                         "void f(void) { const int a; int b; }\n"));
+}
+
+TEST(Disjunction, ADisjunctionInsideALargerPatternIsRefused) {
+  // `tests/expopt2.cocci` writes the disjunction between a call's opening and
+  // its closing parenthesis, so its branches are nodes inside a pattern
+  // rather than the pattern itself.
+  EXPECT_EQ("a disjunction that is not the whole rule body needs its branches "
+            "matched inside a larger pattern, which this version does not "
+            "build\n",
+            unrunReasons("@r@\nidentifier fld; symbol v;\n@@\n"
+                         " f(v,\n(\n- v.fld\n+ 1\n|\n- v.other\n+ 2\n)\n )\n",
+                         "void f(int, int);\nvoid g(void) { }\n"));
+}
+
 TEST(Inherited, ARuleThatMarksNoLineRunsForTheValuesItBinds) {
   // It changes nothing, and refusing it left a rule declaring `r.E` with
   // nothing to constrain it.
@@ -383,15 +516,15 @@ TEST(Inherited, EveryValueTheEarlierRuleBoundIsTried) {
 
 TEST(Inherited, ARuleInheritingFromOneThatDidNotRunIsRefused) {
   // The values the declaration admits are unknown, and running the rule
-  // anyway is what rewrote more than the patch asked for. `tests/inherited`
-  // is the corpus case, where the binding rule holds a disjunction.
-  EXPECT_EQ("a dot-free rule holding a disjunction needs every branch matched "
-            "at the same point, which this version does not build\n"
+  // anyway is what rewrote more than the patch asked for. The binding rule
+  // here matches two adjacent statements, which the flat path does not build.
+  EXPECT_EQ("a dot-free rule matching a sequence of statements needs "
+            "statement adjacency, which this version does not build\n"
             "the rule inherits a metavariable from rule 'r', which did not "
             "run, so the values that metavariable may take are unknown and "
             "matching without them would rewrite more than the patch asks "
             "for\n",
-            unrunReasons("@r@\nexpression X;\n@@\n(\n f(X);\n|\n g(1);\n)\n"
+            unrunReasons("@r@\nexpression X;\n@@\n f(X);\n g(X);\n"
                          "\n@@\nexpression r.X;\n@@\n- h(X);\n+ hh(X);\n",
                          "void f(int);\nvoid g(int);\nvoid h(int);\n"
                          "void k(void) { g(1); h(2); }\n"));
@@ -415,6 +548,20 @@ TEST(Inherited, ATypeMetavariableNamingATypedefBindsTheNameItIntroduces) {
                       "\n@@\ntype r.s;\nsymbol x, y;\n@@\n- s\n+ int\n"
                       "  x;\n",
                       "typedef int A, B;\nvoid f(void) { A x; int y; }\n"));
+}
+
+TEST(Inherited, EveryDeclaratorOfOneTypedefBindsTheNameItIntroduces) {
+  // Clang gives every declarator of one declaration the same begin location,
+  // so `typedef int A, B;` is two declarations over one source range. A
+  // search that excludes an already-matched range rather than an
+  // already-matched declaration lets the first of them hide the second, and
+  // `tests/typedef2.cocci` then rewrites one of its four lines instead of all
+  // four.
+  EXPECT_EQ("typedef int A, B;\nvoid f(void) { int x; int y; }\n",
+            rewritten("@r@\ntype t, s;\n@@\n  typedef t s;\n"
+                      "\n@@\ntype r.s;\nidentifier v;\n@@\n- s\n+ int\n"
+                      "  v;\n",
+                      "typedef int A, B;\nvoid f(void) { A x; B y; }\n"));
 }
 
 TEST(SourceTextOf, AMacroArgumentComesThroughAsWritten) {

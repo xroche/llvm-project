@@ -98,6 +98,24 @@ private:
   RunResult &Result;
 };
 
+/// Every pattern statement of one grouped side, branches included.
+///
+/// A branch's statements are pattern statements of the rule, so a printer that
+/// stops at the top level reports `statements=0` for a rule whose whole body
+/// is a disjunction and hides it from any sweep over this output.
+void collectStatements(const std::vector<PatternItem> &Side,
+                       std::vector<std::string> &Out) {
+  for (const PatternItem &I : Side) {
+    if (I.Kind == PatternItem::Kind::Disjunction) {
+      for (const std::vector<PatternItem> &Branch : I.Branches)
+        collectStatements(Branch, Out);
+      continue;
+    }
+    if (I.Kind == PatternItem::Kind::Statement)
+      Out.push_back(I.Text);
+  }
+}
+
 } // namespace
 
 int main(int argc, const char **argv) {
@@ -145,9 +163,7 @@ int main(int argc, const char **argv) {
       for (const auto &[SideName, Side] :
            {std::pair{"minus", &R.Minus}, std::pair{"plus", &R.Plus}}) {
         std::vector<std::string> Stmts;
-        for (const PatternItem &I : *Side)
-          if (I.Kind == PatternItem::Kind::Statement)
-            Stmts.push_back(I.Text);
+        collectStatements(*Side, Stmts);
         llvm::outs() << "rule " << (R.Name.empty() ? "<unnamed>" : R.Name)
                      << " side=" << SideName << " statements=" << Stmts.size()
                      << "\n";
@@ -233,6 +249,11 @@ int main(int argc, const char **argv) {
       }
   }
 
+  for (const Unrun &U : Result.UnreadBranches)
+    llvm::errs() << "clang-spatch: rule "
+                 << (U.RuleName.empty() ? "<unnamed>" : U.RuleName)
+                 << " ran in part: " << U.Reason << "\n";
+
   for (const Unrun &U : Result.UnrunRules)
     llvm::errs() << "clang-spatch: rule "
                  << (U.RuleName.empty() ? "<unnamed>" : U.RuleName)
@@ -245,6 +266,7 @@ int main(int argc, const char **argv) {
                << Result.AnchorsUnsupportedResource
                << " with an unsupported resource, "
                << Result.AnchorsUnattributed << " unattributed, "
+               << Result.UnreadBranches.size() << " branch(es) not read, "
                << Result.UnrunRules.size() << " rule(s) not run\n";
 
   // A rule that could not run, or an anchor that got no answer, is a failure

@@ -11,6 +11,8 @@
 #include "clang/AST/Expr.h"
 #include "clang/AST/RecursiveASTVisitor.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 
@@ -608,40 +610,74 @@ std::string bindingKey(const Binding &B, ASTContext &Context) {
 
 std::vector<Match> findMatches(const Stmt *Pattern, const ParsedPattern &Parsed,
                                ASTContext &Context, MatchOptions Opts) {
+  return findMatches(llvm::ArrayRef<const Stmt *>(Pattern), Parsed, Context,
+                     Opts);
+}
+
+std::vector<Match> findMatches(llvm::ArrayRef<const Stmt *> Patterns,
+                               const ParsedPattern &Parsed, ASTContext &Context,
+                               MatchOptions Opts) {
   std::vector<Match> Out;
-  if (!Pattern)
+  if (llvm::all_of(Patterns, [](const Stmt *P) { return !P; }))
     return Out;
   StmtCollector Collector;
   Collector.TraverseDecl(Context.getTranslationUnitDecl());
   Unifier Shared(Parsed, Context);
   const Bindings Seed = Opts.Inherited ? *Opts.Inherited : Bindings();
+  const llvm::SmallVector<const Decl *, 8> FileScope =
+      fileScopeDeclarations(Context, Opts.MultiDeclaratorOK);
 
-  // A match's subtrees are skipped, so one written call is reported once even
-  // when the pattern would also match something inside it.
-  llvm::SmallVector<const Stmt *, 8> Claimed;
-  for (Stmt *S : Collector.All) {
-    const bool Inside = llvm::any_of(Claimed, [&](const Stmt *C) {
-      const SourceRange Outer = C->getSourceRange();
-      const SourceRange Inner = S->getSourceRange();
-      return Outer.getBegin() <= Inner.getBegin() &&
-             Inner.getEnd() <= Outer.getEnd();
+  // What earlier matches already cover. A pattern is not offered a node whose
+  // text any of them took, which for one pattern is the subtree exclusion
+  // that reports a written call once rather than again through its own
+  // argument, and across patterns is what makes an earlier branch win.
+  llvm::SmallVector<SourceRange, 8> Claimed;
+  const auto taken = [&](SourceRange R) {
+    return llvm::any_of(Claimed, [&](SourceRange C) {
+      return R.getBegin() <= C.getEnd() && C.getBegin() <= R.getEnd();
     });
-    if (Inside)
+  };
+  // A file-scope declaration is excluded by identity rather than by range,
+  // because Clang gives every declarator of one declaration the same begin
+  // location: `typedef int A, B, C, D;` is four declarations over one range,
+  // and a range test lets the first of them hide the other three.
+  llvm::DenseSet<const Decl *> ClaimedDecls;
+
+  for (unsigned P = 0, PE = Patterns.size(); P != PE; ++P) {
+    if (!Patterns[P])
       continue;
-    Bindings Bound = Seed;
-    if (!Shared.run(Pattern, S, Bound))
+    for (Stmt *S : Collector.All) {
+      if (taken(S->getSourceRange()))
+        continue;
+      Bindings Bound = Seed;
+      if (!Shared.run(Patterns[P], S, Bound))
+        continue;
+      Claimed.push_back(S->getSourceRange());
+      Out.push_back({DynTypedNode::create(*S), std::move(Bound), P});
+    }
+    const auto *DS = dyn_cast<DeclStmt>(peel(Patterns[P]));
+    if (!DS)
       continue;
-    Claimed.push_back(S);
-    Out.push_back({DynTypedNode::create(*S), std::move(Bound)});
+    for (const Decl *D : FileScope) {
+      if (ClaimedDecls.contains(D))
+        continue;
+      Bindings Bound = Seed;
+      if (!Shared.runOnDecl(*DS, D, Bound))
+        continue;
+      ClaimedDecls.insert(D);
+      Out.push_back({DynTypedNode::create(*D), std::move(Bound), P});
+    }
   }
 
-  if (const auto *DS = dyn_cast<DeclStmt>(peel(Pattern)))
-    for (const Decl *D :
-         fileScopeDeclarations(Context, Opts.MultiDeclaratorOK)) {
-      Bindings Bound = Seed;
-      if (Shared.runOnDecl(*DS, D, Bound))
-        Out.push_back({DynTypedNode::create(*D), std::move(Bound)});
-    }
+  // One pattern already comes out in source order, because the walk above is
+  // outermost first. Several do not, since each is searched over the whole
+  // translation unit before the next, and a caller reporting matches wants
+  // them where the reader will look for them.
+  if (Patterns.size() > 1)
+    llvm::stable_sort(Out, [](const Match &A, const Match &B) {
+      return A.Node.getSourceRange().getBegin() <
+             B.Node.getSourceRange().getBegin();
+    });
   return Out;
 }
 

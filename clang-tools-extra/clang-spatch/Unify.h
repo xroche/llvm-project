@@ -24,6 +24,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Stmt.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringMap.h"
 #include <string>
 #include <vector>
@@ -56,6 +57,9 @@ struct Match {
   /// is not one: there is no `DeclStmt` at file scope.
   DynTypedNode Node;
   Bindings Bound;
+  /// Which of the patterns handed to \c findMatches matched here. Zero for a
+  /// search over a single pattern.
+  unsigned Pattern = 0;
 };
 
 /// What a search over the target is allowed to match.
@@ -107,6 +111,20 @@ std::string whyNotComparable(const Stmt *Pattern);
 /// through its own argument.
 std::vector<Match> findMatches(const Stmt *Pattern, const ParsedPattern &Parsed,
                                ASTContext &Context, MatchOptions Opts = {});
+
+/// Every place any of \p Patterns matches, with an earlier pattern winning
+/// over a later one wherever the two want the same text.
+///
+/// This is what a disjunction means. Each branch is searched over the whole
+/// translation unit before the next one is, and a branch may not take text an
+/// earlier branch already took, so branch order beats nesting: measured on
+/// `spatch` 1.1.1, `( - p | - p->fld )` over `p->fld` rewrites the `p` and
+/// leaves the member access, and the same two branches the other way round
+/// rewrite the member access. Reported outermost first per branch, then sorted
+/// into source order.
+std::vector<Match> findMatches(llvm::ArrayRef<const Stmt *> Patterns,
+                               const ParsedPattern &Parsed, ASTContext &Context,
+                               MatchOptions Opts = {});
 
 /// A string that tells two bindings apart exactly as the unifier's own
 /// consistency check does.
