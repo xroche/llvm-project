@@ -74,11 +74,23 @@ struct PatternItem {
   bool WhenStrict = false;
   /// For Kind::Disjunction, the alternative branches in source order.
   std::vector<std::vector<PatternItem>> Branches;
+  /// True when the statement is still incomplete after grouping, as in an
+  /// `if` head whose body sits on the other side of the patch. Such an item
+  /// is a fragment rather than a statement, and writing one back as a
+  /// replacement would drop whatever completes it.
+  bool Unfinished = false;
   /// Line in the .cocci file, for diagnostics.
   unsigned Line = 0;
 };
 
 /// A single rule.
+///
+/// The body is held three ways: as written, and grouped into statements once
+/// per side. Two sides are needed because a context line belongs to both the
+/// sequence the rule matches and the sequence that replaces it, so a
+/// transformed multi-line statement interleaves `-`, `+` and unmarked lines
+/// and no single sequence can hold it. `Minus` and `Plus` are derived from
+/// `Body` by the parser and are what a consumer reads.
 struct Rule {
   /// Empty for an unnamed rule.
   std::string Name;
@@ -97,7 +109,15 @@ struct Rule {
   /// which is how a patch selects report or patch mode.
   bool DependsOnVirtual = false;
   std::vector<MetaVar> MetaVars;
+  /// The rule body a line at a time, in source order and ungrouped.
   std::vector<PatternItem> Body;
+  /// The context and `-` lines grouped into whole statements: the sequence
+  /// the rule matches.
+  std::vector<PatternItem> Minus;
+  /// The context and `+` lines grouped into whole statements: the sequence
+  /// that replaces it. A `*` rule states no replacement, so its plus side is
+  /// its context lines and carries no meaning.
+  std::vector<PatternItem> Plus;
   unsigned Line = 0;
 };
 

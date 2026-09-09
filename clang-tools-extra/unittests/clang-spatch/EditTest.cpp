@@ -96,20 +96,72 @@ TEST(FlatRule, ASubExpressionMatchKeepsTheStatementTerminator) {
             rewritten("@r@\n@@\n- 12\n+ 10\n", "int f(void) { return 12; }\n"));
 }
 
+TEST(FlatRule, AContextLineInsideTheChangedStatementIsMatchedWithIt) {
+  // The head of a transformed `if` sits on a context line and its condition
+  // on a `-` and a `+` line, so the two sides of the rule are
+  // `if (E) foo(E);` and `if (!E) foo(E);`. Grouping by marker instead left
+  // the head and the body as separate fragments and neither parsed.
+  EXPECT_EQ("void foo(int);\nvoid f(int x) { if (!x) foo(x); }\n",
+            rewritten("@r@\nexpression E;\n@@\n- if (E)\n+ if (!E)\n"
+                      "    foo(E);\n",
+                      "void foo(int);\nvoid f(int x) { if (x) foo(x); }\n"));
+}
+
+TEST(FlatRule, ALineEndingInAnOperatorTakesTheContextLineBelowIt) {
+  // `tests/unary.cocci` is `- -` over ` x`, so the minus side is the unary
+  // expression `- x` and the plus side is `x` alone. Neither line is a
+  // pattern on its own.
+  EXPECT_EQ("int f(void) { return 1; }\n",
+            rewritten("@r@\nexpression x;\n@@\n- -\n x\n",
+                      "int f(void) { return -1; }\n"));
+}
+
+TEST(FlatRule, OneStatementIsReplacedByASequenceOfThem) {
+  // `tests/test7.cocci` is this shape. The plus side is two statements and
+  // both replace the one that matched, so neither needs positioning.
+  EXPECT_EQ("void foo(int);\nvoid f(void) { foo(1); foo(2); }\n",
+            rewritten("@r@\nconstant C;\n@@\n- foo(C);\n+ foo(1);\n"
+                      "+ foo(2);\n",
+                      "void foo(int);\nvoid f(void) { foo(9); }\n"));
+}
+
+TEST(FlatRule, DroppingAStatementHeadKeepsWhatIsLeftOfIt) {
+  // `tests/unfree.cocci` is this shape: the `if` goes and its body stays. The
+  // body is the whole of the plus side, so replacing the matched `if` with it
+  // is the edit the rule asks for.
+  EXPECT_EQ("void b(void);\nvoid f(int a) { b(); }\n",
+            rewritten("@r@\n@@\n- if (a)\n    b();\n",
+                      "void b(void);\nvoid f(int a) { if (a) b(); }\n"));
+}
+
+TEST(FlatRule, LeavingAFragmentOnThePlusSideIsRefused) {
+  // Here the body goes and the `if` head is left alone on the plus side.
+  // Writing that back would drop the body and report success.
+  EXPECT_EQ("!the rule takes part of a statement away and leaves a fragment, "
+            "which needs an edit inside the matched node rather than over it",
+            rewritten("@r@\n@@\n  if (a)\n-   b();\n",
+                      "void b(void);\nvoid f(int a) { if (a) b(); }\n"));
+}
+
 TEST(FlatRule, ShapesOutsideTheFlatPathAreNamedRatherThanRun) {
   // Each of these is a real Coccinelle shape and none is silently
   // approximated, because a rule that half-runs leaves code matching neither
   // the old pattern nor the new one.
-  EXPECT_EQ("!a dot-free rule matching more than one statement needs "
+  EXPECT_EQ("!a dot-free rule matching a sequence of statements needs "
             "statement adjacency, which this version does not build",
             rewritten("@r@\n@@\n- foo();\n- bar();\n",
                       "void foo(void);\nvoid bar(void);\nvoid f(void) "
                       "{ foo(); bar(); }\n"));
-  EXPECT_EQ("!a dot-free rule with a context line needs the context matched "
-            "beside the changed line, which this version does not build",
+  // A context statement beside a changed one is the same adjacency case: the
+  // minus side is a two-statement sequence whichever of the two is marked.
+  EXPECT_EQ("!a dot-free rule matching a sequence of statements needs "
+            "statement adjacency, which this version does not build",
             rewritten("@r@\n@@\n  foo();\n- bar();\n",
                       "void foo(void);\nvoid bar(void);\nvoid f(void) "
                       "{ foo(); bar(); }\n"));
+  EXPECT_EQ("!the rule marks no line, so it asks for no change",
+            rewritten("@r@\n@@\n  foo();\n",
+                      "void foo(void);\nvoid f(void) { foo(); }\n"));
   // A `+`-only rule never reaches the runner, because the parser rejects it
   // first with Coccinelle's own wording. The runner's guard for it stays as a
   // guard rather than a reachable path.

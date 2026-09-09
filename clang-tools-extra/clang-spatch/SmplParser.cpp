@@ -156,35 +156,58 @@ bool continuesOntoNextLine(StringRef T, ArrayRef<MetaVar> MetaVars) {
   return false;
 }
 
-void groupStatements(std::vector<PatternItem> &Body,
-                     ArrayRef<MetaVar> MetaVars) {
-  std::vector<PatternItem> Out;
-  for (PatternItem &It : Body) {
-    if (It.Kind != ItemKind::Statement || Out.empty() ||
-        Out.back().Kind != ItemKind::Statement ||
-        Out.back().Marker != It.Marker) {
-      Out.push_back(std::move(It));
-      continue;
-    }
-    // A line holding `...` is not part of a C statement. Joining it in would
-    // build an item no pattern parser can read, and it would move the item's
-    // line number away from the refusal that names the ellipsis.
-    if (StringRef(It.Text).contains("...") ||
-        StringRef(Out.back().Text).contains("...")) {
-      Out.push_back(std::move(It));
-      continue;
-    }
-    if (!continuesOntoNextLine(Out.back().Text, MetaVars)) {
-      Out.push_back(std::move(It));
-      continue;
-    }
-    Out.back().Text += " ";
-    Out.back().Text += StringRef(It.Text).trim();
-    // A position on a joined line still belongs to the statement.
-    if (Out.back().PositionVar.empty())
-      Out.back().PositionVar = It.PositionVar;
+/// Appends \p It to one side's statement sequence, joining it onto the
+/// statement already there when that one is unfinished.
+void appendToSide(std::vector<PatternItem> &Side, const PatternItem &It,
+                  ArrayRef<MetaVar> MetaVars) {
+  if (It.Kind != ItemKind::Statement || Side.empty() ||
+      Side.back().Kind != ItemKind::Statement) {
+    Side.push_back(It);
+    return;
   }
-  Body = std::move(Out);
+  // A line holding `...` is not part of a C statement. Joining it in would
+  // build an item no pattern parser can read, and it would move the item's
+  // line number away from the refusal that names the ellipsis.
+  if (StringRef(It.Text).contains("...") ||
+      StringRef(Side.back().Text).contains("...")) {
+    Side.push_back(It);
+    return;
+  }
+  if (!continuesOntoNextLine(Side.back().Text, MetaVars)) {
+    Side.push_back(It);
+    return;
+  }
+  Side.back().Text += " ";
+  Side.back().Text += StringRef(It.Text).trim();
+  // A position on a joined line still belongs to the statement.
+  if (Side.back().PositionVar.empty())
+    Side.back().PositionVar = It.PositionVar;
+  // A statement holding one changed line is a changed statement, whichever
+  // line of it opened the group.
+  if (It.Marker != ItemMarker::Context)
+    Side.back().Marker = It.Marker;
+}
+
+/// Fills in \p R.Minus and \p R.Plus from \p R.Body.
+///
+/// Grouping the two sides separately is what SmPL means by a context line. A
+/// transformed statement keeps its head on a context line and its changed
+/// part on a `-` or `+` line, so its lines never share one marker, and
+/// grouping by same marker left 11 fewer statements of the 211-patch sample
+/// parsing.
+void groupSides(Rule &R) {
+  for (const PatternItem &It : R.Body) {
+    if (It.Marker != ItemMarker::Plus)
+      appendToSide(R.Minus, It, R.MetaVars);
+    if (It.Marker == ItemMarker::Context || It.Marker == ItemMarker::Plus)
+      appendToSide(R.Plus, It, R.MetaVars);
+  }
+  // A group that closed while its text was still open never got the lines
+  // that complete it, because they are on the other side.
+  for (std::vector<PatternItem> *Side : {&R.Minus, &R.Plus})
+    for (PatternItem &It : *Side)
+      if (It.Kind == ItemKind::Statement)
+        It.Unfinished = continuesOntoNextLine(It.Text, R.MetaVars);
 }
 
 /// The first whitespace-separated word of \p S.
@@ -758,7 +781,7 @@ bool SmplParser::parseRule() {
   // A fragment that survives grouping is reported by the pattern parser,
   // which knows whether it parses. A second heuristic check here refused 70
   // patches that were fine.
-  groupStatements(R.Body, R.MetaVars);
+  groupSides(R);
   Patch.Rules.push_back(std::move(R));
   return true;
 }

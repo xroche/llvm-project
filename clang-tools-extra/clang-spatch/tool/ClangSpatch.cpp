@@ -138,25 +138,31 @@ int main(int argc, const char **argv) {
 
   if (PrintPatterns) {
     for (const Rule &R : Patch->Rules) {
-      std::vector<std::string> Stmts;
-      for (const PatternItem &I : R.Body)
-        if (I.Kind == PatternItem::Kind::Statement)
-          Stmts.push_back(I.Text);
-      llvm::outs() << "rule " << (R.Name.empty() ? "<unnamed>" : R.Name)
-                   << " statements=" << Stmts.size() << "\n";
-      if (Stmts.empty())
-        continue;
-      std::string Error;
-      std::optional<ParsedPattern> P = parsePattern(R.MetaVars, Stmts, Error);
-      if (!P) {
-        llvm::outs() << "  SYNTH FAILED: " << Error << "\n";
-        continue;
-      }
-      for (unsigned I = 0; I != Stmts.size(); ++I)
-        llvm::outs() << "  [" << Stmts[I] << "] -> "
-                     << (P->Items[I] ? P->Items[I]->getStmtClassName()
-                                     : "UNPARSED: " + P->Errors[I])
+      // Both sides are printed, because a context line is grouped into a
+      // statement on each and the two statements can parse differently.
+      for (const auto &[SideName, Side] :
+           {std::pair{"minus", &R.Minus}, std::pair{"plus", &R.Plus}}) {
+        std::vector<std::string> Stmts;
+        for (const PatternItem &I : *Side)
+          if (I.Kind == PatternItem::Kind::Statement)
+            Stmts.push_back(I.Text);
+        llvm::outs() << "rule " << (R.Name.empty() ? "<unnamed>" : R.Name)
+                     << " side=" << SideName << " statements=" << Stmts.size()
                      << "\n";
+        if (Stmts.empty())
+          continue;
+        std::string Error;
+        std::optional<ParsedPattern> P = parsePattern(R.MetaVars, Stmts, Error);
+        if (!P) {
+          llvm::outs() << "  SYNTH FAILED: " << Error << "\n";
+          continue;
+        }
+        for (unsigned I = 0; I != Stmts.size(); ++I)
+          llvm::outs() << "  [" << Stmts[I] << "] -> "
+                       << (P->Items[I] ? P->Items[I]->getStmtClassName()
+                                       : "UNPARSED: " + P->Errors[I])
+                       << "\n";
+      }
     }
     return 0;
   }

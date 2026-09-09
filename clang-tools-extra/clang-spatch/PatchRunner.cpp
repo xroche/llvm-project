@@ -34,7 +34,7 @@ struct RuleShape {
 
 std::optional<RuleShape> shapeOf(const Rule &R, std::string &Why) {
   RuleShape S;
-  for (const PatternItem &I : R.Body) {
+  for (const PatternItem &I : R.Minus) {
     if (I.Kind == PatternItem::Kind::Statement) {
       if (!S.Anchor) {
         S.Anchor = &I;
@@ -133,7 +133,8 @@ const FunctionDecl *enclosingFunction(const Stmt *S, ASTContext &Context) {
   return nullptr;
 }
 
-/// A rule body with no `...`, split into what it matches and what it writes.
+/// A rule body with no `...`, reduced to one statement to match and the text
+/// that replaces it.
 ///
 /// A dot-free rule asks no question about control flow, so it needs no
 /// quantifier and no path query. `runPatch` used to refuse every one of them
@@ -141,48 +142,62 @@ const FunctionDecl *enclosingFunction(const Stmt *S, ASTContext &Context) {
 /// which is true and is not a reason to refuse: 339 of the 403 rules in the
 /// sample corpus have no `...` at all.
 struct FlatRule {
-  const PatternItem *Match = nullptr; ///< The `-` or `*` line to match.
-  std::string PlusText;               ///< The `+` lines, joined. May be empty.
+  const PatternItem *Match = nullptr; ///< The statement to match.
+  std::string PlusText;  ///< What replaces it. Empty for a pure deletion.
   bool Rewrites = false; ///< Is this a `-`/`+` rule rather than `*`?
 };
 
 std::optional<FlatRule> flattenOf(const Rule &R, std::string &Why) {
-  FlatRule F;
-  unsigned Matches = 0, Contexts = 0;
-  for (const PatternItem &I : R.Body) {
-    if (I.Kind != PatternItem::Kind::Statement) {
-      Why = "a dot-free rule holding a disjunction needs every branch matched "
-            "at the same point, which this version does not build";
-      return std::nullopt;
-    }
-    switch (I.Marker) {
-    case PatternItem::Marker::Minus:
-    case PatternItem::Marker::Star:
-      F.Match = &I;
-      F.Rewrites = I.Marker == PatternItem::Marker::Minus;
-      ++Matches;
-      break;
-    case PatternItem::Marker::Plus:
-      if (!F.PlusText.empty())
-        F.PlusText += " ";
-      F.PlusText += I.Text;
-      break;
-    case PatternItem::Marker::Context:
-      ++Contexts;
-      break;
-    }
-  }
-  if (Matches != 1) {
-    Why = Matches == 0
-              ? "a dot-free rule with no `-` or `*` line has nothing to match"
-              : "a dot-free rule matching more than one statement needs "
+  for (const std::vector<PatternItem> *Side : {&R.Minus, &R.Plus})
+    for (const PatternItem &I : *Side)
+      if (I.Kind != PatternItem::Kind::Statement) {
+        Why = "a dot-free rule holding a disjunction needs every branch "
+              "matched at the same point, which this version does not build";
+        return std::nullopt;
+      }
+  if (R.Minus.size() != 1) {
+    Why = R.Minus.empty()
+              ? "a dot-free rule with nothing to match on the `-` side"
+              : "a dot-free rule matching a sequence of statements needs "
                 "statement adjacency, which this version does not build";
     return std::nullopt;
   }
-  if (Contexts != 0) {
-    Why = "a dot-free rule with a context line needs the context matched "
-          "beside the changed line, which this version does not build";
+  FlatRule F;
+  F.Match = &R.Minus.front();
+  // A `*` rule reports and never rewrites, so its plus side is unread.
+  if (F.Match->Marker == PatternItem::Marker::Star)
+    return F;
+  if (F.Match->Marker != PatternItem::Marker::Minus) {
+    // No `-` line is part of the statement, so the rule either changes
+    // nothing or inserts beside it, and an insertion needs a position this
+    // version does not decide.
+    const bool Adds = llvm::any_of(R.Plus, [](const PatternItem &I) {
+      return I.Marker == PatternItem::Marker::Plus;
+    });
+    Why = Adds ? "a dot-free rule that only inserts needs the insertion "
+                 "placed relative to the match, which this version does not "
+                 "build"
+               : "the rule marks no line, so it asks for no change";
     return std::nullopt;
+  }
+  F.Rewrites = true;
+  // One statement may be replaced by a sequence, so every plus-side statement
+  // is part of the replacement text and none of them needs positioning. That
+  // holds for an unmarked one too: `-if (e)` over `  kfree(e);` replaces the
+  // `if` with its own body, and the body is what the plus side holds.
+  //
+  // A fragment is the case to refuse. `  if (a)` over `-   b();` leaves the
+  // `if` head alone on the plus side, and writing that back would drop the
+  // body and report success.
+  for (const PatternItem &I : R.Plus) {
+    if (I.Unfinished) {
+      Why = "the rule takes part of a statement away and leaves a fragment, "
+            "which needs an edit inside the matched node rather than over it";
+      return std::nullopt;
+    }
+    if (!F.PlusText.empty())
+      F.PlusText += " ";
+    F.PlusText += I.Text;
   }
   return F;
 }
@@ -242,7 +257,7 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
     std::string Why;
     // A rule with no `...` asks nothing about control flow, so it takes the
     // flat path and needs no quantifier.
-    const bool HasDots = llvm::any_of(R.Body, [](const PatternItem &I) {
+    const bool HasDots = llvm::any_of(R.Minus, [](const PatternItem &I) {
       return I.Kind == PatternItem::Kind::Dots;
     });
     if (!HasDots) {

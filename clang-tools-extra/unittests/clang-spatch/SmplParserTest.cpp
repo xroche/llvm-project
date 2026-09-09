@@ -1616,20 +1616,39 @@ TEST(SmplParser, ThePatternStatementIsTheUnitRatherThanTheLine) {
                            "- if (cputime_eq(a, b))\n"
                            "-   a = jiffies_to_cputime(1);\n");
   ASSERT_EQ(1u, P.Rules.size());
-  ASSERT_EQ(1u, P.Rules[0].Body.size()) << refusalList(P);
+  ASSERT_EQ(1u, P.Rules[0].Minus.size()) << refusalList(P);
   EXPECT_EQ("if (cputime_eq(a, b)) a = jiffies_to_cputime(1);",
-            P.Rules[0].Body[0].Text);
+            P.Rules[0].Minus[0].Text);
+  EXPECT_TRUE(P.Rules[0].Plus.empty());
 }
 
-TEST(SmplParser, LinesJoinOnlyWithinOneMarker) {
-  // The `-` lines are one sequence and the `+` lines another, so a statement
-  // never spans the boundary.
+TEST(SmplParser, AContextLineBelongsToBothSides) {
+  // This is what SmPL means by a context line and it is the whole reason the
+  // sides are grouped apart. Grouping by marker instead left `if (a)`,
+  // `if (b)` and `c();` as three fragments, none of which is a statement the
+  // patch contains.
   SemanticPatch P = parsed("@r@\n@@\n- if (a)\n+ if (b)\n  c();\n");
   ASSERT_EQ(1u, P.Rules.size());
-  ASSERT_EQ(3u, P.Rules[0].Body.size()) << refusalList(P);
-  EXPECT_EQ("if (a)", P.Rules[0].Body[0].Text);
-  EXPECT_EQ("if (b)", P.Rules[0].Body[1].Text);
-  EXPECT_EQ("c();", P.Rules[0].Body[2].Text);
+  ASSERT_EQ(1u, P.Rules[0].Minus.size()) << refusalList(P);
+  ASSERT_EQ(1u, P.Rules[0].Plus.size()) << refusalList(P);
+  EXPECT_EQ("if (a) c();", P.Rules[0].Minus[0].Text);
+  EXPECT_EQ("if (b) c();", P.Rules[0].Plus[0].Text);
+  EXPECT_EQ(PatternItem::Marker::Minus, P.Rules[0].Minus[0].Marker);
+  EXPECT_EQ(PatternItem::Marker::Plus, P.Rules[0].Plus[0].Marker);
+}
+
+TEST(SmplParser, AChangedLineMarksTheStatementItWasJoinedInto) {
+  // The group opens on a context line here, so the marker has to come from
+  // the line joined into it. Without that the statement reads as unchanged
+  // and the runner rewrites nothing.
+  SemanticPatch P = parsed("@r@\n@@\n  if (a)\n-   b();\n+   c();\n");
+  ASSERT_EQ(1u, P.Rules.size());
+  ASSERT_EQ(1u, P.Rules[0].Minus.size()) << refusalList(P);
+  EXPECT_EQ("if (a) b();", P.Rules[0].Minus[0].Text);
+  EXPECT_EQ(PatternItem::Marker::Minus, P.Rules[0].Minus[0].Marker);
+  ASSERT_EQ(1u, P.Rules[0].Plus.size()) << refusalList(P);
+  EXPECT_EQ("if (a) c();", P.Rules[0].Plus[0].Text);
+  EXPECT_EQ(PatternItem::Marker::Plus, P.Rules[0].Plus[0].Marker);
 }
 
 TEST(SmplParser, AnExpressionPatternStandsAloneWithoutASemicolon) {
@@ -1640,15 +1659,17 @@ TEST(SmplParser, AnExpressionPatternStandsAloneWithoutASemicolon) {
                            "- kzalloc(c * sizeof(T), E)\n"
                            "+ kcalloc(c, sizeof(T), E)\n");
   ASSERT_EQ(1u, P.Rules.size());
-  ASSERT_EQ(2u, P.Rules[0].Body.size()) << refusalList(P);
-  EXPECT_EQ("kzalloc(c * sizeof(T), E)", P.Rules[0].Body[0].Text);
+  ASSERT_EQ(1u, P.Rules[0].Minus.size()) << refusalList(P);
+  ASSERT_EQ(1u, P.Rules[0].Plus.size()) << refusalList(P);
+  EXPECT_EQ("kzalloc(c * sizeof(T), E)", P.Rules[0].Minus[0].Text);
+  EXPECT_EQ("kcalloc(c, sizeof(T), E)", P.Rules[0].Plus[0].Text);
 }
 
 TEST(SmplParser, AnUnclosedBracketTakesTheFollowingLines) {
   SemanticPatch P = parsed("@r@\nexpression E;\n@@\n- foo(\n-   E,\n-   1)\n");
   ASSERT_EQ(1u, P.Rules.size());
-  ASSERT_EQ(1u, P.Rules[0].Body.size()) << refusalList(P);
-  EXPECT_EQ("foo( E, 1)", P.Rules[0].Body[0].Text);
+  ASSERT_EQ(1u, P.Rules[0].Minus.size()) << refusalList(P);
+  EXPECT_EQ("foo( E, 1)", P.Rules[0].Minus[0].Text);
 }
 
 TEST(SmplParser, AnElseIsNotJoinedBackwardsOntoTheIfAboveIt) {
@@ -1662,9 +1683,9 @@ TEST(SmplParser, AnElseIsNotJoinedBackwardsOntoTheIfAboveIt) {
   // tests/elsify.cocci into `GOTO(e1); else GOTO(e2);`, which does not parse.
   SemanticPatch P = parsed("@r@\n@@\n- if (a)\n-   b();\n- else\n-   c();\n");
   ASSERT_EQ(1u, P.Rules.size());
-  ASSERT_EQ(2u, P.Rules[0].Body.size()) << refusalList(P);
-  EXPECT_EQ("if (a) b();", P.Rules[0].Body[0].Text);
-  EXPECT_EQ("else c();", P.Rules[0].Body[1].Text);
+  ASSERT_EQ(2u, P.Rules[0].Minus.size()) << refusalList(P);
+  EXPECT_EQ("if (a) b();", P.Rules[0].Minus[0].Text);
+  EXPECT_EQ("else c();", P.Rules[0].Minus[1].Text);
 }
 
 TEST(SmplParser, ABareStatementMetavariableDoesNotAbsorbTheNextLine) {
@@ -1672,9 +1693,9 @@ TEST(SmplParser, ABareStatementMetavariableDoesNotAbsorbTheNextLine) {
   // it is already complete.
   SemanticPatch P = parsed("@r@\nstatement S;\n@@\n- S\n-  foo();\n");
   ASSERT_EQ(1u, P.Rules.size());
-  ASSERT_EQ(2u, P.Rules[0].Body.size()) << refusalList(P);
-  EXPECT_EQ("S", P.Rules[0].Body[0].Text);
-  EXPECT_EQ("foo();", P.Rules[0].Body[1].Text);
+  ASSERT_EQ(2u, P.Rules[0].Minus.size()) << refusalList(P);
+  EXPECT_EQ("S", P.Rules[0].Minus[0].Text);
+  EXPECT_EQ("foo();", P.Rules[0].Minus[1].Text);
 }
 
 TEST(SmplParser, ALineHoldingDotsIsNeverJoined) {
@@ -1684,8 +1705,8 @@ TEST(SmplParser, ALineHoldingDotsIsNeverJoined) {
   SemanticPatch P =
       parsed("@r@\nexpression x;\n@@\n- if (x)\n- { ... return ...; }\n");
   ASSERT_EQ(1u, P.Rules.size());
-  ASSERT_LE(2u, P.Rules[0].Body.size()) << refusalList(P);
-  EXPECT_EQ("if (x)", P.Rules[0].Body[0].Text);
+  ASSERT_LE(2u, P.Rules[0].Minus.size()) << refusalList(P);
+  EXPECT_EQ("if (x)", P.Rules[0].Minus[0].Text);
 }
 
 } // namespace clang::spatch
