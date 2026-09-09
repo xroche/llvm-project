@@ -14,6 +14,7 @@
 #ifndef LLVM_CLANG_TOOLS_EXTRA_CLANG_SPATCH_SEMANTICPATCH_H
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_SPATCH_SEMANTICPATCH_H
 
+#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/StringRef.h"
 #include <optional>
 #include <string>
@@ -53,6 +54,23 @@ struct PatternItem {
   /// How the line is marked in the patch. Context lines are unmarked.
   enum class Marker { Context, Minus, Plus, Star };
 
+  /// One patch line's contribution to a grouped statement's \c Text.
+  ///
+  /// Grouping joins the lines of one side with a single space, so which part
+  /// of \c Text a `-` line wrote cannot be recovered from the text. An edit
+  /// inside the matched node needs exactly that: only the span the `-` lines
+  /// wrote is replaced, and the rest of the statement stays as the target
+  /// wrote it.
+  struct Span {
+    unsigned Offset = 0; ///< Into \c Text.
+    unsigned Length = 0;
+    /// The marker of the patch line this span came from.
+    Marker LineMarker = Marker::Context;
+    /// Line in the .cocci file, so that a `-` run and the `+` run beside it
+    /// can be paired the way a line diff pairs them.
+    unsigned Line = 0;
+  };
+
   Kind Kind;
   Marker Marker = Marker::Context;
   /// The statement text, for Kind::Statement. Metavariable names appear in it
@@ -79,6 +97,9 @@ struct PatternItem {
   /// is a fragment rather than a statement, and writing one back as a
   /// replacement would drop whatever completes it.
   bool Unfinished = false;
+  /// Where each patch line's text sits inside \c Text, in source order. One
+  /// entry for an ungrouped line, and one per absorbed line after grouping.
+  std::vector<Span> Spans;
   /// Line in the .cocci file, for diagnostics.
   unsigned Line = 0;
 };
@@ -158,6 +179,82 @@ inline void collectStatements(const std::vector<PatternItem> &Side,
     if (I.Kind == PatternItem::Kind::Statement)
       Out.push_back(I.Text);
   }
+}
+
+/// One `-` run of a grouped statement, paired with the `+` run beside it.
+///
+/// A rule that rewrites part of a statement interleaves its `-`, `+` and
+/// context lines, so the statement has to be split the way a line diff splits
+/// one: each `-` run and the `+` run next to it is one hunk, and the context
+/// around them is text the target already holds.
+struct PatternHunk {
+  /// Where the `-` lines wrote, in the minus item's \c Text.
+  unsigned MinusOffset = 0;
+  unsigned MinusLength = 0;
+  /// The `+` lines that replace them, as written in the plus item's \c Text.
+  /// Empty when the hunk deletes.
+  std::string PlusText;
+  /// The first `-` line of the run, for diagnostics.
+  unsigned Line = 0;
+};
+
+/// The hunks of one grouped statement.
+///
+/// \p Minus and \p Plus must be the same statement as grouped for each side,
+/// so their spans name the same patch lines. A `+` run that no `-` run
+/// precedes is an insertion placed relative to the match rather than a
+/// replacement of it, and it is left out of the result: \p Insertions counts
+/// them, so a caller can refuse rather than drop the line without saying so.
+/// A `*` line asks for no change and is read here as context.
+inline std::vector<PatternHunk> pairHunks(const PatternItem &Minus,
+                                          const PatternItem &Plus,
+                                          unsigned &Insertions) {
+  Insertions = 0;
+  // One entry per marked patch line of the statement, in source order, so a
+  // `-` run and the `+` run beside it are adjacent although each side was
+  // grouped on its own.
+  struct Row {
+    const PatternItem::Span *Span;
+    bool IsPlus;
+  };
+  std::vector<Row> Rows;
+  for (const PatternItem::Span &Sp : Minus.Spans)
+    if (Sp.LineMarker == PatternItem::Marker::Minus)
+      Rows.push_back({&Sp, false});
+  for (const PatternItem::Span &Sp : Plus.Spans)
+    if (Sp.LineMarker == PatternItem::Marker::Plus)
+      Rows.push_back({&Sp, true});
+  llvm::stable_sort(Rows, [](const Row &A, const Row &B) {
+    if (A.Span->Line != B.Span->Line)
+      return A.Span->Line < B.Span->Line;
+    return !A.IsPlus && B.IsPlus;
+  });
+
+  std::vector<PatternHunk> Hunks;
+  for (size_t I = 0; I != Rows.size();) {
+    if (Rows[I].IsPlus) {
+      while (I != Rows.size() && Rows[I].IsPlus)
+        ++I;
+      ++Insertions;
+      continue;
+    }
+    PatternHunk H;
+    H.Line = Rows[I].Span->Line;
+    H.MinusOffset = Rows[I].Span->Offset;
+    unsigned End = H.MinusOffset;
+    for (; I != Rows.size() && !Rows[I].IsPlus; ++I)
+      End = Rows[I].Span->Offset + Rows[I].Span->Length;
+    H.MinusLength = End - H.MinusOffset;
+    if (I != Rows.size() && Rows[I].IsPlus) {
+      const unsigned From = Rows[I].Span->Offset;
+      unsigned To = From;
+      for (; I != Rows.size() && Rows[I].IsPlus; ++I)
+        To = Rows[I].Span->Offset + Rows[I].Span->Length;
+      H.PlusText = Plus.Text.substr(From, To - From);
+    }
+    Hunks.push_back(std::move(H));
+  }
+  return Hunks;
 }
 
 struct SemanticPatch {

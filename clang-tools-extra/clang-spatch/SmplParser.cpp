@@ -241,6 +241,11 @@ void appendToSide(std::vector<PatternItem> &Side, const PatternItem &It,
     Side.push_back(It);
     return;
   }
+  const unsigned Shift = Side.back().Text.size() + 1;
+  for (PatternItem::Span Sp : It.Spans) {
+    Sp.Offset += Shift;
+    Side.back().Spans.push_back(Sp);
+  }
   Side.back().Text += " ";
   Side.back().Text += StringRef(It.Text).trim();
   // A position on a joined line still belongs to the statement.
@@ -2134,6 +2139,9 @@ bool SmplParser::parseBody(Rule &R) {
     It.Text = Text.str();
     if (!parsePositions({Text, LineNo}, It, R))
       return false;
+    It.Spans.push_back({/*Offset=*/0,
+                        static_cast<unsigned>(It.Text.size()),
+                        /*LineMarker=*/M, LineNo});
     Target().push_back(std::move(It));
     return true;
   };

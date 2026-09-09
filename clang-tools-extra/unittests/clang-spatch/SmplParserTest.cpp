@@ -536,6 +536,87 @@ TEST(SmplParser, EachBranchOfADisjunctionIsGroupedOncePerSide) {
   EXPECT_TRUE(P.fullyUnderstood()) << refusalList(P);
 }
 
+/// The substring of \p It's text that \p Sp names.
+StringRef spanText(const PatternItem &It, const PatternItem::Span &Sp) {
+  return StringRef(It.Text).substr(Sp.Offset, Sp.Length);
+}
+
+TEST(SmplParser, AGroupedStatementSaysWhichPartEachPatchLineWrote) {
+  // Grouping joins the lines of one side with a single space, so which part
+  // of the text a `-` line wrote is not recoverable from the text. An edit
+  // inside the matched node replaces only that part.
+  SemanticPatch P = parsed("@@\nidentifier i, i2;\nstatement S;\nconstant c;"
+                           "\n@@\n  if(\n- (i = i2)\n+ i\n  +\n  c) S\n");
+  ASSERT_EQ(1u, P.Rules[0].Minus.size());
+  const PatternItem &Minus = P.Rules[0].Minus[0];
+  EXPECT_EQ("if( (i = i2) + c) S", Minus.Text);
+  ASSERT_EQ(4u, Minus.Spans.size());
+  EXPECT_EQ("if(", spanText(Minus, Minus.Spans[0]));
+  EXPECT_EQ(ItemMarker::Context, Minus.Spans[0].LineMarker);
+  EXPECT_EQ("(i = i2)", spanText(Minus, Minus.Spans[1]));
+  EXPECT_EQ(ItemMarker::Minus, Minus.Spans[1].LineMarker);
+  EXPECT_EQ("+", spanText(Minus, Minus.Spans[2]));
+  EXPECT_EQ("c) S", spanText(Minus, Minus.Spans[3]));
+
+  ASSERT_EQ(1u, P.Rules[0].Plus.size());
+  const PatternItem &Plus = P.Rules[0].Plus[0];
+  EXPECT_EQ("if( i + c) S", Plus.Text);
+  ASSERT_EQ(4u, Plus.Spans.size());
+  EXPECT_EQ("i", spanText(Plus, Plus.Spans[1]));
+  EXPECT_EQ(ItemMarker::Plus, Plus.Spans[1].LineMarker);
+  EXPECT_TRUE(P.fullyUnderstood()) << refusalList(P);
+}
+
+TEST(SmplParser, AnUngroupedLineIsOneSpanOverTheWholeOfItsText) {
+  SemanticPatch P = parsed("@@\nexpression E;\n@@\n- foo(E);\n+ bar(E);\n");
+  const PatternItem &Minus = P.Rules[0].Minus[0];
+  ASSERT_EQ(1u, Minus.Spans.size());
+  EXPECT_EQ("foo(E);", spanText(Minus, Minus.Spans[0]));
+  EXPECT_EQ(ItemMarker::Minus, Minus.Spans[0].LineMarker);
+}
+
+TEST(SmplParser, PairingSplitsAStatementTheWayALineDiffSplitsOne) {
+  SemanticPatch P = parsed("@@\nidentifier i, i2;\nstatement S;\nconstant c;"
+                           "\n@@\n  if(\n- (i = i2)\n+ i\n  +\n  c) S\n");
+  unsigned Insertions = 0;
+  std::vector<PatternHunk> H =
+      pairHunks(P.Rules[0].Minus[0], P.Rules[0].Plus[0], Insertions);
+  ASSERT_EQ(1u, H.size());
+  EXPECT_EQ(0u, Insertions);
+  EXPECT_EQ("(i = i2)", StringRef(P.Rules[0].Minus[0].Text)
+                            .substr(H[0].MinusOffset, H[0].MinusLength));
+  EXPECT_EQ("i", H[0].PlusText);
+}
+
+TEST(SmplParser, PairingCountsAPlusRunThatNoMinusRunPrecedes) {
+  // `binop` writes a whole statement on a `+` line before the `if` it also
+  // rewrites. That is an insertion placed relative to the match, which is a
+  // different step, so pairing must report it rather than drop the line.
+  SemanticPatch P = parsed("@@\nidentifier i, i2;\nstatement S;\nconstant c;"
+                           "\n@@\n+ i = i2;\n  if(\n- (i = i2)\n+ i\n"
+                           "  +\n  c) S\n");
+  ASSERT_EQ(2u, P.Rules[0].Plus.size());
+  unsigned Insertions = 0;
+  std::vector<PatternHunk> H =
+      pairHunks(P.Rules[0].Minus[0], P.Rules[0].Plus[1], Insertions);
+  ASSERT_EQ(1u, H.size());
+  EXPECT_EQ("i", H[0].PlusText);
+  unsigned Alone = 0;
+  pairHunks(PatternItem(), P.Rules[0].Plus[0], Alone);
+  EXPECT_EQ(1u, Alone);
+}
+
+TEST(SmplParser, PairingReadsADeletionWithNoPlusRunAsADeletion) {
+  SemanticPatch P = parsed("@@\nexpression E;\n@@\n  foo(\n- E\n  );\n");
+  unsigned Insertions = 0;
+  std::vector<PatternHunk> H =
+      pairHunks(P.Rules[0].Minus[0], P.Rules[0].Plus[0], Insertions);
+  ASSERT_EQ(1u, H.size());
+  EXPECT_EQ("E", StringRef(P.Rules[0].Minus[0].Text)
+                     .substr(H[0].MinusOffset, H[0].MinusLength));
+  EXPECT_TRUE(H[0].PlusText.empty());
+}
+
 TEST(SmplParser, CollectingASideDescendsIntoEveryBranch) {
   // A rule whose whole body is a disjunction has all its pattern statements
   // inside branches, so a reader that stops at the top level reports the rule
