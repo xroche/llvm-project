@@ -500,6 +500,20 @@ TEST(SmplParser, ADeclaredTypeNameIsRecordedForTheWholePatch) {
   EXPECT_TRUE(P.fullyUnderstood()) << refusalList(P);
 }
 
+TEST(SmplParser, AKeywordCannotBeDeclaredAsATypeName) {
+  // `typedef int;` used to reach the synthesised pattern source as
+  // `typedef int int;`, which does not compile, and the diagnostic sits
+  // outside every item's wrapper so nothing reported it: the pattern still
+  // came back as a node and the rewrite was applied. Coccinelle rejects the
+  // declaration at meta-parse.
+  EXPECT_NE(std::string::npos,
+            rejection("@a@\ntypedef int;\n@@\n- int v = 0;\n+ long v = 0;\n")
+                .find("'int' is a C keyword"));
+  EXPECT_NE(std::string::npos,
+            rejection("@a@\ntypedef struct;\n@@\n- int v;\n+ long v;\n")
+                .find("is a C keyword"));
+}
+
 TEST(SmplParser, EachBranchOfADisjunctionIsGroupedOncePerSide) {
   // A branch is a rule body in miniature, so it interleaves its `-`, `+` and
   // context lines the way a rule does and has to be grouped per side for the

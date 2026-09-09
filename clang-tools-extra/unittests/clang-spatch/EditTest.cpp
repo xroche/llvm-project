@@ -37,6 +37,17 @@ std::string rewritten(llvm::StringRef Patch, llvm::StringRef Code) {
   runPatch(*P, Unit->getASTContext(), Result);
   if (!Result.UnrunRules.empty())
     return "!" + Result.UnrunRules.front().Reason;
+  // An edit the run could not build leaves the output looking right while the
+  // rule did something else, so it fails the test rather than passing
+  // quietly. Without this a disjunction test could not tell a branch that was
+  // excluded from one that matched and had its overlapping edit dropped by
+  // `Replacements`, and both tests for branch order passed against an
+  // implementation with no cross-branch exclusion at all. An unread branch is
+  // not checked here, because a rule with one is still expected to rewrite
+  // and `unreadBranchReasons` is what asserts on it.
+  if (Result.EditsRefused != 0)
+    return "!" + std::to_string(Result.EditsRefused) +
+           " edit(s) the run could not build";
   if (Result.Edits.empty())
     return Code.str();
   llvm::Expected<std::string> Out =
@@ -424,6 +435,23 @@ TEST(Disjunction, BranchOrderBeatsNesting) {
                       "struct s { int fld; };\nvoid g(int);\n"
                       "void h(struct s *);\n"
                       "void f(struct s *p) { p->fld; }\n"));
+}
+
+TEST(Disjunction, AFileScopeDeclarationAndTheStatementsInsideItAreOneClaim) {
+  // A file-scope declaration is claimed among declarations by identity, and a
+  // statement by range, and a declaration's initialiser is in the statement
+  // walk. With the two records not consulting each other, a branch matching
+  // `1 + 2` and a branch matching the whole declaration both fired on the
+  // same text: two edits over overlapping ranges, of which `Replacements`
+  // kept whichever it saw first.
+  EXPECT_EQ("int x = 7;\n",
+            rewritten("@r@\n@@\n(\n- 1 + 2\n+ 7\n|\n- int x = 1 + 2;\n"
+                      "+ int x = 8;\n)\n",
+                      "int x = 1 + 2;\n"));
+  EXPECT_EQ("int x = 8;\n",
+            rewritten("@r@\n@@\n(\n- int x = 1 + 2;\n+ int x = 8;\n|\n"
+                      "- 1 + 2\n+ 7\n)\n",
+                      "int x = 1 + 2;\n"));
 }
 
 TEST(Disjunction, ABranchThatCannotBeReadLeavesTheOthersRunning) {

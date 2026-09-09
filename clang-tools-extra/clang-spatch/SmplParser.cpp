@@ -1325,9 +1325,19 @@ bool SmplParser::parseMetaDecl(unsigned LineNo, StringRef Decl, Rule &R) {
         return err(LineNo, "expected a name after '" +
                                StringRef(IsSymbol ? "symbol" : "typedef") +
                                "'");
-      if (IsSymbol)
+      if (IsSymbol) {
         CurLiterals.insert(Name);
-      else if (TypeNames.insert(Name).second)
+        continue;
+      }
+      // A keyword cannot be given a second meaning. `typedef int;` reached
+      // the synthesised pattern source as `typedef int int;`, which does not
+      // compile, and the diagnostic sits outside every wrapper so nothing
+      // reported it. Coccinelle rejects the declaration at meta-parse.
+      if (isCKeyword(Name))
+        return err(LineNo, "'" + Name.str() +
+                               "' is a C keyword, so it cannot be declared as "
+                               "a type name");
+      if (TypeNames.insert(Name).second)
         Patch.TypeNames.push_back(Name.str());
     }
     return true;

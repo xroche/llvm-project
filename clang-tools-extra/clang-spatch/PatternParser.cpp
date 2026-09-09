@@ -21,6 +21,20 @@
 
 namespace clang::spatch {
 
+/// The C keywords a pattern can contain, which must never be declared as if
+/// they were names the pattern references.
+bool isCKeyword(llvm::StringRef S) {
+  static const char *const Words[] = {
+      "auto",     "break",    "case",          "char",   "const",   "continue",
+      "default",  "do",       "double",        "else",   "enum",    "extern",
+      "float",    "for",      "goto",          "if",     "inline",  "int",
+      "long",     "register", "restrict",      "return", "short",   "signed",
+      "sizeof",   "static",   "struct",        "switch", "typedef", "union",
+      "unsigned", "void",     "volatile",      "while",  "_Bool",   "_Alignof",
+      "alignof",  "typeof",   "__attribute__", "NULL"};
+  return llvm::is_contained(Words, S);
+}
+
 namespace {
 
 /// The prefix of the function each pattern statement is wrapped in. The index
@@ -116,20 +130,6 @@ std::string typeFor(llvm::StringRef Name, const Usage &U, std::string &Struct) {
 /// instead, which is the same policy said the other way round.
 bool isSynthesisArtefact(unsigned ID) {
   return ID == diag::err_init_element_not_constant;
-}
-
-/// The C keywords a pattern can contain, which must never be declared as if
-/// they were names the pattern references.
-bool isCKeyword(llvm::StringRef S) {
-  static const char *const Words[] = {
-      "auto",     "break",    "case",          "char",   "const",   "continue",
-      "default",  "do",       "double",        "else",   "enum",    "extern",
-      "float",    "for",      "goto",          "if",     "inline",  "int",
-      "long",     "register", "restrict",      "return", "short",   "signed",
-      "sizeof",   "static",   "struct",        "switch", "typedef", "union",
-      "unsigned", "void",     "volatile",      "while",  "_Bool",   "_Alignof",
-      "alignof",  "typeof",   "__attribute__", "NULL"};
-  return llvm::is_contained(Words, S);
 }
 
 /// Does any of \p Stmts write \p Name as a whole word?

@@ -631,40 +631,50 @@ std::vector<Match> findMatches(llvm::ArrayRef<const Stmt *> Patterns,
   // text any of them took, which for one pattern is the subtree exclusion
   // that reports a written call once rather than again through its own
   // argument, and across patterns is what makes an earlier branch win.
-  llvm::SmallVector<SourceRange, 8> Claimed;
-  const auto taken = [&](SourceRange R) {
-    return llvm::any_of(Claimed, [&](SourceRange C) {
+  //
+  // Statements and file-scope declarations are recorded apart, because they
+  // exclude each other asymmetrically. Among declarations the test has to be
+  // identity: Clang gives every declarator of one declaration the same begin
+  // location, so `typedef int A, B, C, D;` is four declarations over one range
+  // and a range test lets the first hide the other three. Against statements
+  // the test has to be range, because a file-scope initialiser's
+  // subexpressions are in the statement walk, so a branch matching `1 + 2`
+  // and a branch matching `int x = 1 + 2;` otherwise both fire on the same
+  // text.
+  llvm::SmallVector<SourceRange, 8> StmtRanges;
+  llvm::SmallVector<SourceRange, 8> DeclRanges;
+  llvm::DenseSet<const Decl *> ClaimedDecls;
+  const auto overlaps = [](llvm::ArrayRef<SourceRange> Ranges, SourceRange R) {
+    return llvm::any_of(Ranges, [&](SourceRange C) {
       return R.getBegin() <= C.getEnd() && C.getBegin() <= R.getEnd();
     });
   };
-  // A file-scope declaration is excluded by identity rather than by range,
-  // because Clang gives every declarator of one declaration the same begin
-  // location: `typedef int A, B, C, D;` is four declarations over one range,
-  // and a range test lets the first of them hide the other three.
-  llvm::DenseSet<const Decl *> ClaimedDecls;
 
   for (unsigned P = 0, PE = Patterns.size(); P != PE; ++P) {
     if (!Patterns[P])
       continue;
     for (Stmt *S : Collector.All) {
-      if (taken(S->getSourceRange()))
+      const SourceRange R = S->getSourceRange();
+      if (overlaps(StmtRanges, R) || overlaps(DeclRanges, R))
         continue;
       Bindings Bound = Seed;
       if (!Shared.run(Patterns[P], S, Bound))
         continue;
-      Claimed.push_back(S->getSourceRange());
+      StmtRanges.push_back(R);
       Out.push_back({DynTypedNode::create(*S), std::move(Bound), P});
     }
     const auto *DS = dyn_cast<DeclStmt>(peel(Patterns[P]));
     if (!DS)
       continue;
     for (const Decl *D : FileScope) {
-      if (ClaimedDecls.contains(D))
+      if (ClaimedDecls.contains(D) ||
+          overlaps(StmtRanges, D->getSourceRange()))
         continue;
       Bindings Bound = Seed;
       if (!Shared.runOnDecl(*DS, D, Bound))
         continue;
       ClaimedDecls.insert(D);
+      DeclRanges.push_back(D->getSourceRange());
       Out.push_back({DynTypedNode::create(*D), std::move(Bound), P});
     }
   }

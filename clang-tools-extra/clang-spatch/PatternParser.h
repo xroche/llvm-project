@@ -55,6 +55,13 @@ enum class ArgDotsShape {
 /// The shape of \p Args, which must be the text between a call's parentheses.
 ArgDotsShape argumentDotsShape(llvm::StringRef Args);
 
+/// Is \p S a C keyword, so that it can never be declared as a name?
+///
+/// Exposed so the SmPL parser can reject a declaration that gives one a
+/// meaning it cannot have. `typedef int;` would otherwise reach the
+/// synthesised source as `typedef int int;`, which does not compile.
+bool isCKeyword(llvm::StringRef S);
+
 /// One rule's statements, parsed into ASTs that share one translation unit.
 struct ParsedPattern {
   /// Owns every node reachable from \c Items, so it must outlive them.
