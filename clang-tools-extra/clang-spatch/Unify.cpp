@@ -684,9 +684,16 @@ std::vector<Match> findMatches(llvm::ArrayRef<const Stmt *> Patterns,
   for (unsigned P = 0, PE = Patterns.size(); P != PE; ++P) {
     if (!Patterns[P])
       continue;
+    // A pattern that may nest is still kept out of what an earlier pattern
+    // took, so only the ranges this pattern adds are exempt.
+    const bool Nests = P < Opts.MayNest.size() && Opts.MayNest[P];
+    const size_t Earlier = StmtRanges.size();
     for (Stmt *S : Collector.All) {
       const SourceRange R = S->getSourceRange();
-      if (overlaps(StmtRanges, R) || overlaps(DeclRanges, R))
+      const llvm::ArrayRef<SourceRange> Blocked =
+          Nests ? llvm::ArrayRef<SourceRange>(StmtRanges).take_front(Earlier)
+                : llvm::ArrayRef<SourceRange>(StmtRanges);
+      if (overlaps(Blocked, R) || overlaps(DeclRanges, R))
         continue;
       Bindings Bound = Seed;
       // Fresh for each candidate. A candidate that fails is compared node by

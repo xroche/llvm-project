@@ -422,6 +422,16 @@ void runFlatRule(const Rule &R, const FlatRule &F,
   // node matched. Nothing else does, so nothing else pays for it.
   Opts.WantNodePairs = llvm::any_of(
       F.Alts, [](const FlatRule::Alternative &A) { return A.Inner.has_value(); });
+  // A `-` side written as a bare expression matches at every expression
+  // position, one inside a site it already matched included. One written as a
+  // whole statement matches at statement positions, which the walk here
+  // cannot restrict, so the exclusion of a match's own subtrees stands in for
+  // it.
+  llvm::SmallVector<bool, 4> MayNest;
+  for (unsigned I = 0, E = Patterns.size(); I != E; ++I)
+    MayNest.push_back(Patterns[I] && isa<Expr>(Patterns[I]) &&
+                      !F.Alts[I].PatternEndsInSemicolon);
+  Opts.MayNest = MayNest;
   // One site can satisfy two environments, so it is taken by the first and
   // skipped by the rest. Two edits over one range would otherwise conflict.
   llvm::DenseSet<const void *> Taken;

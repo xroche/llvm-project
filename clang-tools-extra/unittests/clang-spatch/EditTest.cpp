@@ -687,10 +687,12 @@ TEST(SourceTextOf, AMacroArgumentComesThroughAsWritten) {
 
 TEST(Edit, AChangedPartOfAStatementLeavesTheRestAsTheTargetWroteIt) {
   // The point of the in-place edit. Replacing the whole match reprints the
-  // statement from the pattern, which loses the target's own line breaks.
-  EXPECT_EQ("int m() {\n  return\n    27 +\n    (2 +\n       3);\n}\n",
-            rewritten("@@\nexpression e1,e2;\n@@\n\n- e1\n+ 27\n  + e2\n",
-                      "int m() {\n  return\n    1 +\n    (2 +\n       3);\n}\n"));
+  // statement from the pattern, which puts the call back on one line and
+  // loses the break the target wrote inside its argument list.
+  EXPECT_EQ("void m() { int a,x,y,b; h(a,\n      27, b); }\n",
+            rewritten("@@\nidentifier x, y;\n@@\n  h(a,\n- x + y\n+ 27\n"
+                      "  , b);\n",
+                      "void m() { int a,x,y,b; h(a,\n      x + y, b); }\n"));
 }
 
 TEST(Edit, TheWhitespaceBeforeAnInPlaceEditGoesOnlyAfterAnOpenParen) {
@@ -742,6 +744,35 @@ TEST(Edit, AMarkedRegionCoveringNoNodeFallsBackToReplacingTheMatch) {
   EXPECT_EQ("int main () {\n  return 1;\n}\n",
             rewritten("@deletion@\nexpression x;\n@@\n- -\n x\n",
                       "int main () {\n  return -1;\n}\n"));
+}
+
+TEST(Edit, ABareExpressionPatternMatchesInsideASiteItAlreadyMatched) {
+  // Coccinelle has no exclusion of a match's own subtrees. `- e1 + 27` over
+  // this input rewrites all three depths, because the three edits are
+  // disjoint.
+  EXPECT_EQ("int m() { return 27 + (27 + (27 + 4)); }\n",
+            rewritten("@@\nexpression e1,e2;\n@@\n\n- e1\n+ 27\n  + e2\n",
+                      "int m() { return 1 + (2 + (3 + 4)); }\n"));
+}
+
+TEST(Edit, AStatementPatternDoesNotMatchInsideOneItAlreadyMatched) {
+  // `- foo(E);` over `foo(foo(1));` rewrites the outer call only. Coccinelle
+  // reaches that through the terminator: the `-` side is a statement, and the
+  // inner call sits in an argument rather than at a statement position. The
+  // terminator is stripped before the pattern is parsed, so the exclusion of
+  // a match's own subtrees stands in for the position restriction.
+  EXPECT_EQ("void m() { bar(foo(1)); }\n",
+            rewritten("@@\nexpression E;\n@@\n- foo(E);\n+ bar(E);\n",
+                      "void m() { foo(foo(1)); }\n"));
+}
+
+TEST(Edit, TwoNestedMatchesWantingTheSameTextAreRefusedRatherThanMerged) {
+  // `spatch` exits 255 with `already tagged token` on this, so neither edit
+  // is applied. Here both are built and `Replacements` rejects the second,
+  // which the run counts.
+  EXPECT_EQ("!1 edit(s) the run could not build",
+            rewritten("@@\nexpression E;\n@@\n- f(E)\n+ 9\n",
+                      "void m() { f(f(1)); }\n"));
 }
 
 } // namespace clang::spatch

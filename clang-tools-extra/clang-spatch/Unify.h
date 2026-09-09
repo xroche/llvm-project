@@ -106,6 +106,20 @@ struct MatchOptions {
   /// Off by default, because a rule that replaces a whole statement has no use
   /// for it and every match would carry the vector.
   bool WantNodePairs = false;
+  /// Which of the patterns handed in may also match inside a site they
+  /// already matched, one entry per pattern, or empty for none of them.
+  ///
+  /// Coccinelle has no exclusion of a match's own subtrees. `- e1 + 27` over
+  /// `1 + (2 + (3 + 4))` rewrites all three depths, and `- foo(E);` over
+  /// `foo(foo(1));` rewrites the outer call only because the `-` side ends in
+  /// a semicolon and the inner call sits in an argument rather than at a
+  /// statement position. The terminator is stripped before the pattern is
+  /// parsed, so the two shapes reach the unifier as one node and the caller
+  /// has to say which was written.
+  ///
+  /// An earlier pattern still wins over a later one wherever the two want the
+  /// same text, because that is branch order and it is measured separately.
+  llvm::ArrayRef<bool> MayNest;
 };
 
 /// Does \p Pattern match \p Target, and if so what does it bind?
