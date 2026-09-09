@@ -1600,4 +1600,75 @@ TEST(SmplParserSweep, EveryNativeSampleLandsInOneOfThreeStates) {
   EXPECT_LE(TierOneWithRefusals, 16u) << TierOneNames;
 }
 
+TEST(SmplParser, ThePatternStatementIsTheUnitRatherThanTheLine) {
+  // A rule body is written a line at a time and a pattern is not. Before the
+  // lines were joined, `demos/itimer.cocci` reached the pattern parser as an
+  // `if` with no body and a separate orphan assignment.
+  SemanticPatch P = parsed("@r@\n@@\n"
+                           "- if (cputime_eq(a, b))\n"
+                           "-   a = jiffies_to_cputime(1);\n");
+  ASSERT_EQ(1u, P.Rules.size());
+  ASSERT_EQ(1u, P.Rules[0].Body.size()) << refusalList(P);
+  EXPECT_EQ("if (cputime_eq(a, b)) a = jiffies_to_cputime(1);",
+            P.Rules[0].Body[0].Text);
+}
+
+TEST(SmplParser, LinesJoinOnlyWithinOneMarker) {
+  // The `-` lines are one sequence and the `+` lines another, so a statement
+  // never spans the boundary.
+  SemanticPatch P = parsed("@r@\n@@\n- if (a)\n+ if (b)\n  c();\n");
+  ASSERT_EQ(1u, P.Rules.size());
+  ASSERT_EQ(3u, P.Rules[0].Body.size()) << refusalList(P);
+  EXPECT_EQ("if (a)", P.Rules[0].Body[0].Text);
+  EXPECT_EQ("if (b)", P.Rules[0].Body[1].Text);
+  EXPECT_EQ("c();", P.Rules[0].Body[2].Text);
+}
+
+TEST(SmplParser, AnExpressionPatternStandsAloneWithoutASemicolon) {
+  // Coccinelle removes an expression by writing it with no terminator, and
+  // treating every such line as an unfinished statement joined 842 files'
+  // patterns into nonsense.
+  SemanticPatch P = parsed("@r@\nexpression E;\nconstant c;\ntype T;\n@@\n"
+                           "- kzalloc(c * sizeof(T), E)\n"
+                           "+ kcalloc(c, sizeof(T), E)\n");
+  ASSERT_EQ(1u, P.Rules.size());
+  ASSERT_EQ(2u, P.Rules[0].Body.size()) << refusalList(P);
+  EXPECT_EQ("kzalloc(c * sizeof(T), E)", P.Rules[0].Body[0].Text);
+}
+
+TEST(SmplParser, AnUnclosedBracketTakesTheFollowingLines) {
+  SemanticPatch P = parsed("@r@\nexpression E;\n@@\n- foo(\n-   E,\n-   1)\n");
+  ASSERT_EQ(1u, P.Rules.size());
+  ASSERT_EQ(1u, P.Rules[0].Body.size()) << refusalList(P);
+  EXPECT_EQ("foo( E, 1)", P.Rules[0].Body[0].Text);
+}
+
+TEST(SmplParser, AnElseJoinsTheIfAboveIt) {
+  SemanticPatch P = parsed("@r@\n@@\n- if (a)\n-   b();\n- else\n-   c();\n");
+  ASSERT_EQ(1u, P.Rules.size());
+  ASSERT_EQ(1u, P.Rules[0].Body.size()) << refusalList(P);
+  EXPECT_EQ("if (a) b(); else c();", P.Rules[0].Body[0].Text);
+}
+
+TEST(SmplParser, ABareStatementMetavariableDoesNotAbsorbTheNextLine) {
+  // `statement S;` makes S stand for a whole statement, so the line holding
+  // it is already complete.
+  SemanticPatch P = parsed("@r@\nstatement S;\n@@\n- S\n-  foo();\n");
+  ASSERT_EQ(1u, P.Rules.size());
+  ASSERT_EQ(2u, P.Rules[0].Body.size()) << refusalList(P);
+  EXPECT_EQ("S", P.Rules[0].Body[0].Text);
+  EXPECT_EQ("foo();", P.Rules[0].Body[1].Text);
+}
+
+TEST(SmplParser, ALineHoldingDotsIsNeverJoined) {
+  // `- if (x)` followed by `- { ... return ...; }` must stay two items. The
+  // ellipsis is a path operator, and joining it moves the item away from the
+  // refusal that names it.
+  SemanticPatch P =
+      parsed("@r@\nexpression x;\n@@\n- if (x)\n- { ... return ...; }\n");
+  ASSERT_EQ(1u, P.Rules.size());
+  ASSERT_LE(2u, P.Rules[0].Body.size()) << refusalList(P);
+  EXPECT_EQ("if (x)", P.Rules[0].Body[0].Text);
+}
+
 } // namespace clang::spatch

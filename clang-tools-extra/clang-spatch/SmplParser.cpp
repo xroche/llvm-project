@@ -72,6 +72,120 @@ bool endsWithWord(StringRef S, StringRef Word) {
   return S.size() == Word.size() || !isIdentCont(S[S.size() - Word.size() - 1]);
 }
 
+/// Does \p T name a metavariable the rule declared as a whole statement?
+bool isStatementMetaVar(StringRef T, ArrayRef<MetaVar> MetaVars) {
+  T = T.trim();
+  for (const MetaVar &M : MetaVars)
+    if (M.Name == T && M.Kind == MetaVar::Kind::Statement)
+      return true;
+  return false;
+}
+
+/// The bracket depth \p T leaves behind, ignoring brackets inside a string or
+/// a character literal.
+int bracketDepth(StringRef T) {
+  int Depth = 0;
+  bool InString = false, InChar = false;
+  for (size_t I = 0, E = T.size(); I != E; ++I) {
+    const char C = T[I];
+    if (InString || InChar) {
+      if (C == '\\' && I + 1 != E)
+        ++I;
+      else if ((InString && C == '"') || (InChar && C == '\''))
+        InString = InChar = false;
+      continue;
+    }
+    if (C == '"')
+      InString = true;
+    else if (C == '\'')
+      InChar = true;
+    else if (C == '(' || C == '[' || C == '{')
+      ++Depth;
+    else if (C == ')' || C == ']' || C == '}')
+      --Depth;
+  }
+  return Depth;
+}
+
+/// Does the pattern line \p T continue onto the next one?
+///
+/// A rule body is written a line at a time and a pattern is not, so `if (E)`
+/// and its body on the next line are one pattern and the pattern parser is
+/// handed fragments unless they are joined first.
+///
+/// A pattern that is a bare expression is NOT a continuation. Coccinelle
+/// writes `- kzalloc(c * sizeof(T), E)` to remove an expression, with no
+/// semicolon, and treating every line without one as a fragment refused 842
+/// files.
+bool continuesOntoNextLine(StringRef T, ArrayRef<MetaVar> MetaVars) {
+  if (isStatementMetaVar(T, MetaVars))
+    return false;
+  T = T.trim();
+  if (T.empty())
+    return false;
+  if (bracketDepth(T) > 0)
+    return true;
+  StringRef R = T.rtrim();
+  // A dangling `else` or `do` needs the body that follows it. This is checked
+  // on the accumulated text rather than on one line, because `if (a) b();`
+  // is complete until an `else` is joined onto it.
+  if (endsWithWord(R, "else") || endsWithWord(R, "do"))
+    return true;
+  // An operator or a separator at the end has a right operand on the next
+  // line. A trailing `;` or `}` ends the pattern whatever precedes it.
+  if (R.ends_with(";") || R.ends_with("}"))
+    return false;
+  const char Last = R.back();
+  if (StringRef("&|+-*/%^<>=!?:,~.").contains(Last))
+    return true;
+  // A statement head whose body is on the next line: the condition's closing
+  // parenthesis is the last thing on the line.
+  StringRef First = T;
+  size_t N = 0;
+  while (N != First.size() && isIdentCont(First[N]))
+    ++N;
+  StringRef Word = First.take_front(N);
+  if (Word == "if" || Word == "while" || Word == "for" || Word == "switch")
+    return R.ends_with(")");
+  if (Word == "else" || Word == "do")
+    return Word.size() == R.size();
+  return false;
+}
+
+void groupStatements(std::vector<PatternItem> &Body,
+                     ArrayRef<MetaVar> MetaVars) {
+  std::vector<PatternItem> Out;
+  for (PatternItem &It : Body) {
+    if (It.Kind != ItemKind::Statement || Out.empty() ||
+        Out.back().Kind != ItemKind::Statement ||
+        Out.back().Marker != It.Marker) {
+      Out.push_back(std::move(It));
+      continue;
+    }
+    // A line holding `...` is not part of a C statement. Joining it in would
+    // build an item no pattern parser can read, and it would move the item's
+    // line number away from the refusal that names the ellipsis.
+    if (StringRef(It.Text).contains("...") ||
+        StringRef(Out.back().Text).contains("...")) {
+      Out.push_back(std::move(It));
+      continue;
+    }
+    // `else` belongs to the `if` above it, so a complete `if` branch still
+    // takes the next line when that line opens an else.
+    const bool ElseFollows = startsWithWord(StringRef(It.Text).ltrim(), "else");
+    if (!continuesOntoNextLine(Out.back().Text, MetaVars) && !ElseFollows) {
+      Out.push_back(std::move(It));
+      continue;
+    }
+    Out.back().Text += " ";
+    Out.back().Text += StringRef(It.Text).trim();
+    // A position on a joined line still belongs to the statement.
+    if (Out.back().PositionVar.empty())
+      Out.back().PositionVar = It.PositionVar;
+  }
+  Body = std::move(Out);
+}
+
 /// The first whitespace-separated word of \p S.
 StringRef firstWord(StringRef S) {
   S = S.ltrim();
@@ -640,6 +754,10 @@ bool SmplParser::parseRule() {
     return false;
   if (!parseBody(R))
     return false;
+  // A fragment that survives grouping is reported by the pattern parser,
+  // which knows whether it parses. A second heuristic check here refused 70
+  // patches that were fine.
+  groupStatements(R.Body, R.MetaVars);
   Patch.Rules.push_back(std::move(R));
   return true;
 }

@@ -99,6 +99,64 @@ std::string typeFor(llvm::StringRef Name, const Usage &U, std::string &Struct) {
   return "int ";
 }
 
+/// The C keywords a pattern can contain, which must never be declared as if
+/// they were names the pattern references.
+bool isCKeyword(llvm::StringRef S) {
+  static const char *const Words[] = {
+      "auto",     "break",    "case",          "char",   "const",   "continue",
+      "default",  "do",       "double",        "else",   "enum",    "extern",
+      "float",    "for",      "goto",          "if",     "inline",  "int",
+      "long",     "register", "restrict",      "return", "short",   "signed",
+      "sizeof",   "static",   "struct",        "switch", "typedef", "union",
+      "unsigned", "void",     "volatile",      "while",  "_Bool",   "_Alignof",
+      "alignof",  "typeof",   "__attribute__", "NULL"};
+  return llvm::is_contained(Words, S);
+}
+
+/// Every identifier a pattern mentions that is not a metavariable and not a
+/// keyword.
+///
+/// Coccinelle matches these by name and needs no declaration for them. Clang
+/// does, because an unresolved name is an error and the whole rule then fails
+/// to parse. `demos/itimer.cocci` is the case: it declares no metavariables at
+/// all and names four kernel functions, so without this nothing in it parses.
+std::vector<std::string> freeIdentifiers(llvm::ArrayRef<MetaVar> MetaVars,
+                                         llvm::ArrayRef<std::string> Stmts) {
+  llvm::StringSet<> Seen;
+  std::vector<std::string> Out;
+  for (const MetaVar &M : MetaVars)
+    Seen.insert(M.Name);
+  Seen.insert(DotsMarker);
+  for (const std::string &S : Stmts) {
+    llvm::StringRef T(S);
+    size_t I = 0;
+    while (I != T.size()) {
+      if (!isIdentChar(T[I]) || isdigit(static_cast<unsigned char>(T[I]))) {
+        // Skip a whole number, so the digits of `1u` are not read as a name.
+        if (isdigit(static_cast<unsigned char>(T[I])))
+          while (I != T.size() && isIdentChar(T[I]))
+            ++I;
+        else
+          ++I;
+        continue;
+      }
+      const size_t Start = I;
+      while (I != T.size() && isIdentChar(T[I]))
+        ++I;
+      llvm::StringRef Name = T.substr(Start, I - Start);
+      // A member name after `->` or `.` belongs to a synthesised struct and is
+      // not a free name of its own.
+      llvm::StringRef Before = T.take_front(Start).rtrim();
+      if (Before.ends_with("->") || Before.ends_with("."))
+        continue;
+      if (isCKeyword(Name) || !Seen.insert(Name).second)
+        continue;
+      Out.push_back(Name.str());
+    }
+  }
+  return Out;
+}
+
 } // namespace
 
 std::string synthesiseDeclarations(llvm::ArrayRef<MetaVar> MetaVars,
@@ -123,6 +181,19 @@ std::string synthesiseDeclarations(llvm::ArrayRef<MetaVar> MetaVars,
       OS << "int " << M.Name << "();\n";
     else
       OS << "extern " << Type << M.Name << ";\n";
+  }
+  // Declare the names the pattern references literally, with the same
+  // usage-driven typing, so that Clang can resolve them.
+  for (const std::string &Name : freeIdentifiers(MetaVars, Statements)) {
+    const Usage U = usageOf(Name, Statements);
+    std::string Struct;
+    const std::string Type = typeFor(Name, U, Struct);
+    if (!Struct.empty())
+      OS << Struct;
+    if (U.Called && Struct.empty())
+      OS << "int " << Name << "();\n";
+    else
+      OS << "extern " << Type << Name << ";\n";
   }
   return Out;
 }
