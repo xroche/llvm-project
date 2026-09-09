@@ -59,6 +59,61 @@ std::optional<PatternEdit> buildEdit(DynTypedNode Matched,
                                      const Bindings &Bound, ASTContext &Context,
                                      std::string &Error);
 
+/// The target node the `-` lines of a partly changed statement correspond to,
+/// or null when they cover no whole node of the pattern.
+///
+/// \p PatternBegin and \p PatternEnd are the characters the `-` lines occupy
+/// in the pattern's own source, and \p Pairs says which target node each
+/// pattern node matched.
+///
+/// Covering no node is common and is not an error. `- foo(` over `+ bar(`
+/// marks a callee and a parenthesis, and `- -` over `  x` marks part of a
+/// unary operator. Neither has a range of its own in the target, so a caller
+/// falls back to replacing the whole match with the plus side reassembled.
+const Stmt *innerEditTarget(unsigned PatternBegin, unsigned PatternEnd,
+                            const NodePairs &Pairs,
+                            ASTContext &PatternContext);
+
+/// Builds the edit that writes \p PlusText over \p Target and leaves the rest
+/// of the matched statement as the target wrote it.
+///
+/// This is the faithful shape, because Coccinelle removes the `-` tokens and
+/// puts the `+` tokens where they stood while every context token keeps the
+/// layout it already had. Replacing the whole match reprints that layout from
+/// the pattern instead, which loses the target's own line breaks and spacing.
+///
+/// Returns std::nullopt and sets \p Error when the range cannot be edited,
+/// which a caller must count rather than fall back on: a range inside a macro
+/// expansion is refused for the same reason \c buildEdit refuses one.
+std::optional<PatternEdit> buildInnerEdit(const Stmt &Target,
+                                          llvm::StringRef PlusText,
+                                          const Bindings &Bound,
+                                          ASTContext &Context,
+                                          std::string &Error);
+
+/// The characters an in-place edit over \p Range overwrites, and the text it
+/// writes there.
+///
+/// Coccinelle takes some of the whitespace around a region it rewrites and
+/// leaves the rest. The rule is a fit to a probe matrix over `spatch` 1.1.1
+/// that varies the token on each side, the whitespace on each side and the
+/// number of target tokens in the region. Reading `unparse_c.ml` predicted
+/// the wrong answer three times when the deletion rule was written, so this
+/// was measured rather than read.
+///
+/// - The whitespace before the region goes when the token before it is `(`,
+///   and stays otherwise. A `[` does not take it.
+/// - The whitespace after the region stays when the token after it is a
+///   binary operator, and one space is written when there was none.
+/// - Otherwise it goes before a `,`, a `)` or a `;`, unless the region is a
+///   single token, which keeps it.
+/// - Otherwise it stays as written. Only those three followers were measured,
+///   so any other one keeps what the target wrote.
+///
+/// \p Text is updated in place when a space has to be written.
+CharSourceRange inPlaceEditRange(CharSourceRange Range, std::string &Text,
+                                 ASTContext &Context);
+
 /// The source text of \p S exactly as written, macros included.
 ///
 /// A node's `getEndLoc()` is the start of its last token rather than its end,

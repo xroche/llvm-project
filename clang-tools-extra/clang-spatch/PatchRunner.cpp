@@ -170,6 +170,10 @@ struct FlatRule {
     /// Was the `-` side written as a whole statement rather than as a bare
     /// expression? It decides whether the edit takes the terminator with it.
     bool PatternEndsInSemicolon = false;
+    /// Set when the `-` lines cover part of the statement rather than all of
+    /// it, and the edit then goes inside the match rather than over it.
+    /// \c PlusText is unused in that case, because the hunk carries its own.
+    std::optional<PatternHunk> Inner;
     RulePurpose Purpose = RulePurpose::Rewrite;
   };
 
@@ -252,6 +256,33 @@ alternativeOf(const std::vector<PatternItem> &Minus,
     A.Purpose = RulePurpose::Bind;
     return A;
   }
+  // A rule that marks some of a statement's lines and not others changes part
+  // of it, and Coccinelle leaves the rest as the target wrote it. That is a
+  // different edit from replacing the statement, so it is built from the
+  // hunks rather than from the plus side as one text.
+  // A rule that marks some of a statement's lines and not others changes part
+  // of it, and Coccinelle leaves the rest as the target wrote it. Recorded
+  // here so the edit can go inside the match, and recorded as well as the
+  // plus side rather than instead of it: the marked region does not always
+  // cover a whole node, and replacing the match is the fallback when it does
+  // not.
+  const bool ChangesPartOfIt =
+      llvm::any_of(A.Match->Spans, [](const PatternItem::Span &Sp) {
+        return Sp.LineMarker == PatternItem::Marker::Context;
+      });
+  // A `...` reaches the pattern source as a marker call, which moves the
+  // characters the region is located by, and a rule that writes more than one
+  // statement or more than one changed region needs a placement this step
+  // does not decide. Each is left to the fallback.
+  if (ChangesPartOfIt && Plus.size() == 1 &&
+      !llvm::StringRef(A.Match->Text).contains("...")) {
+    unsigned Insertions = 0;
+    std::vector<PatternHunk> Hunks =
+        pairHunks(*A.Match, Plus.front(), Insertions);
+    if (Insertions == 0 && Hunks.size() == 1)
+      A.Inner = std::move(Hunks.front());
+  }
+
   // One statement may be replaced by a sequence, so every plus-side statement
   // is part of the replacement text and none of them needs positioning. That
   // holds for an unmarked one too: `-if (e)` over `  kfree(e);` replaces the
@@ -387,6 +418,10 @@ void runFlatRule(const Rule &R, const FlatRule &F,
   // rule because its declarators share one `;`. That is a reason not to edit
   // one, so a rule that builds no edit may still be shown it.
   Opts.MultiDeclaratorOK = !Rewrites;
+  // An edit inside the match needs to know which target node each pattern
+  // node matched. Nothing else does, so nothing else pays for it.
+  Opts.WantNodePairs = llvm::any_of(
+      F.Alts, [](const FlatRule::Alternative &A) { return A.Inner.has_value(); });
   // One site can satisfy two environments, so it is taken by the first and
   // skipped by the rest. Two edits over one range would otherwise conflict.
   llvm::DenseSet<const void *> Taken;
@@ -414,9 +449,18 @@ void runFlatRule(const Rule &R, const FlatRule &F,
       if (!Rewrites)
         continue;
       std::string EditError;
+      const unsigned ItemAt = Parsed->ItemOffsets[M.Pattern];
+      const Stmt *Inner =
+          A.Inner ? innerEditTarget(ItemAt + A.Inner->MinusOffset,
+                                    ItemAt + A.Inner->MinusOffset +
+                                        A.Inner->MinusLength,
+                                    M.Pairs, Parsed->Unit->getASTContext())
+                  : nullptr;
       std::optional<PatternEdit> E =
-          buildEdit(M.Node, A.PlusText, A.PatternEndsInSemicolon, M.Bound,
-                    Context, EditError);
+          Inner ? buildInnerEdit(*Inner, A.Inner->PlusText, M.Bound, Context,
+                                 EditError)
+                : buildEdit(M.Node, A.PlusText, A.PatternEndsInSemicolon,
+                            M.Bound, Context, EditError);
       if (!E) {
         ++Result.EditsRefused;
         continue;

@@ -76,6 +76,11 @@ struct ParsedPattern {
   /// to see what their pattern became, and because it separates a pattern bug
   /// from a synthesis bug.
   std::string Source;
+  /// Where each statement's own text begins in \c Source, one per statement
+  /// handed in. An edit inside the matched node holds an offset into that
+  /// statement's text and needs to find the pattern node written there.
+  /// Zero where the statement carried nothing to parse.
+  std::vector<unsigned> ItemOffsets;
   /// One message per statement that did not parse, in \c Items order.
   std::vector<std::string> Errors;
 

@@ -96,6 +96,52 @@ struct Span {
   size_t End = 0;
 };
 
+/// The characters \p Range covers, as offsets into its file.
+std::optional<Span> spanOf(CharSourceRange Range, const SourceManager &SM,
+                           const LangOptions &Opts) {
+  const CharSourceRange Char = Lexer::makeFileCharRange(Range, SM, Opts);
+  if (Char.isInvalid())
+    return std::nullopt;
+  const auto [FID, Begin] = SM.getDecomposedLoc(Char.getBegin());
+  const auto [EndFID, End] = SM.getDecomposedLoc(Char.getEnd());
+  if (FID != EndFID || End < Begin)
+    return std::nullopt;
+  return Span{Begin, End};
+}
+
+/// Is the text from \p Begin to \p End one token?
+bool isOneToken(SourceLocation Begin, size_t Length, const SourceManager &SM,
+                const LangOptions &Opts) {
+  Token Tok;
+  if (Lexer::getRawToken(Begin, Tok, SM, Opts, /*IgnoreWhiteSpace=*/true))
+    return false;
+  return Tok.getLength() == Length;
+}
+
+/// Does a token opening with \p C continue the expression the region ended?
+///
+/// Only the characters a binary operator can open with, and none that closes
+/// or separates one. `*` is in here because `a * b` reaches it; a leading `*`
+/// of a dereference cannot follow an expression, so the position rules it out.
+bool opensABinaryOperator(char C) {
+  return llvm::StringRef("+-*/%&|^<>=!?:").contains(C);
+}
+
+/// Where the horizontal whitespace before \p At begins.
+size_t spaceBefore(llvm::StringRef Buffer, size_t At) {
+  while (At > 0 && isHorizontalSpace(Buffer[At - 1]))
+    --At;
+  return At;
+}
+
+/// Where the horizontal whitespace at \p At ends.
+size_t spaceAfter(llvm::StringRef Buffer, size_t At) {
+  while (At < Buffer.size() && isHorizontalSpace(Buffer[At]))
+    ++At;
+  return At;
+}
+
+
 /// Reads the buffer around a deletion, so the rules below can ask about lines
 /// rather than about offsets.
 class BufferLines {
@@ -233,6 +279,80 @@ std::optional<PatternEdit> buildEdit(DynTypedNode Matched,
   }
 
   const std::string Text = substitute(PlusText, Bound, Context);
+  return PatternEdit{tooling::Replacement(Context.getSourceManager(), Range,
+                                          Text, Context.getLangOpts())};
+}
+
+CharSourceRange inPlaceEditRange(CharSourceRange Range, std::string &Text,
+                                 ASTContext &Context) {
+  const SourceManager &SM = Context.getSourceManager();
+  const LangOptions &Opts = Context.getLangOpts();
+  const std::optional<Span> At = spanOf(Range, SM, Opts);
+  if (!At)
+    return Range;
+  const llvm::StringRef Buffer =
+      SM.getBufferData(SM.getFileID(Lexer::makeFileCharRange(Range, SM, Opts)
+                                        .getBegin()));
+  if (At->End > Buffer.size())
+    return Range;
+
+  Span Wide = *At;
+  // Coccinelle prints nothing between a `(` and what follows it.
+  const size_t LeadBegin = spaceBefore(Buffer, At->Begin);
+  if (LeadBegin > 0 && Buffer[LeadBegin - 1] == '(')
+    Wide.Begin = LeadBegin;
+
+  const size_t TrailEnd = spaceAfter(Buffer, At->End);
+  const bool HasTrailing = TrailEnd > At->End;
+  const char Next = TrailEnd < Buffer.size() ? Buffer[TrailEnd] : '\0';
+  if (opensABinaryOperator(Next)) {
+    if (!HasTrailing)
+      Text += " ";
+  } else if (Next == ',' || Next == ')' || Next == ';') {
+    // A single token is swapped where it stands. Anything longer collapses to
+    // the `+` text and takes the whitespace after it with it. Only these three
+    // followers were measured, so any other one keeps its whitespace.
+    if (!isOneToken(Range.getBegin(), At->End - At->Begin, SM, Opts))
+      Wide.End = TrailEnd;
+  }
+
+  const SourceLocation FileBegin = SM.getLocForStartOfFile(
+      SM.getFileID(Lexer::makeFileCharRange(Range, SM, Opts).getBegin()));
+  return CharSourceRange::getCharRange(
+      FileBegin.getLocWithOffset(static_cast<int>(Wide.Begin)),
+      FileBegin.getLocWithOffset(static_cast<int>(Wide.End)));
+}
+
+const Stmt *innerEditTarget(unsigned PatternBegin, unsigned PatternEnd,
+                            const NodePairs &Pairs,
+                            ASTContext &PatternContext) {
+  // Outermost first, because `match` records a pattern node before it
+  // descends into it, so an implicit cast is found before the expression
+  // under it and both name the same characters.
+  for (const auto &Pair : Pairs) {
+    const std::optional<Span> Here = spanOf(
+        CharSourceRange::getTokenRange(Pair.first->getSourceRange()),
+        PatternContext.getSourceManager(), PatternContext.getLangOpts());
+    if (Here && Here->Begin == PatternBegin && Here->End == PatternEnd)
+      return Pair.second;
+  }
+  return nullptr;
+}
+
+std::optional<PatternEdit> buildInnerEdit(const Stmt &Target,
+                                          llvm::StringRef PlusText,
+                                          const Bindings &Bound,
+                                          ASTContext &Context,
+                                          std::string &Error) {
+  std::string Text = substitute(PlusText, Bound, Context);
+  const CharSourceRange Range = inPlaceEditRange(
+      CharSourceRange::getTokenRange(Target.getSourceRange()), Text, Context);
+  if (llvm::Error Invalid =
+          tooling::validateEditRange(Range, Context.getSourceManager())) {
+    Error = "the range inside the match cannot be edited: " +
+            llvm::toString(std::move(Invalid));
+    return std::nullopt;
+  }
   return PatternEdit{tooling::Replacement(Context.getSourceManager(), Range,
                                           Text, Context.getLangOpts())};
 }

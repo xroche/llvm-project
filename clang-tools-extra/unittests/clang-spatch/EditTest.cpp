@@ -685,4 +685,63 @@ TEST(SourceTextOf, AMacroArgumentComesThroughAsWritten) {
                       "void f(void) { foo(N); }\n"));
 }
 
+TEST(Edit, AChangedPartOfAStatementLeavesTheRestAsTheTargetWroteIt) {
+  // The point of the in-place edit. Replacing the whole match reprints the
+  // statement from the pattern, which loses the target's own line breaks.
+  EXPECT_EQ("int m() {\n  return\n    27 +\n    (2 +\n       3);\n}\n",
+            rewritten("@@\nexpression e1,e2;\n@@\n\n- e1\n+ 27\n  + e2\n",
+                      "int m() {\n  return\n    1 +\n    (2 +\n       3);\n}\n"));
+}
+
+TEST(Edit, TheWhitespaceBeforeAnInPlaceEditGoesOnlyAfterAnOpenParen) {
+  // Every expectation here was read off `spatch` 1.1.1 rather than reasoned
+  // about, and a 70-case probe matrix over the same rule agrees with it byte
+  // for byte.
+  const llvm::StringRef Patch =
+      "@@\nidentifier x, y;\n@@\n  g(a,\n- (x = y)\n+ Z\n  , b);\n";
+  EXPECT_EQ("void m() { int a,x,y,b,Z; g(a,   Z, b); }\n",
+            rewritten(Patch, "void m() { int a,x,y,b,Z; g(a,   (x = y)   , b); }\n"));
+  const llvm::StringRef AfterParen =
+      "@@\nidentifier x, y;\n@@\n  g(\n- (x = y)\n+ Z\n  , b);\n";
+  EXPECT_EQ("void m() { int x,y,b,Z; g(Z, b); }\n",
+            rewritten(AfterParen, "void m() { int x,y,b,Z; g(   (x = y)   , b); }\n"));
+}
+
+TEST(Edit, TheWhitespaceAfterAnInPlaceEditGoesByWhatFollowsIt) {
+  // One target token keeps the whitespace before a separator and anything
+  // longer takes it, so the number of target tokens decides and the number of
+  // pattern tokens does not.
+  const llvm::StringRef One =
+      "@@\nidentifier x;\n@@\n  g(a,\n- x\n+ Z\n  , b);\n";
+  EXPECT_EQ("void m() { int a,x,b,Z; g(a, Z , b); }\n",
+            rewritten(One, "void m() { int a,x,b,Z; g(a, x , b); }\n"));
+  const llvm::StringRef Many =
+      "@@\nidentifier x, y;\n@@\n  g(a,\n- x + y\n+ Z\n  , b);\n";
+  EXPECT_EQ("void m() { int a,x,y,b,Z; g(a, Z, b); }\n",
+            rewritten(Many, "void m() { int a,x,y,b,Z; g(a, x + y , b); }\n"));
+  // A binary operator after it keeps the whitespace and gets one space when
+  // there was none.
+  const llvm::StringRef Binary =
+      "@@\nidentifier x, y;\n@@\n  if(\n- (x = y)\n+ Z\n  +\n  0) { }\n";
+  EXPECT_EQ("void m() { int x,y,Z; if(Z + 0 ) { } }\n",
+            rewritten(Binary, "void m() { int x,y,Z; if( (x = y)+ 0 ) { } }\n"));
+  EXPECT_EQ("void m() { int x,y,Z; if(Z   + 0 ) { } }\n",
+            rewritten(Binary, "void m() { int x,y,Z; if(   (x = y)   + 0 ) { } }\n"));
+}
+
+TEST(Edit, AMarkedRegionCoveringNoNodeFallsBackToReplacingTheMatch) {
+  // `cptr.cocci` marks a declaration without its initialiser and `unary.cocci`
+  // marks the `-` of a unary operator. Neither region has a range of its own
+  // in the target, and both agree with Coccinelle byte for byte through the
+  // plus side reassembled over the whole match.
+  EXPECT_EQ("static const char * const str = \"...\";\n",
+            rewritten("@@\nidentifier str;\nexpression E;\n@@\n"
+                      "-static const char *str\n"
+                      "+static const char * const str\n    = E;\n",
+                      "static const char *str = \"...\";\n"));
+  EXPECT_EQ("int main () {\n  return 1;\n}\n",
+            rewritten("@deletion@\nexpression x;\n@@\n- -\n x\n",
+                      "int main () {\n  return -1;\n}\n"));
+}
+
 } // namespace clang::spatch

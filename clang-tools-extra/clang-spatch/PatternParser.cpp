@@ -311,6 +311,7 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
   ParsedPattern P;
   P.Items.assign(Statements.size(), nullptr);
   P.Errors.assign(Statements.size(), std::string());
+  P.ItemOffsets.assign(Statements.size(), 0);
 
   std::string Src = synthesiseDeclarations(MetaVars, Statements, TypeNames);
   // One function per statement, so a body can be mapped back to the statement
@@ -331,6 +332,7 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
     // The wrapper returns int so that `return E;` is a valid pattern. A void
     // wrapper made it a -Wreturn-mismatch warning, which `-w` then hid.
     Src += "int " + ItemPrefix.str() + std::to_string(I) + "(void) {\n";
+    P.ItemOffsets[I] = Src.size();
     Src += Body;
     if (!llvm::StringRef(Body).rtrim().ends_with(";") &&
         !llvm::StringRef(Body).rtrim().ends_with("}"))
