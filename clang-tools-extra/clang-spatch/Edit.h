@@ -58,6 +58,9 @@ std::optional<PatternEdit> buildEdit(const Stmt &Matched,
 /// so the range is extended to cover that token before the text is read.
 llvm::StringRef sourceTextOf(const Stmt &S, ASTContext &Context);
 
+/// The source text of \p Range exactly as written, its last token included.
+llvm::StringRef sourceTextOf(SourceRange Range, ASTContext &Context);
+
 } // namespace clang::spatch
 
 #endif // LLVM_CLANG_TOOLS_EXTRA_CLANG_SPATCH_EDIT_H

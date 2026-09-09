@@ -143,16 +143,49 @@ TEST(FlatRule, LeavingAFragmentOnThePlusSideIsRefused) {
                       "void b(void);\nvoid f(int a) { if (a) b(); }\n"));
 }
 
-TEST(FlatRule, ADeclarationPatternIsRefusedRatherThanMatchedLoosely) {
+TEST(FlatRule, ADeclarationComparesItsTypeAndCarriesItsName) {
   // A `DeclStmt` with no initialiser has no children, and its type and its
-  // declared name are not children either, so comparing class plus children
-  // made this pattern match `char c;` and `struct S { int f; } s;` as well,
-  // and rewrite all three to the literal text `int x;`.
-  EXPECT_EQ("!the pattern holds a DeclStmt, and the unifier decides that "
-            "class by its children alone, so it would match a construct the "
-            "rule does not describe",
+  // declared name are not children either. Compared by class plus children,
+  // this pattern matched `char c;` and `struct S { int f; } s;` as well, and
+  // rewrote all three to the literal text `int x;`.
+  EXPECT_EQ("int f(void) { int b; char c; return 0; }\n",
             rewritten("@r@\nidentifier x;\n@@\n- long long x;\n+ int x;\n",
                       "int f(void) { long long b; char c; return 0; }\n"));
+}
+
+TEST(FlatRule, ATypeMetavariableCarriesTheTypeItMatched) {
+  // `T` stands for whatever the target declared, so both declarations match
+  // and each keeps its own type.
+  EXPECT_EQ("int f(void) { long b = 0; char c = 0; return 0; }\n",
+            rewritten("@r@\ntype T;\nidentifier x;\n@@\n- T x;\n"
+                      "+ T x = 0;\n",
+                      "int f(void) { long b; char c; return 0; }\n"));
+}
+
+TEST(FlatRule, ACastComparesTheTypeItWasWrittenWith) {
+  // A cast keeps its target type off the child list, so comparing class plus
+  // children matched `(char)y` as well.
+  EXPECT_EQ("int f(int y) { return g((int)y) + (char)y; }\n",
+            rewritten("@r@\nexpression E;\n@@\n- (int)E\n+ g((int)E)\n",
+                      "int f(int y) { return (int)y + (char)y; }\n"));
+}
+
+TEST(FlatRule, SizeofOverATypeComparesThatType) {
+  // The operand is a child only when it is an expression, so `sizeof(int)`
+  // and `sizeof(long)` were the same node with the same no children.
+  EXPECT_EQ("int f(void) { return 4 + sizeof(long); }\n",
+            rewritten("@r@\n@@\n- sizeof(int)\n+ 4\n",
+                      "int f(void) { return sizeof(int) + sizeof(long); }\n"));
+}
+
+TEST(FlatRule, ADeclarationTheComparisonCannotReadIsRefused) {
+  // An anonymous tag has no name to compare, and comparing its members
+  // instead would accept a different type that happens to agree.
+  EXPECT_EQ("!the pattern's declaration holds a Record declarator, which the "
+            "comparison has no counterpart for",
+            rewritten("@r@\nidentifier x;\n@@\n- struct { int a; } x;\n"
+                      "+ int x;\n",
+                      "int f(void) { struct { int a; } s; return 0; }\n"));
 }
 
 TEST(FlatRule, ShapesOutsideTheFlatPathAreNamedRatherThanRun) {

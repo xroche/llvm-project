@@ -40,7 +40,8 @@ std::vector<std::string> matches(llvm::StringRef Pattern,
     std::string Line = sourceTextOf(*M.Node, Ctx).str();
     std::vector<std::string> Names;
     for (const auto &B : M.Bound)
-      Names.push_back((B.first() + "=" + sourceTextOf(*B.second, Ctx)).str());
+      Names.push_back(
+          (B.first() + "=" + sourceTextOf(B.second.Range, Ctx)).str());
     llvm::sort(Names);
     for (const std::string &N : Names)
       Line += " {" + N + "}";

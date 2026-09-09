@@ -77,6 +77,19 @@ struct ParsedPattern {
     auto It = MetaVarDecls.find(D);
     return It == MetaVarDecls.end() ? nullptr : It->second;
   }
+
+  /// The metavariable called \p Name, or null.
+  ///
+  /// A declarator's name is a fresh declaration rather than a reference to
+  /// one, so the `x` of `identifier x` used as `T x;` shadows the synthesised
+  /// declaration and cannot be found by comparing declarations. Its name is
+  /// all there is, and the rule header made it unambiguous.
+  const MetaVar *metaVarNamed(llvm::StringRef Name) const {
+    for (const auto &Entry : MetaVarDecls)
+      if (Entry.second->Name == Name)
+        return Entry.second;
+    return nullptr;
+  }
 };
 
 /// Parses \p Statements as C, with \p MetaVars declared so that a reference to

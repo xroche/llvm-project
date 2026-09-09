@@ -32,7 +32,7 @@ std::string substitute(llvm::StringRef Text, const Bindings &Bound,
   std::string Out = Text.str();
   for (const auto &Entry : Bound) {
     const std::string Name = Entry.first().str();
-    const std::string Value = sourceTextOf(*Entry.second, Context).str();
+    const std::string Value = sourceTextOf(Entry.second.Range, Context).str();
     for (size_t At = 0; (At = Out.find(Name, At)) != std::string::npos;) {
       const bool LeftOK = At == 0 || !isIdentChar(Out[At - 1]);
       const size_t End = At + Name.size();
@@ -78,9 +78,13 @@ CharSourceRange statementRange(const Stmt &S, ASTContext &Context) {
 } // namespace
 
 llvm::StringRef sourceTextOf(const Stmt &S, ASTContext &Context) {
-  return Lexer::getSourceText(
-      CharSourceRange::getTokenRange(S.getSourceRange()),
-      Context.getSourceManager(), Context.getLangOpts());
+  return sourceTextOf(S.getSourceRange(), Context);
+}
+
+llvm::StringRef sourceTextOf(SourceRange Range, ASTContext &Context) {
+  return Lexer::getSourceText(CharSourceRange::getTokenRange(Range),
+                              Context.getSourceManager(),
+                              Context.getLangOpts());
 }
 
 std::optional<PatternEdit> buildEdit(const Stmt &Matched,

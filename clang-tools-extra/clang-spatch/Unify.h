@@ -29,8 +29,22 @@
 
 namespace clang::spatch {
 
+/// What a match bound one metavariable to.
+///
+/// A metavariable does not always stand for a subtree. `identifier x` in
+/// `T x;` names the declarator and `type T` names the written type, and
+/// neither of those has a `Stmt` of its own. So the range is what every
+/// consumer shares, and the node is there for the ones that need the
+/// declaration a reference names.
+struct Binding {
+  /// The subtree bound, or null when what was bound is not one.
+  const Stmt *Node = nullptr;
+  /// Where the bound text is, in the matched tree's source manager.
+  SourceRange Range;
+};
+
 /// What a match bound each metavariable to, in the target's tree.
-using Bindings = llvm::StringMap<const Stmt *>;
+using Bindings = llvm::StringMap<Binding>;
 
 /// One place a pattern matched.
 struct Match {
@@ -50,17 +64,17 @@ struct Match {
 bool unify(const Stmt *Pattern, const Stmt *Target, const ParsedPattern &Parsed,
            ASTContext &Context, Bindings &Bound);
 
-/// What in \p Pattern the unifier cannot compare, or an empty string when it
-/// can compare all of it.
+/// Why the unifier cannot compare \p Pattern, as one sentence, or an empty
+/// string when it can compare all of it.
 ///
 /// Most node classes are decided by their class plus their children in order,
 /// and that is unsound for a class whose identity also lies somewhere that is
-/// not a child. A declaration carries its type and its declared names there,
-/// a `goto` its label, a cast its target type, so `long long x;` compared that
-/// way matches `char c;` and every other childless declaration. Every class
-/// the comparison has been reasoned about is listed; anything else is named
-/// here rather than approximated.
-std::string uncomparableIn(const Stmt *Pattern);
+/// not a child: a `goto` carries its label there, a cast its target type. A
+/// declaration is compared field by field for that reason, and the classes of
+/// type it can compare are limited in the same way. Every class the
+/// comparison has been reasoned about is listed in the implementation, and
+/// anything else is named here rather than approximated.
+std::string whyNotComparable(const Stmt *Pattern);
 
 /// Every place \p Pattern matches inside \p Context's translation unit.
 ///

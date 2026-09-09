@@ -70,21 +70,130 @@ bool kindAccepts(enum MetaVar::Kind Kind, const Stmt *Target) {
   return false;
 }
 
-/// Do two bound subtrees name the same thing?
+/// Do two bindings name the same thing?
 ///
 /// A declaration reference is compared by declaration, so `l` in one function
 /// is not the `l` of another. Anything else is compared by the text the author
-/// wrote, which is what Coccinelle compares.
-bool sameBinding(const Stmt *A, const Stmt *B, ASTContext &Context) {
-  const Stmt *PA = peel(A), *PB = peel(B);
-  const auto *RA = dyn_cast<DeclRefExpr>(PA);
-  const auto *RB = dyn_cast<DeclRefExpr>(PB);
+/// wrote, which is what Coccinelle compares, and it is also the only thing
+/// available for a binding that is not a subtree at all.
+bool sameBinding(const Binding &A, const Binding &B, ASTContext &Context) {
+  const Stmt *PA = peel(A.Node), *PB = peel(B.Node);
+  const auto *RA = dyn_cast_or_null<DeclRefExpr>(PA);
+  const auto *RB = dyn_cast_or_null<DeclRefExpr>(PB);
   if (RA && RB)
     return RA->getDecl()->getCanonicalDecl() ==
            RB->getDecl()->getCanonicalDecl();
   if (RA || RB)
     return false;
-  return sourceTextOf(*PA, Context) == sourceTextOf(*PB, Context);
+  return sourceTextOf(A.Range, Context) == sourceTextOf(B.Range, Context);
+}
+
+/// Do two written types, each read from its own translation unit, describe
+/// the same type?
+///
+/// Written rather than canonical, because Coccinelle matches the spelling: a
+/// pattern saying `long long` does not match a typedef that resolves to it.
+/// A `QualType` cannot cross translation units, so nothing here compares one
+/// by identity. A builtin compares by its kind, a named type by its name, and
+/// everything else by structure.
+///
+/// **The class list here and the one in `uncomparableType` are one list.**
+/// A class this does not handle must be refused there, or a pattern would
+/// silently fail to match a construct it describes.
+bool sameWrittenType(QualType P, QualType T) {
+  if (P.getLocalFastQualifiers() != T.getLocalFastQualifiers())
+    return false;
+  const Type *PT = P.getTypePtrOrNull(), *TT = T.getTypePtrOrNull();
+  if (!PT || !TT)
+    return PT == TT;
+  // A parenthesised declarator adds a layer that carries no meaning of its
+  // own, and it is not always written on both sides.
+  if (const auto *PP = dyn_cast<ParenType>(PT))
+    return sameWrittenType(PP->getInnerType(), T);
+  if (const auto *TP = dyn_cast<ParenType>(TT))
+    return sameWrittenType(P, TP->getInnerType());
+  if (PT->getTypeClass() != TT->getTypeClass())
+    return false;
+  if (const auto *PB = dyn_cast<BuiltinType>(PT))
+    return PB->getKind() == cast<BuiltinType>(TT)->getKind();
+  if (const auto *PPtr = dyn_cast<PointerType>(PT))
+    return sameWrittenType(PPtr->getPointeeType(),
+                           cast<PointerType>(TT)->getPointeeType());
+  if (const auto *PC = dyn_cast<ComplexType>(PT))
+    return sameWrittenType(PC->getElementType(),
+                           cast<ComplexType>(TT)->getElementType());
+  if (const auto *PA = dyn_cast<ConstantArrayType>(PT)) {
+    const auto *TA = cast<ConstantArrayType>(TT);
+    return PA->getSize() == TA->getSize() &&
+           sameWrittenType(PA->getElementType(), TA->getElementType());
+  }
+  if (const auto *PA = dyn_cast<IncompleteArrayType>(PT))
+    return sameWrittenType(PA->getElementType(),
+                           cast<IncompleteArrayType>(TT)->getElementType());
+  if (const auto *PD = dyn_cast<TypedefType>(PT))
+    return PD->getDecl()->getName() ==
+           cast<TypedefType>(TT)->getDecl()->getName();
+  if (const auto *PR = dyn_cast<TagType>(PT)) {
+    const TagDecl *PTag = PR->getDecl(), *TTag = cast<TagType>(TT)->getDecl();
+    return PTag->getTagKind() == TTag->getTagKind() &&
+           !PTag->getName().empty() && PTag->getName() == TTag->getName();
+  }
+  if (const auto *PF = dyn_cast<FunctionProtoType>(PT)) {
+    const auto *TF = cast<FunctionProtoType>(TT);
+    if (PF->isVariadic() != TF->isVariadic() ||
+        PF->getNumParams() != TF->getNumParams() ||
+        !sameWrittenType(PF->getReturnType(), TF->getReturnType()))
+      return false;
+    for (unsigned I = 0, E = PF->getNumParams(); I != E; ++I)
+      if (!sameWrittenType(PF->getParamType(I), TF->getParamType(I)))
+        return false;
+    return true;
+  }
+  if (const auto *PF = dyn_cast<FunctionNoProtoType>(PT))
+    return sameWrittenType(PF->getReturnType(),
+                           cast<FunctionNoProtoType>(TT)->getReturnType());
+  return false;
+}
+
+/// The type class in \p T that `sameWrittenType` cannot compare, or an empty
+/// string. See the note on that function: the two class lists are one list.
+std::string uncomparableType(QualType T) {
+  const Type *P = T.getTypePtrOrNull();
+  if (!P)
+    return std::string();
+  if (const auto *Paren = dyn_cast<ParenType>(P))
+    return uncomparableType(Paren->getInnerType());
+  if (isa<BuiltinType>(P))
+    return std::string();
+  if (const auto *Ptr = dyn_cast<PointerType>(P))
+    return uncomparableType(Ptr->getPointeeType());
+  if (const auto *C = dyn_cast<ComplexType>(P))
+    return uncomparableType(C->getElementType());
+  if (const auto *A = dyn_cast<ArrayType>(P)) {
+    if (!isa<ConstantArrayType, IncompleteArrayType>(P))
+      return std::string("an array of class ") + P->getTypeClassName();
+    return uncomparableType(A->getElementType());
+  }
+  if (isa<TypedefType>(P))
+    return std::string();
+  if (const auto *Tag = dyn_cast<TagType>(P)) {
+    // An anonymous tag has no name to compare, and comparing its members
+    // instead would accept a different type that happens to agree.
+    return Tag->getDecl()->getName().empty()
+               ? std::string("an anonymous ") + P->getTypeClassName()
+               : std::string();
+  }
+  if (const auto *F = dyn_cast<FunctionProtoType>(P)) {
+    if (std::string Why = uncomparableType(F->getReturnType()); !Why.empty())
+      return Why;
+    for (unsigned I = 0, E = F->getNumParams(); I != E; ++I)
+      if (std::string Why = uncomparableType(F->getParamType(I)); !Why.empty())
+        return Why;
+    return std::string();
+  }
+  if (const auto *F = dyn_cast<FunctionNoProtoType>(P))
+    return uncomparableType(F->getReturnType());
+  return std::string("a type of class ") + P->getTypeClassName();
 }
 
 /// The arguments of a call, with the dots markers separated out.
@@ -134,10 +243,15 @@ private:
   bool bind(const MetaVar &M, const Stmt *Target, Bindings &Bound) {
     if (!kindAccepts(M.Kind, Target))
       return false;
+    return bindTo(M, Binding{Target, peel(Target)->getSourceRange()}, Bound);
+  }
+
+  /// Records \p B for \p M, or checks it against what \p M already holds.
+  bool bindTo(const MetaVar &M, const Binding &B, Bindings &Bound) {
     auto It = Bound.find(M.Name);
     if (It != Bound.end())
-      return sameBinding(It->second, Target, Context);
-    Bound[M.Name] = Target;
+      return sameBinding(It->second, B, Context);
+    Bound[M.Name] = B;
     return true;
   }
 
@@ -183,6 +297,75 @@ private:
     return true;
   }
 
+  /// Matches a declaration statement: the written type, the declared name and
+  /// the initialiser, one declarator at a time.
+  ///
+  /// None of the three is a child of the `DeclStmt`, so comparing class plus
+  /// children made every childless declaration match every other one.
+  bool matchDecls(const DeclStmt &Pattern, const DeclStmt &Target,
+                  Bindings &Bound) {
+    auto PIt = Pattern.decl_begin(), PEnd = Pattern.decl_end();
+    auto TIt = Target.decl_begin(), TEnd = Target.decl_end();
+    for (; PIt != PEnd && TIt != TEnd; ++PIt, ++TIt) {
+      const auto *PD = dyn_cast<DeclaratorDecl>(*PIt);
+      const auto *TD = dyn_cast<DeclaratorDecl>(*TIt);
+      const auto *PT = dyn_cast<TypedefNameDecl>(*PIt);
+      const auto *TT = dyn_cast<TypedefNameDecl>(*TIt);
+      if (PD && TD) {
+        if (!matchWrittenType(PD->getTypeSourceInfo(), TD->getTypeSourceInfo(),
+                              Bound) ||
+            !matchDeclaredName(*PD, *TD, Bound))
+          return false;
+        const auto *PV = dyn_cast<VarDecl>(PD);
+        const auto *TV = dyn_cast<VarDecl>(TD);
+        if (!PV != !TV)
+          return false;
+        if (PV && !match(PV->getInit(), TV->getInit(), Bound))
+          return false;
+        continue;
+      }
+      if (!PT || !TT)
+        return false;
+      if (!matchWrittenType(PT->getTypeSourceInfo(), TT->getTypeSourceInfo(),
+                            Bound) ||
+          !matchDeclaredName(*PT, *TT, Bound))
+        return false;
+    }
+    return PIt == PEnd && TIt == TEnd;
+  }
+
+  /// Matches a type written in the pattern against the one written in the
+  /// target, binding a type metavariable to whatever the target wrote.
+  bool matchWrittenType(const TypeSourceInfo *Pattern,
+                        const TypeSourceInfo *Target, Bindings &Bound) {
+    if (!Pattern || !Target)
+      return false;
+    if (const MetaVar *M = typeMetaVarOf(Pattern->getType()))
+      return bindTo(*M, Binding{nullptr, Target->getTypeLoc().getSourceRange()},
+                    Bound);
+    return sameWrittenType(Pattern->getType(), Target->getType());
+  }
+
+  /// Matches the name \p Pattern declares against \p Target's, binding an
+  /// identifier metavariable to whatever the target called it.
+  bool matchDeclaredName(const NamedDecl &Pattern, const NamedDecl &Target,
+                         Bindings &Bound) {
+    const MetaVar *M = Parsed.metaVarNamed(Pattern.getName());
+    if (!M || M->Kind != MetaVar::Kind::Identifier)
+      return Pattern.getName() == Target.getName();
+    return bindTo(*M, Binding{nullptr, Target.getLocation()}, Bound);
+  }
+
+  /// The type metavariable \p T is, or null. `type T;` is synthesised as
+  /// `typedef int T;`, so a pattern naming it carries that typedef.
+  const MetaVar *typeMetaVarOf(QualType T) const {
+    const auto *TD = dyn_cast_or_null<TypedefType>(T.getTypePtrOrNull());
+    if (!TD)
+      return nullptr;
+    const MetaVar *M = Parsed.metaVarFor(TD->getDecl()->getCanonicalDecl());
+    return M && M->Kind == MetaVar::Kind::Type ? M : nullptr;
+  }
+
   bool match(const Stmt *Pattern, const Stmt *Target, Bindings &Bound) {
     if (!Pattern || !Target)
       return Pattern == Target;
@@ -220,6 +403,24 @@ private:
       if (!match(PC->getCallee(), TC->getCallee(), Bound))
         return false;
       return matchArgs(*PC, *TC, Bound);
+    } else if (const auto *PD = dyn_cast<DeclStmt>(P)) {
+      return matchDecls(*PD, *cast<DeclStmt>(T), Bound);
+    } else if (const auto *PCast = dyn_cast<CStyleCastExpr>(P)) {
+      const auto *TCast = cast<CStyleCastExpr>(T);
+      return matchWrittenType(PCast->getTypeInfoAsWritten(),
+                              TCast->getTypeInfoAsWritten(), Bound) &&
+             match(PCast->getSubExpr(), TCast->getSubExpr(), Bound);
+    } else if (const auto *PSize = dyn_cast<UnaryExprOrTypeTraitExpr>(P)) {
+      const auto *TSize = cast<UnaryExprOrTypeTraitExpr>(T);
+      // `sizeof` and `_Alignof` are the same class, and the operand is a
+      // child only when it is an expression.
+      if (PSize->getKind() != TSize->getKind() ||
+          PSize->isArgumentType() != TSize->isArgumentType())
+        return false;
+      if (PSize->isArgumentType())
+        return matchWrittenType(PSize->getArgumentTypeInfo(),
+                                TSize->getArgumentTypeInfo(), Bound);
+      return match(PSize->getArgumentExpr(), TSize->getArgumentExpr(), Bound);
     } else if (isa<IntegerLiteral, FloatingLiteral, CharacterLiteral,
                    StringLiteral>(P)) {
       // Each side is read with its own SourceManager. Reading the pattern's
@@ -241,10 +442,6 @@ private:
 
 /// Is \p S's identity fully given by its class and its children in order?
 bool isComparableByStructure(const Stmt &S) {
-  // `sizeof` over a type keeps the type off the child list, so `sizeof(int)`
-  // and `sizeof(long)` are the same node plus the same no children.
-  if (const auto *T = dyn_cast<UnaryExprOrTypeTraitExpr>(&S))
-    return !T->isArgumentType();
   return isa<CompoundStmt, IfStmt, WhileStmt, DoStmt, ForStmt, ReturnStmt,
              BreakStmt, ContinueStmt, NullStmt, SwitchStmt, CaseStmt,
              DefaultStmt, ParenExpr, ArraySubscriptExpr, InitListExpr, StmtExpr,
@@ -254,8 +451,37 @@ bool isComparableByStructure(const Stmt &S) {
 /// The classes `Unifier::match` decides by more than class and children.
 bool isComparedExplicitly(const Stmt &S) {
   return isa<BinaryOperator, UnaryOperator, DeclRefExpr, MemberExpr, CallExpr,
-             IntegerLiteral, FloatingLiteral, CharacterLiteral, StringLiteral>(
-      &S);
+             DeclStmt, CStyleCastExpr, UnaryExprOrTypeTraitExpr, IntegerLiteral,
+             FloatingLiteral, CharacterLiteral, StringLiteral>(&S);
+}
+
+/// Why a declaration pattern cannot be compared, or an empty string.
+///
+/// A declarator that is not a variable has no counterpart in the comparison,
+/// and a type whose class `sameWrittenType` does not handle would fail to
+/// match a declaration it describes.
+std::string whyNotComparableType(const TypeSourceInfo *Info) {
+  if (!Info)
+    return "a type that was not written out";
+  return uncomparableType(Info->getType());
+}
+
+std::string whyNotComparableInDecls(const DeclStmt &S) {
+  for (const Decl *D : S.decls()) {
+    const TypeSourceInfo *Info = nullptr;
+    if (const auto *DD = dyn_cast<DeclaratorDecl>(D))
+      Info = DD->getTypeSourceInfo();
+    else if (const auto *TD = dyn_cast<TypedefNameDecl>(D))
+      Info = TD->getTypeSourceInfo();
+    else
+      return std::string("the pattern's declaration holds a ") +
+             D->getDeclKindName() +
+             " declarator, which the comparison has no counterpart for";
+    if (std::string Why = whyNotComparableType(Info); !Why.empty())
+      return "the pattern declares " + Why +
+             ", which the type comparison does not handle";
+  }
+  return std::string();
 }
 
 /// Collects every statement of a translation unit, outermost first.
@@ -270,16 +496,39 @@ public:
 
 } // namespace
 
-std::string uncomparableIn(const Stmt *Pattern) {
+std::string whyNotComparable(const Stmt *Pattern) {
   if (!Pattern)
     return std::string();
   const Stmt *P = peel(Pattern);
   if (!P)
     return std::string();
-  if (!isComparedExplicitly(*P) && !isComparableByStructure(*P))
-    return P->getStmtClassName();
+  if (!isComparedExplicitly(*P) && !isComparableByStructure(*P)) {
+    // Clang error-recovers, so a tree can come back from text it could not
+    // read, and the recovery node is what is left of a diagnostic the pattern
+    // parser's wrapper-line attribution missed.
+    if (isa<RecoveryExpr>(P))
+      return "the pattern did not parse as C, and Clang recovered rather "
+             "than refusing it";
+    return std::string("the pattern holds a ") + P->getStmtClassName() +
+           ", and the unifier decides that class by its children alone, so "
+           "it would match a construct the rule does not describe";
+  }
+  if (const auto *DS = dyn_cast<DeclStmt>(P))
+    if (std::string Why = whyNotComparableInDecls(*DS); !Why.empty())
+      return Why;
+  if (const auto *C = dyn_cast<CStyleCastExpr>(P))
+    if (std::string Why = whyNotComparableType(C->getTypeInfoAsWritten());
+        !Why.empty())
+      return "the pattern casts to " + Why +
+             ", which the type comparison does not handle";
+  if (const auto *Sz = dyn_cast<UnaryExprOrTypeTraitExpr>(P))
+    if (Sz->isArgumentType())
+      if (std::string Why = whyNotComparableType(Sz->getArgumentTypeInfo());
+          !Why.empty())
+        return "the pattern names " + Why +
+               ", which the type comparison does not handle";
   for (const Stmt *Child : P->children())
-    if (std::string Why = uncomparableIn(Child); !Why.empty())
+    if (std::string Why = whyNotComparable(Child); !Why.empty())
       return Why;
   return std::string();
 }
