@@ -11,6 +11,7 @@
 
 #include "SemanticPatch.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/Tooling/Core/Replacement.h"
 #include <string>
 #include <vector>
 
@@ -36,6 +37,13 @@ struct Unrun {
 struct RunResult {
   std::vector<Finding> Findings;
   std::vector<Unrun> UnrunRules;
+  /// The edits the patch's `-` and `+` lines ask for, keyed by file. Empty for
+  /// a rule that only matches, as a `*` rule or a report rule does.
+  llvm::StringMap<tooling::Replacements> Edits;
+  /// Matches whose edit could not be built, so the output must not be read as
+  /// a complete rewrite. A range inside a macro expansion is the usual cause,
+  /// because `Replacement` would silently rewrite the macro definition.
+  unsigned EditsRefused = 0;
   /// Functions whose control-flow graph could not be built.
   unsigned FunctionsSkipped = 0;
   /// Anchors that matched but that the graph gives no program point, so the
@@ -56,7 +64,8 @@ struct RunResult {
   /// failure rather than as an absence of findings.
   bool complete() const {
     return AnchorsUnlocated == 0 && AnchorsUnsupportedResource == 0 &&
-           AnchorsUnattributed == 0 && FunctionsSkipped == 0;
+           AnchorsUnattributed == 0 && FunctionsSkipped == 0 &&
+           EditsRefused == 0;
   }
 };
 

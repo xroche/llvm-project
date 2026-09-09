@@ -23,6 +23,7 @@
 #include "../SmplParser.h"
 #include "clang/Frontend/FrontendActions.h"
 #include "clang/Tooling/CommonOptionsParser.h"
+#include "clang/Tooling/Core/Replacement.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -45,6 +46,13 @@ static llvm::cl::opt<bool> AllowPartial(
     llvm::cl::desc("Run the rules that compiled even though the patch contains "
                    "constructs this tool does not support. Off by default, "
                    "because a partly applied patch is unsafe"),
+    llvm::cl::init(false), llvm::cl::cat(SpatchCategory));
+
+static llvm::cl::opt<bool> PrintRewrite(
+    "print-rewrite",
+    llvm::cl::desc("Apply the patch and print each rewritten file whole, so "
+                   "the result can be compared against a reference output "
+                   "byte for byte"),
     llvm::cl::init(false), llvm::cl::cat(SpatchCategory));
 
 static llvm::cl::opt<bool> PrintPatterns(
@@ -206,9 +214,40 @@ int main(int argc, const char **argv) {
   const int ToolResult = Tool.run(&Factory);
 
   for (const Finding &F : Result.Findings)
-    llvm::outs() << F.File << ":" << F.Line << ":" << F.Col << ": "
-                 << (F.RuleName.empty() ? "<unnamed>" : F.RuleName) << ": "
-                 << F.Message << "\n";
+    if (!PrintRewrite)
+      llvm::outs() << F.File << ":" << F.Line << ":" << F.Col << ": "
+                   << (F.RuleName.empty() ? "<unnamed>" : F.RuleName) << ": "
+                   << F.Message << "\n";
+
+  if (PrintRewrite) {
+    // The whole file is printed rather than a diff. There is no unified-diff
+    // printer in the LLVM tree, and a reference output is a whole file.
+    // Every input is printed, edited or not. A patch that matches nothing
+    // leaves the file unchanged, and that is the reference output for it, so
+    // printing nothing would fail a comparison the tool actually passed.
+    for (const std::string &Path : Options->getSourcePathList()) {
+      llvm::ErrorOr<std::unique_ptr<llvm::MemoryBuffer>> Original =
+          llvm::MemoryBuffer::getFile(Path);
+      if (!Original) {
+        llvm::errs() << "clang-spatch: cannot re-read " << Path << ": "
+                     << Original.getError().message() << "\n";
+        return 5;
+      }
+      auto Found = Result.Edits.find(Path);
+      if (Found == Result.Edits.end()) {
+        llvm::outs() << (*Original)->getBuffer();
+        continue;
+      }
+      llvm::Expected<std::string> Rewritten = tooling::applyAllReplacements(
+          (*Original)->getBuffer(), Found->second);
+      if (!Rewritten) {
+        llvm::errs() << "clang-spatch: " << Path << ": the edits do not apply: "
+                     << llvm::toString(Rewritten.takeError()) << "\n";
+        return 5;
+      }
+      llvm::outs() << *Rewritten;
+    }
+  }
 
   for (const Unrun &U : Result.UnrunRules)
     llvm::errs() << "clang-spatch: rule "

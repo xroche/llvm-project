@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "PatchRunner.h"
+#include "Edit.h"
 #include "PathQuery.h"
 #include "PatternCompiler.h"
 #include "clang/AST/Decl.h"
@@ -112,6 +113,103 @@ const FunctionDecl *enclosingFunction(const Stmt *S, ASTContext &Context) {
   return nullptr;
 }
 
+/// A rule body with no `...`, split into what it matches and what it writes.
+///
+/// A dot-free rule asks no question about control flow, so it needs no
+/// quantifier and no path query. `runPatch` used to refuse every one of them
+/// with "no `...` in the rule body, so there is no path property to check",
+/// which is true and is not a reason to refuse: 339 of the 403 rules in the
+/// sample corpus have no `...` at all.
+struct FlatRule {
+  const PatternItem *Match = nullptr; ///< The `-` or `*` line to match.
+  std::string PlusText;               ///< The `+` lines, joined. May be empty.
+  bool Rewrites = false; ///< Is this a `-`/`+` rule rather than `*`?
+};
+
+std::optional<FlatRule> flattenOf(const Rule &R, std::string &Why) {
+  FlatRule F;
+  unsigned Matches = 0, Contexts = 0;
+  for (const PatternItem &I : R.Body) {
+    if (I.Kind != PatternItem::Kind::Statement) {
+      Why = "a dot-free rule holding a disjunction needs every branch matched "
+            "at the same point, which this version does not build";
+      return std::nullopt;
+    }
+    switch (I.Marker) {
+    case PatternItem::Marker::Minus:
+    case PatternItem::Marker::Star:
+      F.Match = &I;
+      F.Rewrites = I.Marker == PatternItem::Marker::Minus;
+      ++Matches;
+      break;
+    case PatternItem::Marker::Plus:
+      if (!F.PlusText.empty())
+        F.PlusText += " ";
+      F.PlusText += I.Text;
+      break;
+    case PatternItem::Marker::Context:
+      ++Contexts;
+      break;
+    }
+  }
+  if (Matches != 1) {
+    Why = Matches == 0
+              ? "a dot-free rule with no `-` or `*` line has nothing to match"
+              : "a dot-free rule matching more than one statement needs "
+                "statement adjacency, which this version does not build";
+    return std::nullopt;
+  }
+  if (Contexts != 0) {
+    Why = "a dot-free rule with a context line needs the context matched "
+          "beside the changed line, which this version does not build";
+    return std::nullopt;
+  }
+  return F;
+}
+
+/// Runs a rule that asks no question about control flow.
+void runFlatRule(const Rule &R, const FlatRule &F, ASTContext &Context,
+                 RunResult &Result) {
+  SourceManager &SM = Context.getSourceManager();
+  std::string Error;
+  std::optional<CompiledPattern> Pattern =
+      compileCallPattern(F.Match->Text, R.MetaVars, Error);
+  if (!Pattern) {
+    Result.UnrunRules.push_back({R.Name, "pattern: " + Error});
+    return;
+  }
+
+  for (const BoundNodes &Match : matchDynamic(Pattern->Matcher, Context)) {
+    const auto *Call = Match.getNodeAs<CallExpr>("root");
+    if (!Call)
+      continue;
+    const PresumedLoc PL = SM.getPresumedLoc(Call->getBeginLoc());
+    if (PL.isInvalid()) {
+      ++Result.AnchorsUnattributed;
+      continue;
+    }
+    Result.Findings.push_back({PL.getFilename(), PL.getLine(), PL.getColumn(),
+                               R.Name,
+                               "matches `" + Pattern->FunctionName + "`"});
+    if (!F.Rewrites)
+      continue;
+    std::string EditError;
+    std::optional<PatternEdit> E = buildEdit(
+        *Call, F.PlusText, Match, Pattern->Bindings, Context, EditError);
+    if (!E) {
+      ++Result.EditsRefused;
+      continue;
+    }
+    if (llvm::Error Added =
+            Result.Edits[E->Replacement.getFilePath()].add(E->Replacement)) {
+      // Two matches asking for different text at one offset is a conflict
+      // Replacements detects, and it must not be dropped quietly.
+      llvm::consumeError(std::move(Added));
+      ++Result.EditsRefused;
+    }
+  }
+}
+
 } // namespace
 
 void runPatch(const SemanticPatch &Patch, ASTContext &Context,
@@ -120,6 +218,19 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
 
   for (const Rule &R : Patch.Rules) {
     std::string Why;
+    // A rule with no `...` asks nothing about control flow, so it takes the
+    // flat path and needs no quantifier.
+    const bool HasDots = llvm::any_of(R.Body, [](const PatternItem &I) {
+      return I.Kind == PatternItem::Kind::Dots;
+    });
+    if (!HasDots) {
+      if (std::optional<FlatRule> F = flattenOf(R, Why))
+        runFlatRule(R, *F, Context, Result);
+      else
+        Result.UnrunRules.push_back({R.Name, Why});
+      continue;
+    }
+
     std::optional<RuleShape> Shape = shapeOf(R, Why);
     if (!Shape) {
       Result.UnrunRules.push_back({R.Name, Why});

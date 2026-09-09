@@ -6,6 +6,7 @@ add_clang_library(clangSpatch STATIC
   SmplParser.cpp
   PatternCompiler.cpp
   PatternParser.cpp
+  Edit.cpp
   PathQuery.cpp
   PatchRunner.cpp
 )
@@ -20,6 +21,7 @@ clang_target_link_libraries(clangSpatch
   clangFrontend
   clangSerialization
   clangTooling
+  clangTransformer
   )
 
 add_subdirectory(tool)
