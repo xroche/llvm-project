@@ -27,6 +27,7 @@
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringMap.h"
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace clang::spatch {
@@ -48,6 +49,26 @@ struct Binding {
 /// What a match bound each metavariable to, in the target's tree.
 using Bindings = llvm::StringMap<Binding>;
 
+/// Which target node each pattern node matched, in the order the comparison
+/// reached them.
+///
+/// An edit inside the matched node needs this. The `-` lines of a rule name a
+/// sub-node of the pattern, and the range to overwrite is the one that
+/// sub-node matched. Diffing the two sides as token sequences instead cannot
+/// do it: against `spatch`, a pattern `g(e, x)` with `- x` over `g(x, x)`
+/// rewrites the second argument, and a longest-common-subsequence alignment
+/// takes the first.
+///
+/// Pattern nodes are recorded before parentheses and implicit casts are peeled
+/// off, so a pattern written `(i = i2)` maps to the target's own parentheses
+/// and the edit takes them too. Declarations are not in here, because a
+/// declarator is not a \c Stmt.
+using NodePairs = std::vector<std::pair<const Stmt *, const Stmt *>>;
+
+/// The target node \p Pattern matched, or null when the comparison never
+/// reached it.
+const Stmt *targetOf(const NodePairs &Pairs, const Stmt *Pattern);
+
 /// One place a pattern matched.
 struct Match {
   /// The target node the pattern matched.
@@ -60,6 +81,8 @@ struct Match {
   /// Which of the patterns handed to \c findMatches matched here. Zero for a
   /// search over a single pattern.
   unsigned Pattern = 0;
+  /// Filled only when \c MatchOptions::WantNodePairs asked for it.
+  NodePairs Pairs;
 };
 
 /// What a search over the target is allowed to match.
@@ -78,6 +101,11 @@ struct MatchOptions {
   /// one `;` and replacing one would take the terminator the others need, so
   /// only a rule that asks for no change may be given it.
   bool MultiDeclaratorOK = false;
+  /// Record \c Match::Pairs for every match.
+  ///
+  /// Off by default, because a rule that replaces a whole statement has no use
+  /// for it and every match would carry the vector.
+  bool WantNodePairs = false;
 };
 
 /// Does \p Pattern match \p Target, and if so what does it bind?

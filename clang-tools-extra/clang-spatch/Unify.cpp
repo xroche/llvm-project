@@ -235,8 +235,15 @@ public:
       : Parsed(Parsed), Context(Context),
         PatternContext(Parsed.Unit->getASTContext()) {}
 
-  bool run(const Stmt *Pattern, const Stmt *Target, Bindings &Bound) {
-    return match(Pattern, Target, Bound);
+  /// \p Out, when given, is appended with which target node each pattern
+  /// node matched. It is never cleared, so it must be empty on the way in and
+  /// the caller owns one per candidate.
+  bool run(const Stmt *Pattern, const Stmt *Target, Bindings &Bound,
+           NodePairs *Out = nullptr) {
+    Pairs = Out;
+    const bool Matched = match(Pattern, Target, Bound);
+    Pairs = nullptr;
+    return Matched;
   }
 
   /// Matches a declaration pattern against a declaration that is not inside
@@ -250,6 +257,10 @@ private:
   const ParsedPattern &Parsed;
   ASTContext &Context;        ///< The code's.
   ASTContext &PatternContext; ///< The pattern's, which is a separate TU.
+  /// Where to record the pattern-node to target-node pairs, or null when the
+  /// caller did not ask for them. Owned by \c run for the length of one
+  /// candidate.
+  NodePairs *Pairs = nullptr;
 
   bool bind(const MetaVar &M, const Stmt *Target, Bindings &Bound) {
     if (!kindAccepts(M.Kind, Target))
@@ -292,10 +303,16 @@ private:
     // bindings of the first that matches so the caller sees one match.
     for (unsigned Start = 0; Start + P.Terms.size() <= N; ++Start) {
       Bindings Trial = Bound;
+      const size_t Mark = Pairs ? Pairs->size() : 0;
       if (matchRun(P.Terms, Target, Start, Trial)) {
         Bound = std::move(Trial);
         return true;
       }
+      // A window is the one failure inside a match that the caller never
+      // sees, because a later window can still match, so it has to undo its
+      // own pairs.
+      if (Pairs)
+        Pairs->resize(Mark);
     }
     return false;
   }
@@ -395,6 +412,10 @@ private:
   bool match(const Stmt *Pattern, const Stmt *Target, Bindings &Bound) {
     if (!Pattern || !Target)
       return Pattern == Target;
+    // Recorded before peeling, so a pattern written `(i = i2)` pairs with the
+    // target's own parentheses and an edit on it takes them too.
+    if (Pairs)
+      Pairs->emplace_back(Pattern, Target);
     const Stmt *P = peel(Pattern);
     const Stmt *T = peel(Target);
     if (!P || !T)
@@ -601,6 +622,16 @@ bool unify(const Stmt *Pattern, const Stmt *Target, const ParsedPattern &Parsed,
   return Unifier(Parsed, Context).run(Pattern, Target, Bound);
 }
 
+const Stmt *targetOf(const NodePairs &Pairs, const Stmt *Pattern) {
+  // Read back to front. A pattern node is reached once per successful match,
+  // so there is normally one entry, and taking the last one means a caller
+  // still gets the winning path if that ever stops holding.
+  for (const auto &Pair : llvm::reverse(Pairs))
+    if (Pair.first == Pattern)
+      return Pair.second;
+  return nullptr;
+}
+
 std::string bindingKey(const Binding &B, ASTContext &Context) {
   if (const auto *Ref = dyn_cast_or_null<DeclRefExpr>(peel(B.Node)))
     return "decl:" + llvm::utohexstr(reinterpret_cast<uintptr_t>(
@@ -658,10 +689,16 @@ std::vector<Match> findMatches(llvm::ArrayRef<const Stmt *> Patterns,
       if (overlaps(StmtRanges, R) || overlaps(DeclRanges, R))
         continue;
       Bindings Bound = Seed;
-      if (!Shared.run(Patterns[P], S, Bound))
+      // Fresh for each candidate. A candidate that fails is compared node by
+      // node and gets some way in before it fails, so a vector reused down
+      // the list would report every near miss as the match's own.
+      NodePairs Pairs;
+      if (!Shared.run(Patterns[P], S, Bound,
+                      Opts.WantNodePairs ? &Pairs : nullptr))
         continue;
       StmtRanges.push_back(R);
-      Out.push_back({DynTypedNode::create(*S), std::move(Bound), P});
+      Out.push_back(
+          {DynTypedNode::create(*S), std::move(Bound), P, std::move(Pairs)});
     }
     const auto *DS = dyn_cast<DeclStmt>(peel(Patterns[P]));
     if (!DS)
@@ -675,7 +712,7 @@ std::vector<Match> findMatches(llvm::ArrayRef<const Stmt *> Patterns,
         continue;
       ClaimedDecls.insert(D);
       DeclRanges.push_back(D->getSourceRange());
-      Out.push_back({DynTypedNode::create(*D), std::move(Bound), P});
+      Out.push_back({DynTypedNode::create(*D), std::move(Bound), P, {}});
     }
   }
 

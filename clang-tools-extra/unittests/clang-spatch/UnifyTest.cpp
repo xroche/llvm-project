@@ -52,6 +52,43 @@ std::vector<std::string> matches(llvm::StringRef Pattern,
 
 using Strings = std::vector<std::string>;
 
+/// Every pattern node whose written text is \p Wanted, paired with the text
+/// and file offset of the target node it matched.
+///
+/// The offset is what makes the test meaningful: two target nodes can have
+/// the same text, and pairing them by text is exactly the mistake a token
+/// diff makes.
+std::vector<std::string> pairedWith(llvm::StringRef Pattern,
+                                    std::vector<MetaVar> MetaVars,
+                                    llvm::StringRef Code,
+                                    llvm::StringRef Wanted) {
+  std::unique_ptr<ASTUnit> Unit =
+      tooling::buildASTFromCodeWithArgs(Code, {"-std=gnu11", "-w"}, "input.c");
+  if (!Unit)
+    return {"!no AST"};
+  std::string Error;
+  std::optional<ParsedPattern> P =
+      parsePattern(MetaVars, {Pattern.str()}, {}, Error);
+  if (!P || !P->Items[0])
+    return {"!" + (P ? P->Errors[0] : Error)};
+  ASTContext &Ctx = Unit->getASTContext();
+  ASTContext &PatCtx = P->Unit->getASTContext();
+  MatchOptions Opts;
+  Opts.WantNodePairs = true;
+  std::vector<std::string> Out;
+  for (const Match &M : findMatches(P->Items[0], *P, Ctx, Opts)) {
+    for (const auto &Pair : M.Pairs) {
+      if (sourceTextOf(*Pair.first, PatCtx) != Wanted)
+        continue;
+      const SourceLocation Begin = Pair.second->getSourceRange().getBegin();
+      Out.push_back((sourceTextOf(*Pair.second, Ctx) + "@" +
+                     std::to_string(Ctx.getSourceManager().getFileOffset(Begin)))
+                        .str());
+    }
+  }
+  return Out;
+}
+
 } // namespace
 
 TEST(Unify, EveryStatementFormMatchesNotJustACall) {
@@ -134,6 +171,77 @@ TEST(Unify, AMemberAccessComparesTheMemberAndTheArrow) {
   EXPECT_EQ(Strings({}), matches("g(E->b);", E, Code));
   // A dot is not an arrow.
   EXPECT_EQ(Strings({}), matches("g(E.a);", E, Code));
+}
+
+TEST(Unify, TheEditTargetIsTheOccurrenceThePatternMarksAndNotTheFirstAlike) {
+  // The case that rules out diffing the two sides as token sequences. Both
+  // arguments are spelled `x`, so an alignment by text or a
+  // longest-common-subsequence diff pairs the pattern's `x` with the first
+  // one. `spatch` rewrites the second, which is the one the pattern marks.
+  const std::vector<MetaVar> E = {mv(MetaVar::Kind::Expression, "e")};
+  EXPECT_EQ(Strings({"x@23"}),
+            pairedWith("g(e, x);", E, "void m() { int x; g(x, x); }", "x"));
+  // And when the binding itself holds a token equal to the marked one.
+  EXPECT_EQ(Strings({"x@34"}),
+            pairedWith("g(e, x);", E, "void m() { int x, a; g(a + x * x, x); }",
+                       "x"));
+}
+
+TEST(Unify, APatternNodePairsWithTheTargetNodeAtTheSameDepth) {
+  // The mark is on the outer argument in the first pattern and on the inner
+  // one in the second, over the same target. `spatch` follows the mark, so
+  // the depth of the pattern node and not the spelling of the token decides.
+  const std::vector<MetaVar> Ids = {mv(MetaVar::Kind::Identifier, "y")};
+  const char *Code = "void g(int, int); int h(int);\n"
+                     "void m() { int a; g(a, h(a)); }";
+  EXPECT_EQ(Strings({"a@50"}), pairedWith("g(y, h(a));", Ids, Code, "y"));
+  EXPECT_EQ(Strings({"a@55"}), pairedWith("g(a, h(y));", Ids, Code, "y"));
+}
+
+TEST(Unify, APatternsOwnParenthesesArePairedRatherThanPeeledAway) {
+  // `binop` writes `- (i = i2)` and its expected output drops the target's
+  // parentheses with it, so the pair has to be the target's ParenExpr and not
+  // the assignment inside it.
+  const std::vector<MetaVar> Ids = {mv(MetaVar::Kind::Identifier, "i"),
+                                    mv(MetaVar::Kind::Identifier, "i2")};
+  EXPECT_EQ(Strings({"(i = j)@25"}),
+            pairedWith("if ((i = i2) + 0) { }", Ids,
+                       "void m() { int i, j; if ((i = j) + 0) { } }",
+                       "(i = i2)"));
+}
+
+TEST(Unify, NoPairsAreRecordedUnlessTheCallerAsksForThem) {
+  const std::vector<MetaVar> E = {mv(MetaVar::Kind::Expression, "e")};
+  std::unique_ptr<ASTUnit> Unit = tooling::buildASTFromCodeWithArgs(
+      "void m() { g(1); }", {"-std=gnu11", "-w"}, "input.c");
+  std::string Error;
+  std::optional<ParsedPattern> P = parsePattern(E, {"g(e);"}, {}, Error);
+  ASSERT_TRUE(P.has_value()) << Error;
+  std::vector<Match> M = findMatches(P->Items[0], *P, Unit->getASTContext());
+  ASSERT_EQ(1u, M.size());
+  EXPECT_TRUE(M[0].Pairs.empty());
+}
+
+TEST(Unify, AWindowThatFailsLeavesNoPairsBehindItsSuccessor) {
+  // `f(..., E, ...)` puts its named term at no fixed position, so every
+  // window it could occupy is tried and the match as a whole still succeeds
+  // after a failure. That is the one failure inside a match that does not
+  // reach the caller, so the window has to undo its own pairs.
+  const std::vector<MetaVar> None;
+  EXPECT_EQ(Strings({"7@19"}),
+            pairedWith("f(..., 7, ...);", None,
+                       "void m() { f(1, 8, 7, 9); }", "7"));
+}
+
+TEST(Unify, PairsDoNotAccumulateAcrossCandidates) {
+  // A candidate that fails is compared node by node and gets some way in
+  // before it fails, so its pairs would be read as the next candidate's own.
+  // The two calls before the matching one each get as far as their second
+  // argument, which is the position the pattern marks.
+  const std::vector<MetaVar> E = {mv(MetaVar::Kind::Expression, "e")};
+  EXPECT_EQ(Strings({"7@34"}),
+            pairedWith("g(e, 7);", E,
+                       "void m() { g(1, 8); g(2, 9); g(3, 7); }", "7"));
 }
 
 } // namespace clang::spatch
