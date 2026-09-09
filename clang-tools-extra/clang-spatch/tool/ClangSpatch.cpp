@@ -170,7 +170,8 @@ int main(int argc, const char **argv) {
         if (Stmts.empty())
           continue;
         std::string Error;
-        std::optional<ParsedPattern> P = parsePattern(R.MetaVars, Stmts, Error);
+        std::optional<ParsedPattern> P =
+            parsePattern(R.MetaVars, Patch->TypeNames, Stmts, Error);
         if (!P) {
           llvm::outs() << "  SYNTH FAILED: " << Error << "\n";
           continue;

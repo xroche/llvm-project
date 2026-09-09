@@ -487,6 +487,19 @@ TEST(SmplParser, ColumnZeroDisjunction) {
   EXPECT_TRUE(P.fullyUnderstood()) << refusalList(P);
 }
 
+TEST(SmplParser, ADeclaredTypeNameIsRecordedForTheWholePatch) {
+  // Coccinelle's type table is per file, and `tests/wchar.cocci` relies on
+  // it: the names are declared in the first rule's header and written in the
+  // second rule's body.
+  SemanticPatch P =
+      parsed("@r@\ntypedef char16_t, wchar_t;\n@@\n- char16_t a = u'x';\n"
+             "\n@@\nidentifier b;\n@@\n- wchar_t b = L'x';\n");
+  ASSERT_EQ(2u, P.TypeNames.size());
+  EXPECT_EQ("char16_t", P.TypeNames[0]);
+  EXPECT_EQ("wchar_t", P.TypeNames[1]);
+  EXPECT_TRUE(P.fullyUnderstood()) << refusalList(P);
+}
+
 TEST(SmplParser, EachBranchOfADisjunctionIsGroupedOncePerSide) {
   // A branch is a rule body in miniature, so it interleaves its `-`, `+` and
   // context lines the way a rule does and has to be grouped per side for the
@@ -1477,7 +1490,8 @@ TEST(SmplParserSweep, EveryNativeSampleLandsInOneOfThreeStates) {
             continue;
           std::string Error;
           std::optional<ParsedPattern> Parsed =
-              parsePattern(Rule.MetaVars, {It->Text}, Error);
+              parsePattern(Rule.MetaVars, R.Patch->TypeNames, {It->Text},
+                           Error);
           const bool Compiled = Parsed && Parsed->Items[0];
           if (Parsed && !Parsed->Items[0])
             Error = Parsed->Errors[0];

@@ -30,7 +30,7 @@ std::vector<std::string> matches(llvm::StringRef Pattern,
     return {"!no AST"};
   std::string Error;
   std::optional<ParsedPattern> P =
-      parsePattern(MetaVars, {Pattern.str()}, Error);
+      parsePattern(MetaVars, {}, {Pattern.str()}, Error);
   if (!P)
     return {"!" + Error};
   if (!P->Items[0])

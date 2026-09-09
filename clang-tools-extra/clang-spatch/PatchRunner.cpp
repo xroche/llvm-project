@@ -328,6 +328,7 @@ std::optional<FlatRule> flattenOf(const Rule &R, std::string &Why) {
 /// Runs a rule that asks no question about control flow, once per environment
 /// in \p Seeds, and appends every environment its matches produced to \p Envs.
 void runFlatRule(const Rule &R, const FlatRule &F,
+                 llvm::ArrayRef<std::string> TypeNames,
                  llvm::ArrayRef<Bindings> Seeds, ASTContext &Context,
                  RunResult &Result, std::vector<Bindings> &Envs) {
   SourceManager &SM = Context.getSourceManager();
@@ -341,7 +342,7 @@ void runFlatRule(const Rule &R, const FlatRule &F,
   // The pattern is parsed rather than compiled to a matcher expression, so
   // every statement form Clang can read is available and not only a call.
   std::optional<ParsedPattern> Parsed =
-      parsePattern(R.MetaVars, Texts, Error);
+      parsePattern(R.MetaVars, TypeNames, Texts, Error);
   if (!Parsed) {
     Result.UnrunRules.push_back({R.Name, "pattern: " + Error});
     return;
@@ -539,7 +540,7 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
     });
     if (!HasDots) {
       if (std::optional<FlatRule> F = flattenOf(R, Why)) {
-        runFlatRule(R, *F, *Seeds, Context, Result, Found);
+        runFlatRule(R, *F, Patch.TypeNames, *Seeds, Context, Result, Found);
         record(R, std::move(Found));
       } else {
         Result.UnrunRules.push_back({R.Name, Why});
@@ -570,7 +571,8 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
     // construct share one translation unit and one set of metavariable
     // declarations.
     std::optional<ParsedPattern> Parsed = parsePattern(
-        R.MetaVars, {Shape->Anchor->Text, Shape->Dots->WhenNot.front()}, Error);
+        R.MetaVars, Patch.TypeNames,
+        {Shape->Anchor->Text, Shape->Dots->WhenNot.front()}, Error);
     if (!Parsed) {
       Result.UnrunRules.push_back({R.Name, "pattern: " + Error});
       continue;

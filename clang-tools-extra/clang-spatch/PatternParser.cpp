@@ -132,6 +132,41 @@ bool isCKeyword(llvm::StringRef S) {
   return llvm::is_contained(Words, S);
 }
 
+/// Does any of \p Stmts write \p Name as a whole word?
+bool mentionsWord(llvm::ArrayRef<std::string> Stmts, llvm::StringRef Name) {
+  for (const std::string &S : Stmts) {
+    llvm::StringRef T(S);
+    for (size_t At = T.find(Name); At != llvm::StringRef::npos;
+         At = T.find(Name, At + 1)) {
+      const bool LeftOK = At == 0 || !isIdentChar(T[At - 1]);
+      const size_t End = At + Name.size();
+      if (LeftOK && (End == T.size() || !isIdentChar(T[End])))
+        return true;
+    }
+  }
+  return false;
+}
+
+/// The type C's own wide-character type names have, spelled as the macro
+/// Clang predefines for it, or an empty string for any other name.
+///
+/// A `typedef X;` declaration says only that `X` is a type name, so any
+/// definition the synthesised source gives it is a guess, and `int` is the
+/// one that costs least. It is wrong for two of these three, because a string
+/// literal initialiser compares element types exactly: `char32_t e[] = U"";`
+/// is an error against `typedef int char32_t;`. These names come from
+/// `<uchar.h>` and `<stddef.h>`, and a patch that declares one means the
+/// standard type, so it gets the type the implementation gives it.
+llvm::StringRef wideCharTypeMacro(llvm::StringRef Name) {
+  if (Name == "char16_t")
+    return "__CHAR16_TYPE__";
+  if (Name == "char32_t")
+    return "__CHAR32_TYPE__";
+  if (Name == "wchar_t")
+    return "__WCHAR_TYPE__";
+  return llvm::StringRef();
+}
+
 /// Every identifier a pattern mentions that is not a metavariable and not a
 /// keyword.
 ///
@@ -140,11 +175,16 @@ bool isCKeyword(llvm::StringRef S) {
 /// to parse. `demos/itimer.cocci` is the case: it declares no metavariables at
 /// all and names four kernel functions, so without this nothing in it parses.
 std::vector<std::string> freeIdentifiers(llvm::ArrayRef<MetaVar> MetaVars,
+                                         llvm::ArrayRef<std::string> TypeNames,
                                          llvm::ArrayRef<std::string> Stmts) {
   llvm::StringSet<> Seen;
   std::vector<std::string> Out;
   for (const MetaVar &M : MetaVars)
     Seen.insert(M.Name);
+  // A type name already has a typedef of its own, and declaring it a second
+  // time as a variable is a redefinition Clang refuses.
+  for (const std::string &Name : TypeNames)
+    Seen.insert(Name);
   Seen.insert(DotsMarker);
   for (const std::string &S : Stmts) {
     llvm::StringRef T(S);
@@ -233,11 +273,26 @@ ArgDotsShape argumentDotsShape(llvm::StringRef Args) {
 }
 
 std::string synthesiseDeclarations(llvm::ArrayRef<MetaVar> MetaVars,
+                                   llvm::ArrayRef<std::string> TypeNames,
                                    llvm::ArrayRef<std::string> Statements) {
   std::string Out;
   llvm::raw_string_ostream OS(Out);
   OS << "/* synthesised by clang-spatch to parse one rule's patterns */\n";
   OS << "int " << DotsMarker << "();\n";
+  for (const std::string &Name : TypeNames) {
+    // The list is the whole patch's, so most of it belongs to other rules,
+    // and this source is what a reader debugging one rule reads.
+    if (!mentionsWord(Statements, Name))
+      continue;
+    // A name declared both ways is declared once, by the metavariable loop
+    // below, because there it is a wildcard and here it stands for itself.
+    if (llvm::any_of(MetaVars,
+                     [&](const MetaVar &M) { return M.Name == Name; }))
+      continue;
+    const llvm::StringRef Macro = wideCharTypeMacro(Name);
+    OS << "typedef " << (Macro.empty() ? "int" : Macro) << " " << Name
+       << ";\n";
+  }
   for (const MetaVar &M : MetaVars) {
     if (M.Kind == MetaVar::Kind::Position)
       continue; // A position binds a location, so it needs no declaration.
@@ -257,7 +312,8 @@ std::string synthesiseDeclarations(llvm::ArrayRef<MetaVar> MetaVars,
   }
   // Declare the names the pattern references literally, with the same
   // usage-driven typing, so that Clang can resolve them.
-  for (const std::string &Name : freeIdentifiers(MetaVars, Statements)) {
+  for (const std::string &Name :
+       freeIdentifiers(MetaVars, TypeNames, Statements)) {
     const Usage U = usageOf(Name, Statements);
     std::string Struct;
     const std::string Type = typeFor(Name, U, Struct);
@@ -273,12 +329,13 @@ std::string synthesiseDeclarations(llvm::ArrayRef<MetaVar> MetaVars,
 
 std::optional<ParsedPattern>
 parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
+             llvm::ArrayRef<std::string> TypeNames,
              llvm::ArrayRef<std::string> Statements, std::string &Error) {
   ParsedPattern P;
   P.Items.assign(Statements.size(), nullptr);
   P.Errors.assign(Statements.size(), std::string());
 
-  std::string Src = synthesiseDeclarations(MetaVars, Statements);
+  std::string Src = synthesiseDeclarations(MetaVars, TypeNames, Statements);
   // One function per statement, so a body can be mapped back to the statement
   // it came from by the index in its name.
   llvm::SmallVector<unsigned, 8> Wrapped;
@@ -382,7 +439,13 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
 
     const auto *Body = dyn_cast<CompoundStmt>(FD->getBody());
     if (!Body || Body->body_empty()) {
-      P.Errors[Index] = "the pattern statement did not parse as C";
+      // Clang read the line and it left no statement behind, which is what a
+      // type name written alone does: `Scsi_Cmnd;` declares nothing and only
+      // warns. `tests/compare.cocci`, `tests/devlink.cocci`,
+      // `tests/macro.cocci` and `tests/weirdinit_failure.cocci` each write
+      // one as their whole `-` side, and each means the type.
+      P.Errors[Index] = "the pattern declares nothing, so it is a type "
+                        "rather than a statement";
       continue;
     }
     // A pattern line is one statement. More than one means the line held a
@@ -397,7 +460,8 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
     // a type rather than a statement, so the node is not usable.
     if (const auto *DS = dyn_cast<DeclStmt>(Only))
       if (DS->decl_begin() == DS->decl_end()) {
-        P.Errors[Index] = "the pattern is a type rather than a statement";
+        P.Errors[Index] = "the pattern declares nothing, so it is a type "
+                          "rather than a statement";
         continue;
       }
     // A pattern that is only a semicolon carries nothing to match.

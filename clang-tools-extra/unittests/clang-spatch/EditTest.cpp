@@ -564,6 +564,34 @@ TEST(Inherited, EveryDeclaratorOfOneTypedefBindsTheNameItIntroduces) {
                       "typedef int A, B;\nvoid f(void) { A x; B y; }\n"));
 }
 
+TEST(FlatRule, ADeclaredTypeNameIsAvailableToEveryRuleOfThePatch) {
+  // `typedef X;` used to suppress the undeclared-name refusal and declare
+  // nothing, so the pattern reached Clang with an undeclared type and failed
+  // to parse while the refusal that would have said so was gone. The name is
+  // declared for the whole patch, which is where Coccinelle keeps it and what
+  // `tests/wchar.cocci` needs: it declares in the first rule and writes in
+  // the second.
+  EXPECT_EQ("typedef int myint;\nvoid f(void) { }\n",
+            rewritten("@r@\ntypedef myint;\n@@\n  myint a;\n"
+                      "\n@@\nidentifier v;\n@@\n- myint v = 0;\n",
+                      "typedef int myint;\n"
+                      "void f(void) { myint v = 0; }\n"));
+}
+
+TEST(FlatRule, ATypeNameWrittenAloneIsATypePatternAndIsRefused) {
+  // `tests/compare.cocci`, `tests/devlink.cocci`, `tests/macro.cocci` and
+  // `tests/weirdinit_failure.cocci` each write a bare type name as their
+  // whole `-` side and mean the type. Each of them used to run: the name was
+  // undeclared, so it was synthesised as a variable and the pattern read as
+  // an expression referring to one, which matched nothing the patch meant.
+  // Declaring the name makes the line declare nothing, which is what it is.
+  EXPECT_EQ("pattern: the pattern declares nothing, so it is a type rather "
+            "than a statement\n",
+            unrunReasons("@r@\ntypedef mytype;\n@@\n- mytype\n"
+                         "+ struct other\n",
+                         "typedef int mytype;\nvoid f(mytype *p) { }\n"));
+}
+
 TEST(SourceTextOf, AMacroArgumentComesThroughAsWritten) {
   // The replacement must carry what the author wrote, not what the
   // preprocessor produced, so a matched argument spelled as a macro keeps its

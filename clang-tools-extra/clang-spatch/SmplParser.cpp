@@ -1302,10 +1302,10 @@ bool SmplParser::parseMetaDecl(unsigned LineNo, StringRef Decl, Rule &R) {
 
   // `symbol x;` says the name is literal C text rather than a metavariable,
   // and an undeclared name is literal text here already, so the declaration
-  // needs nothing recorded. `typedef t;` says the name is a type name, which
-  // Coccinelle needs because its own C parser has no other way to know, and
-  // which this tool takes from the translation unit. Both are inert: the
-  // compiled pattern is the same with them and without them.
+  // needs nothing recorded and the phrase is inert. `typedef t;` says the
+  // name is a type name, and it is not inert: the pattern parser has to
+  // declare it or the pattern reaches Clang with an undeclared type and does
+  // not parse.
   bool IsSymbol = startsWithWord(D, "symbol");
   bool IsTypedef = startsWithWord(D, "typedef");
   if (IsSymbol || IsTypedef) {
@@ -1327,8 +1327,8 @@ bool SmplParser::parseMetaDecl(unsigned LineNo, StringRef Decl, Rule &R) {
                                "'");
       if (IsSymbol)
         CurLiterals.insert(Name);
-      else
-        TypeNames.insert(Name);
+      else if (TypeNames.insert(Name).second)
+        Patch.TypeNames.push_back(Name.str());
     }
     return true;
   }
@@ -1804,7 +1804,8 @@ void SmplParser::scanRefusedConstructs(unsigned LineNo, StringRef T, Rule &R,
   // keeps the refusal and the emitted matcher from drifting apart.
   if (DotNames.empty() && T.contains("...")) {
     std::string Why;
-    std::optional<ParsedPattern> P = parsePattern(R.MetaVars, {T.str()}, Why);
+    std::optional<ParsedPattern> P =
+        parsePattern(R.MetaVars, Patch.TypeNames, {T.str()}, Why);
     if (!P)
       refuse(LineNo, "argument-level ellipsis in a pattern Clang cannot read",
              Why);

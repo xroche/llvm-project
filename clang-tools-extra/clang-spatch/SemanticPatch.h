@@ -145,6 +145,17 @@ struct ScriptRule {
 struct SemanticPatch {
   /// Virtual rule names the patch declares, as in `virtual report`.
   std::vector<std::string> Virtuals;
+  /// The names a `typedef X;` declaration says are type names.
+  ///
+  /// Such a name is not a metavariable: it stands for itself, and the
+  /// declaration is there because Coccinelle's own C parser has no other way
+  /// to tell a type name from a variable. The pattern parser has to declare
+  /// it, or the pattern reaches Clang with an undeclared type.
+  ///
+  /// Held per patch rather than per rule, because Coccinelle's type table is,
+  /// and `tests/wchar.cocci` relies on it: it declares its three names in the
+  /// first rule's header and writes them in the second rule's body.
+  std::vector<std::string> TypeNames;
   std::vector<Rule> Rules;
   /// Reporting rules, kept apart from pattern rules because they have no
   /// pattern and are never compiled.
