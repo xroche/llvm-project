@@ -38,6 +38,23 @@ namespace clang::spatch {
 /// parse the pattern for anything else here to work.
 constexpr llvm::StringLiteral DotsMarker = "__spatch_dots";
 
+/// The shape of an argument list that holds at least one `...`.
+///
+/// The shape decides whether a matcher can be emitted, so the parser and the
+/// compiler must agree on it: the parser refuses the shapes outside the subset
+/// by name, and the compiler emits the ones inside it.
+enum class ArgDotsShape {
+  Bare,       ///< `f(...)`, so any arguments at all.
+  Prefix,     ///< `f(E1, ..., En, ...)`, every named argument before the dots.
+  Suffix,     ///< `f(..., E1, En)`, every named argument after the dots.
+  Surrounded, ///< `f(..., E, ...)`, the named terms at no fixed position.
+  Interior,   ///< `f(E, ..., F)`, which needs a position from each end.
+  NotDotted   ///< No `...` in the list, or the brackets do not balance.
+};
+
+/// The shape of \p Args, which must be the text between a call's parentheses.
+ArgDotsShape argumentDotsShape(llvm::StringRef Args);
+
 /// One rule's statements, parsed into ASTs that share one translation unit.
 struct ParsedPattern {
   /// Owns every node reachable from \c Items, so it must outlive them.

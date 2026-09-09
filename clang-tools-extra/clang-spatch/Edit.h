@@ -19,10 +19,9 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_SPATCH_EDIT_H
 
 #include "SemanticPatch.h"
+#include "Unify.h"
 #include "clang/AST/ASTContext.h"
-#include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/Tooling/Core/Replacement.h"
-#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include <optional>
 #include <string>
@@ -39,7 +38,7 @@ struct PatternEdit {
 ///
 /// \p PlusText is the `+` lines already joined, with metavariable names
 /// appearing verbatim. Each name is substituted with the source text of what
-/// it bound to in \p Nodes, so `+ bar(E)` against `foo(x + 1)` gives
+/// it bound to in \p Bound, so `+ bar(E)` against `foo(x + 1)` gives
 /// `bar(x + 1)`.
 ///
 /// Returns std::nullopt and sets \p Error when no edit can be built. That is
@@ -50,9 +49,8 @@ struct PatternEdit {
 /// reporting success.
 std::optional<PatternEdit> buildEdit(const Stmt &Matched,
                                      llvm::StringRef PlusText,
-                                     const ast_matchers::BoundNodes &Nodes,
-                                     llvm::ArrayRef<std::string> Bindings,
-                                     ASTContext &Context, std::string &Error);
+                                     const Bindings &Bound, ASTContext &Context,
+                                     std::string &Error);
 
 /// The source text of \p S exactly as written, macros included.
 ///

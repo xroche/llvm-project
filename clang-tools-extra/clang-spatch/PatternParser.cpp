@@ -159,7 +159,61 @@ std::vector<std::string> freeIdentifiers(llvm::ArrayRef<MetaVar> MetaVars,
   return Out;
 }
 
+/// Splits \p Args on the commas that sit outside every bracket.
+///
+/// Returns false when the brackets do not balance, in which case \p Out holds
+/// whatever was split before the imbalance.
+bool splitArgumentList(llvm::StringRef Args,
+                       llvm::SmallVectorImpl<llvm::StringRef> &Out) {
+  int Depth = 0;
+  size_t Start = 0;
+  for (size_t I = 0, E = Args.size(); I != E; ++I) {
+    const char C = Args[I];
+    if (C == '(' || C == '[' || C == '{')
+      ++Depth;
+    else if (C == ')' || C == ']' || C == '}')
+      --Depth;
+    else if (C == ',' && Depth == 0) {
+      Out.push_back(Args.substr(Start, I - Start).trim());
+      Start = I + 1;
+    }
+    if (Depth < 0)
+      return false;
+  }
+  if (Depth != 0)
+    return false;
+  llvm::StringRef Last = Args.substr(Start).trim();
+  if (!Last.empty() || !Out.empty())
+    Out.push_back(Last);
+  return true;
+}
+
 } // namespace
+
+ArgDotsShape argumentDotsShape(llvm::StringRef Args) {
+  llvm::SmallVector<llvm::StringRef, 8> Parts;
+  if (!splitArgumentList(Args, Parts))
+    return ArgDotsShape::NotDotted;
+  llvm::SmallVector<unsigned, 4> Dots;
+  for (unsigned I = 0, E = Parts.size(); I != E; ++I)
+    if (Parts[I] == "...")
+      Dots.push_back(I);
+  if (Dots.empty())
+    return ArgDotsShape::NotDotted;
+  if (Parts.size() == 1)
+    return ArgDotsShape::Bare;
+  const bool Leading = Dots.front() == 0;
+  const bool Trailing = Dots.back() == Parts.size() - 1;
+  if (!Leading && Trailing)
+    return ArgDotsShape::Prefix;
+  if (Leading && !Trailing)
+    return ArgDotsShape::Suffix;
+  if (Leading && Trailing)
+    return ArgDotsShape::Surrounded;
+  // Dots with a named term on each side need a position counted from each end,
+  // which the unifier does not do.
+  return ArgDotsShape::Interior;
+}
 
 std::string synthesiseDeclarations(llvm::ArrayRef<MetaVar> MetaVars,
                                    llvm::ArrayRef<std::string> Statements) {

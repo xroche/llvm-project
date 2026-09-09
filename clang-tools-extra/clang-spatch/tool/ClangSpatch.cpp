@@ -18,7 +18,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "../PatchRunner.h"
-#include "../PatternCompiler.h"
 #include "../PatternParser.h"
 #include "../SmplParser.h"
 #include "clang/Frontend/FrontendActions.h"
@@ -60,12 +59,6 @@ static llvm::cl::opt<bool> PrintPatterns(
     llvm::cl::desc("Parse each rule's patterns with Clang and print what each "
                    "statement became, then exit"),
     llvm::cl::init(false), llvm::cl::cat(SpatchCategory));
-
-static llvm::cl::opt<bool>
-    PrintMatchers("print-matchers",
-                  llvm::cl::desc("Print the Clang matcher source each pattern "
-                                 "compiled to, then exit"),
-                  llvm::cl::init(false), llvm::cl::cat(SpatchCategory));
 
 namespace {
 
@@ -164,46 +157,6 @@ int main(int argc, const char **argv) {
                      << (P->Items[I] ? P->Items[I]->getStmtClassName()
                                      : "UNPARSED: " + P->Errors[I])
                      << "\n";
-    }
-    return 0;
-  }
-
-  if (PrintMatchers) {
-    llvm::outs() << SpFile << ": " << Patch->Virtuals.size() << " virtual(s), "
-                 << Patch->Rules.size() << " rule(s), "
-                 << Patch->ScriptRules.size() << " script rule(s), "
-                 << Patch->Refusals.size() << " refusal(s)\n";
-    for (const Rule &R : Patch->Rules) {
-      llvm::outs() << "rule " << (R.Name.empty() ? "<unnamed>" : R.Name)
-                   << " quantifier="
-                   << (!R.Quant                               ? "none"
-                       : *R.Quant == Rule::Quantifier::Exists ? "exists"
-                                                              : "forall")
-                   << " metavars=" << R.MetaVars.size()
-                   << " items=" << R.Body.size() << "\n";
-      for (const MetaVar &M : R.MetaVars)
-        llvm::outs() << "  metavar " << M.Name << "\n";
-      for (const PatternItem &I : R.Body) {
-        if (I.Kind == PatternItem::Kind::Dots) {
-          llvm::outs() << "  dots when!=" << I.WhenNot.size();
-          for (const std::string &W : I.WhenNot)
-            llvm::outs() << " [" << W << "]";
-          llvm::outs() << "\n";
-          continue;
-        }
-        if (I.Kind == PatternItem::Kind::Disjunction) {
-          llvm::outs() << "  disjunction branches=" << I.Branches.size()
-                       << "\n";
-          continue;
-        }
-        llvm::outs() << "  stmt [" << I.Text << "]\n";
-        std::string CErr;
-        if (std::optional<CompiledPattern> C =
-                compileCallPattern(I.Text, R.MetaVars, CErr))
-          llvm::outs() << "    matcher: " << C->MatcherSource << "\n";
-        else
-          llvm::outs() << "    NOT COMPILED: " << CErr << "\n";
-      }
     }
     return 0;
   }

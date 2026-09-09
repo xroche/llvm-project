@@ -9,7 +9,7 @@
 #include "PatchRunner.h"
 #include "Edit.h"
 #include "PathQuery.h"
-#include "PatternCompiler.h"
+#include "Unify.h"
 #include "clang/AST/Decl.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
@@ -79,19 +79,39 @@ llvm::DenseMap<const Stmt *, Point> indexStatements(const CFGIndex &Index) {
   return Map;
 }
 
-/// The declaration a pattern's shared metavariable is bound to, or null when
-/// the binding is not a plain reference to one. Two constructs count as
-/// naming the same resource when this returns the same declaration.
-const ValueDecl *boundDecl(const BoundNodes &Nodes, llvm::StringRef Name) {
-  if (const auto *DRE = Nodes.getNodeAs<DeclRefExpr>(Name))
+/// Does \p Pattern anywhere reference the metavariable named \p Name?
+bool namesMetaVar(const Stmt *Pattern, llvm::StringRef Name,
+                  const ParsedPattern &Parsed, ASTContext &Context) {
+  if (!Pattern)
+    return false;
+  if (const auto *Ref = dyn_cast<DeclRefExpr>(Pattern->IgnoreContainers())) {
+    if (const MetaVar *M =
+            Parsed.metaVarFor(Ref->getDecl()->getCanonicalDecl()))
+      if (M->Name == Name)
+        return true;
+  }
+  for (const Stmt *Child : Pattern->children())
+    if (namesMetaVar(Child, Name, Parsed, Context))
+      return true;
+  return false;
+}
+
+/// The declaration a binding names, or null when it is not a plain reference
+/// to one. Two constructs count as naming the same resource when this returns
+/// the same declaration.
+const ValueDecl *boundDecl(const Bindings &Bound, llvm::StringRef Name) {
+  auto It = Bound.find(Name);
+  if (It == Bound.end())
+    return nullptr;
+  const auto *E = dyn_cast<Expr>(It->second);
+  if (!E)
+    return nullptr;
+  // IgnoreParenCasts rather than IgnoreParenImpCasts, so that an explicit
+  // cast on one side of the pair still names the same resource. Treating
+  // `unlock((lock_t *)l)` as a different resource from `lock(l)` reported a
+  // release that was present as missing.
+  if (const auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenCasts()))
     return DRE->getDecl();
-  if (const auto *E = Nodes.getNodeAs<Expr>(Name))
-    // IgnoreParenCasts rather than IgnoreParenImpCasts, so that an explicit
-    // cast on one side of the pair still names the same resource. Treating
-    // `unlock((lock_t *)l)` as a different resource from `lock(l)` reported a
-    // release that was present as missing.
-    if (const auto *DRE = dyn_cast<DeclRefExpr>(E->IgnoreParenCasts()))
-      return DRE->getDecl();
   return nullptr;
 }
 
@@ -172,30 +192,32 @@ void runFlatRule(const Rule &R, const FlatRule &F, ASTContext &Context,
                  RunResult &Result) {
   SourceManager &SM = Context.getSourceManager();
   std::string Error;
-  std::optional<CompiledPattern> Pattern =
-      compileCallPattern(F.Match->Text, R.MetaVars, Error);
-  if (!Pattern) {
+  // The pattern is parsed rather than compiled to a matcher expression, so
+  // every statement form Clang can read is available and not only a call.
+  std::optional<ParsedPattern> Parsed =
+      parsePattern(R.MetaVars, {F.Match->Text}, Error);
+  if (!Parsed) {
     Result.UnrunRules.push_back({R.Name, "pattern: " + Error});
     return;
   }
+  if (!Parsed->Items[0]) {
+    Result.UnrunRules.push_back({R.Name, "pattern: " + Parsed->Errors[0]});
+    return;
+  }
 
-  for (const BoundNodes &Match : matchDynamic(Pattern->Matcher, Context)) {
-    const auto *Call = Match.getNodeAs<CallExpr>("root");
-    if (!Call)
-      continue;
-    const PresumedLoc PL = SM.getPresumedLoc(Call->getBeginLoc());
+  for (const Match &M : findMatches(Parsed->Items[0], *Parsed, Context)) {
+    const PresumedLoc PL = SM.getPresumedLoc(M.Node->getBeginLoc());
     if (PL.isInvalid()) {
       ++Result.AnchorsUnattributed;
       continue;
     }
     Result.Findings.push_back({PL.getFilename(), PL.getLine(), PL.getColumn(),
-                               R.Name,
-                               "matches `" + Pattern->FunctionName + "`"});
+                               R.Name, "matches the pattern"});
     if (!F.Rewrites)
       continue;
     std::string EditError;
-    std::optional<PatternEdit> E = buildEdit(
-        *Call, F.PlusText, Match, Pattern->Bindings, Context, EditError);
+    std::optional<PatternEdit> E =
+        buildEdit(*M.Node, F.PlusText, M.Bound, Context, EditError);
     if (!E) {
       ++Result.EditsRefused;
       continue;
@@ -245,30 +267,44 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
     }
 
     std::string Error;
-    std::optional<CompiledPattern> Anchor =
-        compileCallPattern(Shape->Anchor->Text, R.MetaVars, Error);
-    if (!Anchor) {
-      Result.UnrunRules.push_back({R.Name, "anchor: " + Error});
-      continue;
-    }
     if (Shape->Dots->WhenNot.size() != 1) {
       Result.UnrunRules.push_back(
           {R.Name, "this version checks exactly one `when !=` constraint"});
       continue;
     }
-    std::optional<CompiledPattern> Forbidden =
-        compileCallPattern(Shape->Dots->WhenNot.front(), R.MetaVars, Error);
-    if (!Forbidden) {
-      Result.UnrunRules.push_back({R.Name, "when !=: " + Error});
+    // Both statements are parsed together, so the anchor and the forbidden
+    // construct share one translation unit and one set of metavariable
+    // declarations.
+    std::optional<ParsedPattern> Parsed = parsePattern(
+        R.MetaVars, {Shape->Anchor->Text, Shape->Dots->WhenNot.front()}, Error);
+    if (!Parsed) {
+      Result.UnrunRules.push_back({R.Name, "pattern: " + Error});
       continue;
     }
+    if (!Parsed->Items[0]) {
+      Result.UnrunRules.push_back({R.Name, "anchor: " + Parsed->Errors[0]});
+      continue;
+    }
+    if (!Parsed->Items[1]) {
+      Result.UnrunRules.push_back({R.Name, "when !=: " + Parsed->Errors[1]});
+      continue;
+    }
+
     // The metavariable the two share is what ties the forbidden construct to
     // the anchor. Without one, `when != f(x)` would be satisfied by a release
     // of any resource, which is a different and much weaker property.
     std::string Shared;
-    for (const std::string &B : Anchor->Bindings)
-      if (llvm::is_contained(Forbidden->Bindings, B))
-        Shared = B;
+    for (const MetaVar &M : R.MetaVars) {
+      Bindings A, B;
+      const bool InAnchor =
+          namesMetaVar(Parsed->Items[0], M.Name, *Parsed, Context);
+      const bool InWhen =
+          namesMetaVar(Parsed->Items[1], M.Name, *Parsed, Context);
+      if (InAnchor && InWhen) {
+        Shared = M.Name;
+        break;
+      }
+    }
     if (Shared.empty()) {
       Result.UnrunRules.push_back(
           {R.Name, "the anchor and the `when !=` share no metavariable, so "
@@ -287,13 +323,13 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
     // `f(..., E, ...)` matches once per argument, and the rule holds of the
     // call when it holds of some position, so the first satisfying position
     // reports and the rest are dropped.
-    llvm::DenseSet<const CallExpr *> Reported;
+    llvm::DenseSet<const Stmt *> Reported;
 
-    for (const BoundNodes &Match : matchDynamic(Anchor->Matcher, Context)) {
-      const auto *Call = Match.getNodeAs<CallExpr>("root");
-      if (!Call || Reported.contains(Call))
+    for (const Match &M : findMatches(Parsed->Items[0], *Parsed, Context)) {
+      const Stmt *Call = M.Node;
+      if (Reported.contains(Call))
         continue;
-      const ValueDecl *Res = boundDecl(Match, Shared);
+      const ValueDecl *Res = boundDecl(M.Bound, Shared);
       if (!Res) {
         ++Result.AnchorsUnsupportedResource;
         continue;
@@ -336,11 +372,10 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
       const Point After{It->second.Block, It->second.Elem + 1};
 
       const StmtPredicate IsForbidden = [&](const Stmt *S) {
-        for (const BoundNodes &N :
-             matchDynamic(Forbidden->Matcher, *S, Context))
-          if (boundDecl(N, Shared) == Res)
-            return true;
-        return false;
+        Bindings Bound;
+        if (!unify(Parsed->Items[1], S, *Parsed, Context, Bound))
+          return false;
+        return boundDecl(Bound, Shared) == Res;
       };
 
       const bool Report = *R.Quant == Rule::Quantifier::Exists
@@ -359,9 +394,9 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
       Reported.insert(Call);
       Result.Findings.push_back(
           {PL.getFilename(), PL.getLine(), PL.getColumn(), R.Name,
-           "`" + Forbidden->FunctionName + "` is absent on " +
+           std::string("the `when !=` construct is absent on ") +
                (*R.Quant == Rule::Quantifier::Exists ? "some" : "any") +
-               " path from this `" + Anchor->FunctionName + "`"});
+               " path from this anchor"});
     }
   }
 }

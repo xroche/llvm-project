@@ -4,7 +4,6 @@ set(LLVM_LINK_COMPONENTS
 
 add_clang_library(clangSpatch STATIC
   SmplParser.cpp
-  PatternCompiler.cpp
   PatternParser.cpp
   Edit.cpp
   Unify.cpp
@@ -18,7 +17,6 @@ clang_target_link_libraries(clangSpatch
   clangASTMatchers
   clangAnalysis
   clangBasic
-  clangDynamicASTMatchers
   clangFrontend
   clangSerialization
   clangTooling

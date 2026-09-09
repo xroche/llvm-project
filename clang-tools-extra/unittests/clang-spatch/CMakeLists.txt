@@ -11,7 +11,7 @@ include_directories(
 add_extra_unittest(ClangSpatchTests
   EditTest.cpp
   UnifyTest.cpp
-  PatternCompilerTest.cpp
+  PathQueryTest.cpp
   PatternParserTest.cpp
   SmplParserTest.cpp
   )

@@ -20,7 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SmplParser.h"
-#include "PatternCompiler.h"
+#include "PatternParser.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
@@ -1607,13 +1607,16 @@ void classifyDots(StringRef T, bool BodyFollows, ArrayRef<MetaVar> MetaVars,
       switch (argumentDotsShape(T.substr(Owner + 1, Close - Owner - 1))) {
       case ArgDotsShape::Bare:
       case ArgDotsShape::Prefix:
+      case ArgDotsShape::Suffix:
       case ArgDotsShape::Surrounded:
         // In the subset, but only when the statement is the call itself.
         Name = whyNotAWholeCall(T, Owner, Close, MetaVars);
         break;
-      case ArgDotsShape::Other:
-        Name = "argument-level ellipsis with a named argument after it";
+      case ArgDotsShape::Interior:
+        Name = "argument-level ellipsis between two named arguments";
         break;
+      case ArgDotsShape::NotDotted:
+        break; // The scan found a `...`, so this cannot happen.
       }
       break;
     }
@@ -1657,11 +1660,13 @@ void SmplParser::scanRefusedConstructs(unsigned LineNo, StringRef T, Rule &R,
   // keeps the refusal and the emitted matcher from drifting apart.
   if (DotNames.empty() && T.contains("...")) {
     std::string Why;
-    if (!compileCallPattern(T, R.MetaVars, Why))
-      refuse(LineNo,
-             "argument-level ellipsis beside an argument this tool cannot "
-             "match",
+    std::optional<ParsedPattern> P = parsePattern(R.MetaVars, {T.str()}, Why);
+    if (!P)
+      refuse(LineNo, "argument-level ellipsis in a pattern Clang cannot read",
              Why);
+    else if (!P->Items[0])
+      refuse(LineNo, "argument-level ellipsis in a pattern Clang cannot read",
+             P->Errors[0]);
   }
 
   if (T.starts_with("#"))

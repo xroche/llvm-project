@@ -23,7 +23,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SmplParser.h"
-#include "PatternCompiler.h"
+#include "PatternParser.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
@@ -751,8 +751,11 @@ TEST(SmplParser, EllipsisLevelsAreNamedApart) {
                         "  void __attribute__((...,1,...)) f\n- (int a)\n"
                         "+ ()\n  {...}\n"),
                  "attribute-argument ellipsis");
-  EXPECT_REFUSED(parsed("@r@\nexpression E;\n@@\n- f(..., E);\n"),
-                 "argument-level ellipsis with a named argument after it");
+  // Dots with a named term on each side need a position counted from each
+  // end, which the unifier does not do. The suffix form `f(..., E)` is fine
+  // now that matching walks the tree instead of emitting positional matchers.
+  EXPECT_REFUSED(parsed("@r@\nexpression E, F;\n@@\n- f(E, ..., F);\n"),
+                 "argument-level ellipsis between two named arguments");
   EXPECT_REFUSED(parsed("@r@\nidentifier x;\n@@\n* int x[] = { ... };\n"),
                  "initialiser-level ellipsis");
   EXPECT_REFUSED(parsed("@r@\nidentifier s, x;\n@@\n"
@@ -784,6 +787,8 @@ TEST(SmplParser, EllipsisLevelsAreNamedApart) {
       parsed("@r@\nexpression E;\n@@\n- f(E, ...);\n").fullyUnderstood());
   EXPECT_TRUE(
       parsed("@r@\nexpression E;\n@@\n- f(..., E, ...);\n").fullyUnderstood());
+  EXPECT_TRUE(
+      parsed("@r@\nexpression E;\n@@\n- f(..., E);\n").fullyUnderstood());
   // A body on the next line is what makes a bodyless `f(...)` a definition
   // rather than a call, so the level cannot be read off one line.
   EXPECT_REFUSED(parsed("@r@\nidentifier fn;\n@@\nfn(...)\n{\n- foo();\n}\n"),
@@ -1449,8 +1454,11 @@ TEST(SmplParserSweep, EveryNativeSampleLandsInOneOfThreeStates) {
           if (Named)
             continue;
           std::string Error;
-          const bool Compiled =
-              compileCallPattern(It->Text, Rule.MetaVars, Error).has_value();
+          std::optional<ParsedPattern> Parsed =
+              parsePattern(Rule.MetaVars, {It->Text}, Error);
+          const bool Compiled = Parsed && Parsed->Items[0];
+          if (Parsed && !Parsed->Items[0])
+            Error = Parsed->Errors[0];
           EXPECT_TRUE(Compiled)
               << Rel << ":" << It->Line
               << ": an ellipsis reached a statement's text with no refusal "

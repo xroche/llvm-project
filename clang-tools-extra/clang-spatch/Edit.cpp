@@ -25,16 +25,12 @@ bool isIdentChar(char C) {
 ///
 /// Whole-word, because a metavariable named `E` must not be substituted inside
 /// `END` or inside another metavariable's name.
-std::string substitute(llvm::StringRef Text,
-                       llvm::ArrayRef<std::string> Bindings,
-                       const ast_matchers::BoundNodes &Nodes,
+std::string substitute(llvm::StringRef Text, const Bindings &Bound,
                        ASTContext &Context) {
   std::string Out = Text.str();
-  for (const std::string &Name : Bindings) {
-    const auto *Bound = Nodes.getNodeAs<Stmt>(Name);
-    if (!Bound)
-      continue;
-    const std::string Value = sourceTextOf(*Bound, Context).str();
+  for (const auto &Entry : Bound) {
+    const std::string Name = Entry.first().str();
+    const std::string Value = sourceTextOf(*Entry.second, Context).str();
     for (size_t At = 0; (At = Out.find(Name, At)) != std::string::npos;) {
       const bool LeftOK = At == 0 || !isIdentChar(Out[At - 1]);
       const size_t End = At + Name.size();
@@ -69,9 +65,8 @@ llvm::StringRef sourceTextOf(const Stmt &S, ASTContext &Context) {
 
 std::optional<PatternEdit> buildEdit(const Stmt &Matched,
                                      llvm::StringRef PlusText,
-                                     const ast_matchers::BoundNodes &Nodes,
-                                     llvm::ArrayRef<std::string> Bindings,
-                                     ASTContext &Context, std::string &Error) {
+                                     const Bindings &Bound, ASTContext &Context,
+                                     std::string &Error) {
   const CharSourceRange Range = statementRange(Matched, Context);
   // Every range is validated before a Replacement is built from it, because
   // `Replacement::setFromSourceRange` takes the spelling location
@@ -84,7 +79,7 @@ std::optional<PatternEdit> buildEdit(const Stmt &Matched,
     return std::nullopt;
   }
 
-  const std::string Text = substitute(PlusText, Bindings, Nodes, Context);
+  const std::string Text = substitute(PlusText, Bound, Context);
   return PatternEdit{tooling::Replacement(Context.getSourceManager(), Range,
                                           Text, Context.getLangOpts())};
 }
