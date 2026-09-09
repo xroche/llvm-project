@@ -81,8 +81,14 @@ bool isStatementMetaVar(StringRef T, ArrayRef<MetaVar> MetaVars) {
   return false;
 }
 
-/// The bracket depth \p T leaves behind, ignoring brackets inside a string or
-/// a character literal.
+/// The depth of unclosed `(` and `[` that \p T leaves behind, ignoring any
+/// inside a string or a character literal.
+///
+/// A brace is deliberately not counted. `(` and `[` continue an expression
+/// onto the next line, so `foo(` takes the lines after it. A `{` opens a block
+/// whose contents are separate statements, and joining them produced a
+/// `CompoundStmt` out of an unbalanced brace and broke the statements after it
+/// in the same translation unit.
 int bracketDepth(StringRef T) {
   int Depth = 0;
   bool InString = false, InChar = false;
@@ -99,9 +105,9 @@ int bracketDepth(StringRef T) {
       InString = true;
     else if (C == '\'')
       InChar = true;
-    else if (C == '(' || C == '[' || C == '{')
+    else if (C == '(' || C == '[')
       ++Depth;
-    else if (C == ')' || C == ']' || C == '}')
+    else if (C == ')' || C == ']')
       --Depth;
   }
   return Depth;
@@ -126,9 +132,7 @@ bool continuesOntoNextLine(StringRef T, ArrayRef<MetaVar> MetaVars) {
   if (bracketDepth(T) > 0)
     return true;
   StringRef R = T.rtrim();
-  // A dangling `else` or `do` needs the body that follows it. This is checked
-  // on the accumulated text rather than on one line, because `if (a) b();`
-  // is complete until an `else` is joined onto it.
+  // A dangling `else` or `do` needs the body that follows it.
   if (endsWithWord(R, "else") || endsWithWord(R, "do"))
     return true;
   // An operator or a separator at the end has a right operand on the next
@@ -170,10 +174,7 @@ void groupStatements(std::vector<PatternItem> &Body,
       Out.push_back(std::move(It));
       continue;
     }
-    // `else` belongs to the `if` above it, so a complete `if` branch still
-    // takes the next line when that line opens an else.
-    const bool ElseFollows = startsWithWord(StringRef(It.Text).ltrim(), "else");
-    if (!continuesOntoNextLine(Out.back().Text, MetaVars) && !ElseFollows) {
+    if (!continuesOntoNextLine(Out.back().Text, MetaVars)) {
       Out.push_back(std::move(It));
       continue;
     }

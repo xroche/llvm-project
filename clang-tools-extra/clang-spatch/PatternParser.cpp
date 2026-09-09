@@ -10,6 +10,8 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
+#include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/SourceManager.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
@@ -240,6 +242,22 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
     return std::nullopt;
   }
 
+  // Clang error-recovers, so a node can come back from text it could not read.
+  // The wrapper each item sits in is known by line, so an error inside one
+  // marks that item unparsed rather than letting a partial tree through.
+  const SourceManager &DiagSM = Unit->getSourceManager();
+  llvm::DenseMap<unsigned, std::string> ErrorAtLine;
+  for (auto It = Unit->stored_diag_begin(), E = Unit->stored_diag_end();
+       It != E; ++It) {
+    if (It->getLevel() < DiagnosticsEngine::Error)
+      continue;
+    const FullSourceLoc Loc = It->getLocation();
+    if (!Loc.isValid())
+      continue;
+    const unsigned Line = DiagSM.getSpellingLineNumber(Loc);
+    ErrorAtLine.try_emplace(Line, It->getMessage().str());
+  }
+
   ASTContext &Ctx = Unit->getASTContext();
   for (Decl *D : Ctx.getTranslationUnitDecl()->decls()) {
     const auto *FD = dyn_cast<FunctionDecl>(D);
@@ -258,6 +276,20 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
     unsigned Index = 0;
     if (Name.getAsInteger(10, Index) || Index >= Statements.size())
       continue;
+    // The wrapper spans from its own line to its closing brace, so any error
+    // inside that span belongs to this item.
+    const unsigned First = DiagSM.getSpellingLineNumber(FD->getBeginLoc());
+    const unsigned Last = DiagSM.getSpellingLineNumber(FD->getEndLoc());
+    bool Errored = false;
+    for (unsigned L = First; L <= Last && !Errored; ++L)
+      if (auto Found = ErrorAtLine.find(L); Found != ErrorAtLine.end()) {
+        P.Errors[Index] =
+            "the pattern statement did not parse as C: " + Found->second;
+        Errored = true;
+      }
+    if (Errored)
+      continue;
+
     const auto *Body = dyn_cast<CompoundStmt>(FD->getBody());
     if (!Body || Body->body_empty()) {
       P.Errors[Index] = "the pattern statement did not parse as C";
@@ -269,7 +301,21 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
       P.Errors[Index] = "the pattern line holds more than one statement";
       continue;
     }
-    P.Items[Index] = Body->body_front();
+    const Stmt *Only = Body->body_front();
+    // `double complex` is a valid type in gnu11, so it parses as a
+    // declaration that declares nothing. Clang only warns, and the pattern is
+    // a type rather than a statement, so the node is not usable.
+    if (const auto *DS = dyn_cast<DeclStmt>(Only))
+      if (DS->decl_begin() == DS->decl_end()) {
+        P.Errors[Index] = "the pattern is a type rather than a statement";
+        continue;
+      }
+    // A pattern that is only a semicolon carries nothing to match.
+    if (isa<NullStmt>(Only)) {
+      P.Errors[Index] = "the pattern line carries no statement";
+      continue;
+    }
+    P.Items[Index] = Only;
   }
 
   for (unsigned I : Wrapped)

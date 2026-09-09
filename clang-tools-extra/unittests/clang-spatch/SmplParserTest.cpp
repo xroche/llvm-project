@@ -1643,11 +1643,20 @@ TEST(SmplParser, AnUnclosedBracketTakesTheFollowingLines) {
   EXPECT_EQ("foo( E, 1)", P.Rules[0].Body[0].Text);
 }
 
-TEST(SmplParser, AnElseJoinsTheIfAboveIt) {
+TEST(SmplParser, AnElseIsNotJoinedBackwardsOntoTheIfAboveIt) {
+  // A dangling `else` takes the line after it, so `else` and its body are one
+  // item. It is NOT joined backwards onto a complete `if` branch.
+  //
+  // Joining backwards looks right and cannot work. A transformed `if` keeps
+  // its head on a context line and its branches on `-` and `+` lines, so the
+  // statement spans a marker change and no same-marker rule can assemble it.
+  // What the backward join did instead was fuse two `-` lines of
+  // tests/elsify.cocci into `GOTO(e1); else GOTO(e2);`, which does not parse.
   SemanticPatch P = parsed("@r@\n@@\n- if (a)\n-   b();\n- else\n-   c();\n");
   ASSERT_EQ(1u, P.Rules.size());
-  ASSERT_EQ(1u, P.Rules[0].Body.size()) << refusalList(P);
-  EXPECT_EQ("if (a) b(); else c();", P.Rules[0].Body[0].Text);
+  ASSERT_EQ(2u, P.Rules[0].Body.size()) << refusalList(P);
+  EXPECT_EQ("if (a) b();", P.Rules[0].Body[0].Text);
+  EXPECT_EQ("else c();", P.Rules[0].Body[1].Text);
 }
 
 TEST(SmplParser, ABareStatementMetavariableDoesNotAbsorbTheNextLine) {
