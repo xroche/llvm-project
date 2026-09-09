@@ -20,6 +20,7 @@
 #include "SemanticPatch.h"
 #include "clang/ASTMatchers/ASTMatchersInternal.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringRef.h"
 #include <optional>
 #include <string>
 #include <vector>
@@ -42,6 +43,23 @@ struct CompiledPattern {
   /// The matched call itself is bound under the id `root`.
   std::vector<std::string> Bindings;
 };
+
+/// The shape of an argument list that holds at least one `...`.
+///
+/// The shape decides whether a matcher can be emitted, so the parser and the
+/// compiler must agree on it: the parser refuses the shapes outside the subset
+/// by name, and the compiler emits the ones inside it.
+enum class ArgDotsShape {
+  Bare,       ///< `f(...)`, so any arguments at all.
+  Prefix,     ///< `f(E1, ..., En, ...)`, every named argument before the dots.
+  Surrounded, ///< `f(..., E, ...)` with exactly one named argument.
+  Other       ///< Anything else, a suffix or a second named term included.
+};
+
+/// The shape of \p Args, which must be the text between a call's parentheses.
+/// Returns Other when it holds no `...` at all, because a caller asks this
+/// only about a list that does.
+ArgDotsShape argumentDotsShape(llvm::StringRef Args);
 
 /// Compiles a call-statement pattern such as `mutex_lock(l);`.
 ///

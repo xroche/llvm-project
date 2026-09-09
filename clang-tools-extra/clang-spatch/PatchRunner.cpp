@@ -14,6 +14,7 @@
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Basic/SourceManager.h"
 #include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/DenseSet.h"
 
 using namespace clang::ast_matchers;
 
@@ -172,10 +173,14 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
     llvm::DenseMap<const FunctionDecl *, std::unique_ptr<CFG>> Graphs;
     llvm::DenseMap<const FunctionDecl *, llvm::DenseMap<const Stmt *, Point>>
         Points;
+    // `f(..., E, ...)` matches once per argument, and the rule holds of the
+    // call when it holds of some position, so the first satisfying position
+    // reports and the rest are dropped.
+    llvm::DenseSet<const CallExpr *> Reported;
 
     for (const BoundNodes &Match : matchDynamic(Anchor->Matcher, Context)) {
       const auto *Call = Match.getNodeAs<CallExpr>("root");
-      if (!Call)
+      if (!Call || Reported.contains(Call))
         continue;
       const ValueDecl *Res = boundDecl(Match, Shared);
       if (!Res) {
@@ -240,6 +245,7 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
         ++Result.AnchorsUnattributed;
         continue;
       }
+      Reported.insert(Call);
       Result.Findings.push_back(
           {PL.getFilename(), PL.getLine(), PL.getColumn(), R.Name,
            "`" + Forbidden->FunctionName + "` is absent on " +

@@ -20,6 +20,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SmplParser.h"
+#include "PatternCompiler.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
@@ -305,7 +306,8 @@ private:
   bool parseWhen(ArrayRef<PhysLine> BodyLines, size_t &Bi, StringRef WhenText,
                  PatternItem &Dots);
   bool parsePositions(const PhysLine &L, PatternItem &It, Rule &R);
-  void scanRefusedConstructs(unsigned LineNo, StringRef Text, Rule &R);
+  void scanRefusedConstructs(unsigned LineNo, StringRef Text, Rule &R,
+                             bool BodyFollows);
   bool parseScriptRule(const PhysLine &L, StringRef H);
   void skipRuleTail();
   bool setFileMode(const PhysLine &L, bool IsMatch);
@@ -1209,21 +1211,6 @@ bool SmplParser::parseMetaDecls(Rule &R) {
              "unterminated metavariable block: expected '@@'");
 }
 
-/// True when a "..." sits inside parentheses, the shape shared by argument-
-/// and parameter-level ellipses.
-bool dotsInsideParens(StringRef T) {
-  int Depth = 0;
-  for (size_t I = 0, E = T.size(); I != E; ++I) {
-    if (T[I] == '(')
-      ++Depth;
-    else if (T[I] == ')')
-      --Depth;
-    else if (Depth > 0 && T.drop_front(I).starts_with("..."))
-      return true;
-  }
-  return false;
-}
-
 /// True when \p T has the shape of a function definition or prototype
 /// pattern rather than a statement. The text before the first '(' has to read
 /// as a declarator, that is identifiers, '*' and whitespace only, so that an
@@ -1287,45 +1274,238 @@ bool isRecordHeader(StringRef S) {
   return First != "else" && First != "do";
 }
 
-/// Names every "..." in \p T that is not the statement-level ellipsis. The
-/// level is decided by the neighbouring non-space characters, because one
-/// line can carry dots at two levels.
-void classifyDots(StringRef T, SmallVectorImpl<const char *> &Names) {
+/// What the bracket enclosing a "..." belongs to.
+///
+/// The level decides whether an ellipsis is a path through the control-flow
+/// graph or a list of terms, and the levels are not interchangeable: a call's
+/// argument list, a parameter list, a condition and an attribute argument list
+/// all reach the parser as "..." between parentheses.
+enum class DotsOwner {
+  Call,
+  Parameter,
+  Condition,
+  Attribute,
+  Record,
+  Enum,
+  Initialiser,
+  Array,
+  Block,
+  Statement
+};
+
+/// The bracket enclosing the "..." at \p At, and what it belongs to.
+///
+/// Returns Statement when no bracket on this line encloses the position, and
+/// \p Closed reports whether that bracket also closes on this line. A bracket
+/// left open cannot be classified by shape, so a caller must not read a shape
+/// out of it.
+DotsOwner dotsOwner(StringRef T, size_t At, bool BodyFollows, bool &Closed) {
+  Closed = false;
+  int Depth = 0;
+  size_t Owner = StringRef::npos;
+  for (size_t I = At; I-- > 0;) {
+    const char C = T[I];
+    if (C == ')' || C == ']' || C == '}')
+      ++Depth;
+    else if (C == '(' || C == '[' || C == '{') {
+      if (Depth == 0) {
+        Owner = I;
+        break;
+      }
+      --Depth;
+    }
+  }
+  if (Owner == StringRef::npos)
+    return DotsOwner::Statement;
+
+  StringRef Head = T.take_front(Owner).rtrim();
+  const char Open = T[Owner];
+
+  // Find the matching close, so a caller can tell a complete argument list
+  // from one continued on the next line.
+  Depth = 0;
+  size_t Close = StringRef::npos;
+  for (size_t I = Owner, E = T.size(); I != E; ++I) {
+    if (T[I] == '(' || T[I] == '[' || T[I] == '{')
+      ++Depth;
+    else if (T[I] == ')' || T[I] == ']' || T[I] == '}') {
+      if (--Depth == 0) {
+        Close = I;
+        break;
+      }
+    }
+  }
+  Closed = Close != StringRef::npos;
+
+  if (Open == '[')
+    return DotsOwner::Array;
+  if (Open == '{') {
+    if (Head.ends_with("="))
+      return DotsOwner::Initialiser;
+    if (hasWord(Head, "enum"))
+      return DotsOwner::Enum;
+    if (hasWord(Head, "struct") || hasWord(Head, "union") ||
+        isRecordHeader(Head))
+      return DotsOwner::Record;
+    return DotsOwner::Block;
+  }
+
+  // An open parenthesis. What precedes it decides, except that a nested
+  // parenthesis inside `__attribute__((...))` has no name before it.
+  if (Head.ends_with("("))
+    Head = Head.drop_back(1).rtrim();
+  size_t NameAt = Head.size();
+  while (NameAt != 0 && isIdentCont(Head[NameAt - 1]))
+    --NameAt;
+  const StringRef Name = Head.drop_front(NameAt);
+  if (Name == "if" || Name == "while" || Name == "for" || Name == "switch")
+    return DotsOwner::Condition;
+  if (Name == "__attribute__")
+    return DotsOwner::Attribute;
+  // A body after the list makes it a definition's parameter list. Coccinelle
+  // writes a bodyless `f(...)` as a call and `f(...) { }` as a definition, so
+  // the brace is what separates them, and it can sit on the next line.
+  if (Closed) {
+    StringRef Rest = T.drop_front(Close + 1).ltrim();
+    // `main(...)@c2 {` attaches a position to the closing parenthesis.
+    if (Rest.starts_with("@")) {
+      Rest = Rest.drop_front(1);
+      size_t End = 0;
+      while (End != Rest.size() && isIdentCont(Rest[End]))
+        ++End;
+      Rest = Rest.drop_front(End).ltrim();
+    }
+    if (Rest.starts_with("{") || (Rest.empty() && BodyFollows))
+      return DotsOwner::Parameter;
+  }
+  return DotsOwner::Call;
+}
+
+/// Names what stops \p T from being the call statement whose parentheses open
+/// at \p Owner and close at \p Close, or nullptr when nothing does.
+///
+/// An argument list inside a larger expression, as in `x = alloc(...)`, has a
+/// representable shape and no statement to anchor on, so the shape alone must
+/// not decide the refusal.
+const char *whyNotAWholeCall(StringRef T, size_t Owner, size_t Close,
+                             ArrayRef<MetaVar> MetaVars) {
+  StringRef Tail = T.drop_front(Close + 1).trim();
+  Tail.consume_front(";");
+  if (!Tail.trim().empty())
+    return "argument-level ellipsis inside an expression rather than a call "
+           "statement";
+  StringRef Head = T.take_front(Owner).trim();
+  if (Head.contains("@"))
+    // The attachment is dropped before the compiler sees the text, so a rule
+    // inheriting this position would match more than it says.
+    return "argument-level ellipsis on a call carrying a position attachment";
+  if (Head.empty())
+    return "argument-level ellipsis on a call with no callee named";
+  for (char C : Head)
+    if (!isIdentCont(C))
+      return "argument-level ellipsis inside an expression rather than a call "
+             "statement";
+  for (const MetaVar &M : MetaVars)
+    if (M.Name == Head)
+      return "argument-level ellipsis on a call whose callee is a "
+             "metavariable";
+  return nullptr;
+}
+
+/// Names every "..." in \p T that this tool cannot represent, leaving the ones
+/// it can unnamed so they reach the pattern compiler.
+void classifyDots(StringRef T, bool BodyFollows, ArrayRef<MetaVar> MetaVars,
+                  SmallVectorImpl<const char *> &Names) {
   size_t I = 0;
   while (true) {
     size_t At = T.find("...", I);
     if (At == StringRef::npos)
       return;
     I = At + 3;
-    StringRef Pre = T.take_front(At).rtrim();
-    StringRef Post = T.drop_front(At + 3).ltrim();
-    char PC = Pre.empty() ? '\0' : Pre.back();
-    char FC = Post.empty() ? '\0' : Post.front();
+    bool Closed = false;
     const char *Name = nullptr;
-    if (PC == '(' || FC == ')' || PC == ',' || FC == ',')
-      Name = "argument-level or parameter-level ellipsis";
-    else if (PC == '{' && Pre.drop_back(1).rtrim().ends_with("="))
-      Name = "initialiser-level ellipsis";
-    else if (PC == '{' && (hasWord(Pre, "struct") || hasWord(Pre, "union")))
+    switch (dotsOwner(T, At, BodyFollows, Closed)) {
+    case DotsOwner::Condition:
+      Name = "condition ellipsis";
+      break;
+    case DotsOwner::Attribute:
+      Name = "attribute-argument ellipsis";
+      break;
+    case DotsOwner::Parameter:
+      Name = "parameter-level ellipsis";
+      break;
+    case DotsOwner::Record:
       Name = "field-level ellipsis";
-    else if (PC == '{' && hasWord(Pre, "enum"))
+      break;
+    case DotsOwner::Enum:
       Name = "enumerator-level ellipsis";
-    else if (PC == '{' && isRecordHeader(Pre.drop_back(1)))
-      Name = "field-level ellipsis";
-    else if (PC == '[' || FC == ']')
+      break;
+    case DotsOwner::Initialiser:
+      Name = "initialiser-level ellipsis";
+      break;
+    case DotsOwner::Array:
       Name = "array-size ellipsis";
-    else if (PC == '{' || FC == '}')
+      break;
+    case DotsOwner::Block:
       Name = "ellipsis inside a one-line block";
-    else
+      break;
+    case DotsOwner::Statement:
       // Every ellipsis left in a statement's text gets a name, because the
       // text is handed on verbatim and a '...' in it is not C.
       Name = "expression-level ellipsis";
-    Names.push_back(Name);
+      break;
+    case DotsOwner::Call: {
+      if (!Closed) {
+        Name = "argument-level ellipsis continued on another line";
+        break;
+      }
+      // Re-derive the argument list from the owning parenthesis.
+      int Depth = 0;
+      size_t Owner = StringRef::npos;
+      for (size_t J = At; J-- > 0;) {
+        const char C = T[J];
+        if (C == ')' || C == ']' || C == '}')
+          ++Depth;
+        else if (C == '(' || C == '[' || C == '{') {
+          if (Depth == 0) {
+            Owner = J;
+            break;
+          }
+          --Depth;
+        }
+      }
+      Depth = 0;
+      size_t Close = StringRef::npos;
+      for (size_t J = Owner, E = T.size(); J != E; ++J) {
+        if (T[J] == '(' || T[J] == '[' || T[J] == '{')
+          ++Depth;
+        else if (T[J] == ')' || T[J] == ']' || T[J] == '}')
+          if (--Depth == 0) {
+            Close = J;
+            break;
+          }
+      }
+      switch (argumentDotsShape(T.substr(Owner + 1, Close - Owner - 1))) {
+      case ArgDotsShape::Bare:
+      case ArgDotsShape::Prefix:
+      case ArgDotsShape::Surrounded:
+        // In the subset, but only when the statement is the call itself.
+        Name = whyNotAWholeCall(T, Owner, Close, MetaVars);
+        break;
+      case ArgDotsShape::Other:
+        Name = "argument-level ellipsis with a named argument after it";
+        break;
+      }
+      break;
+    }
+    }
+    if (Name)
+      Names.push_back(Name);
   }
 }
 
-void SmplParser::scanRefusedConstructs(unsigned LineNo, StringRef T, Rule &R) {
-  (void)R;
+void SmplParser::scanRefusedConstructs(unsigned LineNo, StringRef T, Rule &R,
+                                       bool BodyFollows) {
   if (T.contains("\\(") || T.contains("\\|") || T.contains("\\)"))
     refuse(LineNo, "backslash disjunction \\( \\| \\)",
            "the backslash form may appear anywhere, including inside an "
@@ -1346,11 +1526,24 @@ void SmplParser::scanRefusedConstructs(unsigned LineNo, StringRef T, Rule &R) {
            "only warns, so the rule means something other than it looks like");
 
   SmallVector<const char *, 4> DotNames;
-  classifyDots(T, DotNames);
+  classifyDots(T, BodyFollows, R.MetaVars, DotNames);
   for (const char *Name : DotNames)
     refuse(LineNo, Name,
            "an ellipsis at this level matches a list of terms rather than a "
            "path through the control-flow graph");
+
+  // An argument list whose ellipsis is representable can still name an
+  // argument that is not, as a type metavariable or an address-of does. The
+  // compiler owns that rule, so it is asked rather than copied, which is what
+  // keeps the refusal and the emitted matcher from drifting apart.
+  if (DotNames.empty() && T.contains("...")) {
+    std::string Why;
+    if (!compileCallPattern(T, R.MetaVars, Why))
+      refuse(LineNo,
+             "argument-level ellipsis beside an argument this tool cannot "
+             "match",
+             Why);
+  }
 
   if (T.starts_with("#"))
     refuse(LineNo, "preprocessor directive pattern",
@@ -1660,8 +1853,13 @@ bool SmplParser::parseBody(Rule &R) {
     }
   };
 
+  // Whether the next body line opens a block, which is what separates a
+  // bodyless `f(...)` call pattern from a `f(...)` function header. Set at the
+  // top of each iteration so addStatement sees the current line's lookahead.
+  bool NextOpensBlock = false;
+
   auto addStatement = [&](unsigned LineNo, ItemMarker M, StringRef Text) {
-    scanRefusedConstructs(LineNo, Text, R);
+    scanRefusedConstructs(LineNo, Text, R, NextOpensBlock);
     PatternItem It;
     It.Kind = ItemKind::Statement;
     It.Marker = M;
@@ -1679,6 +1877,17 @@ bool SmplParser::parseBody(Rule &R) {
     StringRef T = Raw.trim();
     if (T.empty())
       continue;
+
+    NextOpensBlock = false;
+    for (size_t Nj = Bi + 1; Nj != BodyLines.size(); ++Nj) {
+      StringRef N = BodyLines[Nj].Text.trim();
+      if (N.empty())
+        continue;
+      if (N.front() == '-' || N.front() == '+' || N.front() == '*')
+        N = N.drop_front().ltrim();
+      NextOpensBlock = N.starts_with("{");
+      break;
+    }
 
     if (Raw.starts_with("---") || Raw.starts_with("+++")) {
       refuse(L.Number, "--- / +++ filespec header",
@@ -1841,7 +2050,7 @@ bool SmplParser::parseBody(Rule &R) {
 
     if (Head.contains("<...") || Head.contains("<+...") ||
         Head.contains("...>") || Head.contains("...+>")) {
-      scanRefusedConstructs(L.Number, Head, R);
+      scanRefusedConstructs(L.Number, Head, R, NextOpensBlock);
       DotsIn = nullptr;
       LastDots = -1;
       WhenTargetRefused = true;

@@ -55,33 +55,6 @@ bool isIdentifier(llvm::StringRef S) {
   return llvm::all_of(S, [](char C) { return isalnum(C) || C == '_'; });
 }
 
-/// Splits an argument list on commas that are not nested inside brackets.
-/// Returns false when the brackets do not balance.
-bool splitArguments(llvm::StringRef Args,
-                    llvm::SmallVectorImpl<llvm::StringRef> &Out) {
-  int Depth = 0;
-  size_t Start = 0;
-  for (size_t I = 0; I != Args.size(); ++I) {
-    const char C = Args[I];
-    if (C == '(' || C == '[')
-      ++Depth;
-    else if (C == ')' || C == ']')
-      --Depth;
-    else if (C == ',' && Depth == 0) {
-      Out.push_back(Args.substr(Start, I - Start).trim());
-      Start = I + 1;
-    }
-    if (Depth < 0)
-      return false;
-  }
-  if (Depth != 0)
-    return false;
-  llvm::StringRef Last = Args.substr(Start).trim();
-  if (!Last.empty() || !Out.empty())
-    Out.push_back(Last);
-  return true;
-}
-
 const MetaVar *findMetaVar(llvm::ArrayRef<MetaVar> MetaVars,
                            llvm::StringRef Name) {
   for (const MetaVar &M : MetaVars)
@@ -92,23 +65,30 @@ const MetaVar *findMetaVar(llvm::ArrayRef<MetaVar> MetaVars,
 
 /// The matcher source for one argument, or empty when the argument is outside
 /// the subset.
+///
+/// \p Extra becomes the node matcher's leading clauses, which is how the
+/// surrounded shape adds the exclusions that keep a callee and a C++ default
+/// argument out of its enumeration.
 std::string argumentMatcher(llvm::StringRef Arg,
                             llvm::ArrayRef<MetaVar> MetaVars,
-                            std::string &Error) {
+                            llvm::StringRef Extra, std::string &Error) {
+  const std::string Lead = Extra.empty() ? std::string() : (Extra + ", ").str();
   if (const MetaVar *M = findMetaVar(MetaVars, Arg)) {
     switch (M->Kind) {
     case MetaVar::Kind::Expression:
-      return "expr().bind(\"" + M->Name + "\")";
+      return "expr(" + Extra.str() + ").bind(\"" + M->Name + "\")";
     case MetaVar::Kind::Constant:
       // Not `expr()`. A constant metavariable describes a literal or an
       // enumerator, and Coccinelle's own expected output for tests/constx.cocci
       // rewrites foo(12) and foo('a') while leaving foo(x) alone.
-      return "expr(anyOf(integerLiteral(), floatLiteral(), stringLiteral(), "
+      return "expr(" + Lead +
+             "anyOf(integerLiteral(), floatLiteral(), stringLiteral(), "
              "characterLiteral(), cxxBoolLiteral(), "
              "declRefExpr(to(enumConstantDecl())))).bind(\"" +
              M->Name + "\")";
     case MetaVar::Kind::Identifier:
-      return "declRefExpr(to(namedDecl())).bind(\"" + M->Name + "\")";
+      return "declRefExpr(" + Lead + "to(namedDecl())).bind(\"" + M->Name +
+             "\")";
     case MetaVar::Kind::Statement:
       Error = "statement metavariable used as a call argument";
       return {};
@@ -126,7 +106,8 @@ std::string argumentMatcher(llvm::StringRef Arg,
   // because several real rules pin a flag or a size that way.
   long long Value = 0;
   if (!Arg.empty() && !Arg.getAsInteger(0, Value))
-    return ("integerLiteral(equals(" + llvm::Twine(Value) + "))").str();
+    return ("integerLiteral(" + Lead + "equals(" + llvm::Twine(Value) + "))")
+        .str();
 
   Error = ("argument `" + Arg +
            "` is neither a declared metavariable nor an integer literal")
@@ -134,7 +115,66 @@ std::string argumentMatcher(llvm::StringRef Arg,
   return {};
 }
 
+/// Splits \p Args on the commas that sit outside every bracket.
+///
+/// Returns false when the brackets do not balance, in which case \p Out holds
+/// whatever was split before the imbalance.
+bool splitArgumentList(llvm::StringRef Args,
+                       llvm::SmallVectorImpl<llvm::StringRef> &Out) {
+  int Depth = 0;
+  size_t Start = 0;
+  for (size_t I = 0, E = Args.size(); I != E; ++I) {
+    const char C = Args[I];
+    if (C == '(' || C == '[' || C == '{')
+      ++Depth;
+    else if (C == ')' || C == ']' || C == '}')
+      --Depth;
+    else if (C == ',' && Depth == 0) {
+      Out.push_back(Args.substr(Start, I - Start).trim());
+      Start = I + 1;
+    }
+    if (Depth < 0)
+      return false;
+  }
+  if (Depth != 0)
+    return false;
+  llvm::StringRef Last = Args.substr(Start).trim();
+  if (!Last.empty() || !Out.empty())
+    Out.push_back(Last);
+  return true;
+}
+
+/// The id the surrounded shape binds the callee under, so that the enumeration
+/// can exclude it by node identity. Chosen not to collide with a metavariable
+/// name, which SmPL does not allow to contain a dot.
+constexpr llvm::StringLiteral CalleeBindId = "spatch.callee";
+
 } // namespace
+
+ArgDotsShape argumentDotsShape(llvm::StringRef Args) {
+  llvm::SmallVector<llvm::StringRef, 8> Parts;
+  if (!splitArgumentList(Args, Parts))
+    return ArgDotsShape::Other;
+  llvm::SmallVector<unsigned, 4> Dots;
+  for (unsigned I = 0, E = Parts.size(); I != E; ++I)
+    if (Parts[I] == "...")
+      Dots.push_back(I);
+  if (Dots.empty())
+    return ArgDotsShape::Other;
+  if (Parts.size() == 1)
+    return ArgDotsShape::Bare;
+  // Every ellipsis at the tail leaves each named argument at a fixed index, so
+  // positional constraints express the list exactly.
+  if (Dots.front() != 0 && Dots.back() == Parts.size() - 1 &&
+      Dots.size() == Parts.size() - Dots.front())
+    return ArgDotsShape::Prefix;
+  // One named argument between two ellipses is the only unanchored shape the
+  // matcher language can enumerate. Two of them would have to be adjacent and
+  // in order, and two enumerations give the cross product instead.
+  if (Parts.size() == 3 && Dots.size() == 2 && Dots[0] == 0 && Dots[1] == 2)
+    return ArgDotsShape::Surrounded;
+  return ArgDotsShape::Other;
+}
 
 std::optional<CompiledPattern>
 compileCallPattern(llvm::StringRef Text, llvm::ArrayRef<MetaVar> MetaVars,
@@ -163,10 +203,30 @@ compileCallPattern(llvm::StringRef Text, llvm::ArrayRef<MetaVar> MetaVars,
                 .str();
     return std::nullopt;
   }
+  if (findMetaVar(MetaVars, Name)) {
+    // Matching the metavariable's own spelling would match a function that
+    // happens to carry that name and miss every call the rule means, while
+    // reporting that the pattern compiled.
+    Error = ("callee `" + Name +
+             "` is a metavariable, and matching a callee by a metavariable "
+             "needs a binding over the callee rather than a name")
+                .str();
+    return std::nullopt;
+  }
 
   llvm::SmallVector<llvm::StringRef, 4> Args;
-  if (!splitArguments(S.substr(Open + 1, S.size() - Open - 2), Args)) {
+  if (!splitArgumentList(S.substr(Open + 1, S.size() - Open - 2), Args)) {
     Error = "unbalanced brackets in the argument list";
+    return std::nullopt;
+  }
+
+  const bool HasDots = llvm::is_contained(Args, "...");
+  const ArgDotsShape Shape =
+      HasDots ? argumentDotsShape(S.substr(Open + 1, S.size() - Open - 2))
+              : ArgDotsShape::Other;
+  if (HasDots && Shape == ArgDotsShape::Other) {
+    Error = "the argument list puts a named argument after a `...`, which "
+            "needs the argument's position and it is not determined";
     return std::nullopt;
   }
 
@@ -174,25 +234,54 @@ compileCallPattern(llvm::StringRef Text, llvm::ArrayRef<MetaVar> MetaVars,
   std::string Src;
   llvm::raw_string_ostream OS(Src);
   OS << "callExpr(callee(functionDecl(hasName(\"" << Name << "\")))";
-  // The count is pinned so that a pattern naming two arguments does not match a
-  // call taking three. Coccinelle needs `...` inside the argument list to relax
-  // this, which the subset does not have, so being strict is the honest choice.
-  OS << ", argumentCountIs(" << Args.size() << ")";
-  for (unsigned I = 0; I != Args.size(); ++I) {
-    if (Args[I].empty()) {
-      Error = "the argument list has an empty slot, so the pattern is not a "
-              "call this compiler can constrain";
-      return std::nullopt;
-    }
+
+  if (!HasDots) {
+    // The count is pinned so that a pattern naming two arguments does not
+    // match a call taking three. A `...` in the list is what relaxes it.
+    OS << ", argumentCountIs(" << Args.size() << ")";
+  }
+
+  if (Shape == ArgDotsShape::Surrounded) {
+    // The one argument sits at no fixed index, so the matcher enumerates the
+    // call's children and excludes the two that are not written arguments.
+    // `forEach` yields one match per argument, which is what makes the
+    // position existential rather than fixed at zero the way `hasAnyArgument`
+    // would leave it.
+    const llvm::StringRef Arg = Args[1];
+    const std::string Exclusions = ("unless(equalsBoundNode(\"" + CalleeBindId +
+                                    "\")), unless(cxxDefaultArgExpr())")
+                                       .str();
     std::string ArgErr;
-    const std::string M = argumentMatcher(Args[I], MetaVars, ArgErr);
+    const std::string M = argumentMatcher(Arg, MetaVars, Exclusions, ArgErr);
     if (M.empty()) {
       Error = ArgErr;
       return std::nullopt;
     }
-    OS << ", hasArgument(" << I << ", " << M << ")";
-    if (const MetaVar *MV = findMetaVar(MetaVars, Args[I]))
+    // The callee binding has to precede the enumeration, because
+    // `equalsBoundNode` on an id that is not yet bound lets every node through.
+    OS << ", callee(expr().bind(\"" << CalleeBindId << "\"))";
+    OS << ", forEach(" << M << ")";
+    if (const MetaVar *MV = findMetaVar(MetaVars, Arg))
       Bindings.push_back(MV->Name);
+  } else {
+    for (unsigned I = 0; I != Args.size(); ++I) {
+      if (Args[I] == "...")
+        break; // Bare and prefix shapes leave the tail unconstrained.
+      if (Args[I].empty()) {
+        Error = "the argument list has an empty slot, so the pattern is not a "
+                "call this compiler can constrain";
+        return std::nullopt;
+      }
+      std::string ArgErr;
+      const std::string M = argumentMatcher(Args[I], MetaVars, "", ArgErr);
+      if (M.empty()) {
+        Error = ArgErr;
+        return std::nullopt;
+      }
+      OS << ", hasArgument(" << I << ", " << M << ")";
+      if (const MetaVar *MV = findMetaVar(MetaVars, Args[I]))
+        Bindings.push_back(MV->Name);
+    }
   }
   OS << ").bind(\"root\")";
 

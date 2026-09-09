@@ -23,6 +23,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "SmplParser.h"
+#include "PatternCompiler.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringMap.h"
@@ -740,8 +741,18 @@ TEST(SmplParser, MetaVarKindsOutsideTheSubset) {
 }
 
 TEST(SmplParser, EllipsisLevelsAreNamedApart) {
-  EXPECT_REFUSED(parsed("@r@\nidentifier f;\n@@\n* f(...);\n"),
-                 "argument-level or parameter-level ellipsis");
+  // One parenthesis holds four different constructs, and one refusal name for
+  // all of them reported an `if` condition as an argument list.
+  EXPECT_REFUSED(parsed("@r@\nexpression E;\n@@\n* if (...) foo(E);\n"),
+                 "condition ellipsis");
+  EXPECT_REFUSED(parsed("@r@\n@@\n- void f(...) {\n- foo();\n- }\n"),
+                 "parameter-level ellipsis");
+  EXPECT_REFUSED(parsed("@r@\nidentifier a;\n@@\n"
+                        "  void __attribute__((...,1,...)) f\n- (int a)\n"
+                        "+ ()\n  {...}\n"),
+                 "attribute-argument ellipsis");
+  EXPECT_REFUSED(parsed("@r@\nexpression E;\n@@\n- f(..., E);\n"),
+                 "argument-level ellipsis with a named argument after it");
   EXPECT_REFUSED(parsed("@r@\nidentifier x;\n@@\n* int x[] = { ... };\n"),
                  "initialiser-level ellipsis");
   EXPECT_REFUSED(parsed("@r@\nidentifier s, x;\n@@\n"
@@ -764,6 +775,23 @@ TEST(SmplParser, EllipsisLevelsAreNamedApart) {
   EXPECT_REFUSED(parsed("@r exists@\nexpression E;\n@@\n  foo(E);\n"
                         "  <+... bar(E); ...+>\n- baz(E);\n"),
                  "nested dots <... ...>");
+
+  // The three shapes the compiler emits are no longer refused at all. A
+  // refusal here would be the tool declining what it can do, which the counts
+  // would report as an unsupported construct.
+  EXPECT_TRUE(parsed("@r@\n@@\n- f(...);\n").fullyUnderstood());
+  EXPECT_TRUE(
+      parsed("@r@\nexpression E;\n@@\n- f(E, ...);\n").fullyUnderstood());
+  EXPECT_TRUE(
+      parsed("@r@\nexpression E;\n@@\n- f(..., E, ...);\n").fullyUnderstood());
+  // A body on the next line is what makes a bodyless `f(...)` a definition
+  // rather than a call, so the level cannot be read off one line.
+  EXPECT_REFUSED(parsed("@r@\nidentifier fn;\n@@\nfn(...)\n{\n- foo();\n}\n"),
+                 "parameter-level ellipsis");
+  // A position can sit between the closing parenthesis and the body.
+  EXPECT_REFUSED(parsed("@r@\ntype T;\nposition c;\n@@\n"
+                        "T main(...)@c {\n- foo();\n}\n"),
+                 "parameter-level ellipsis");
 }
 
 TEST(SmplParser, BodyConstructsOutsideTheSubset) {
@@ -946,7 +974,7 @@ TEST(SmplParserKernel, KmallocObjsNamesEveryRefusedConstruct) {
   EXPECT_REFUSED(P, "python constraint on a metavariable");
   EXPECT_REFUSED(P, "depends on file in");
   EXPECT_REFUSED(P, "backslash disjunction \\( \\| \\)");
-  EXPECT_REFUSED(P, "argument-level or parameter-level ellipsis");
+  EXPECT_REFUSED(P, "argument-level ellipsis continued on another line");
 }
 
 TEST(SmplParserKernel, BadzeroNeedsOcaml) {
@@ -971,16 +999,16 @@ TEST(SmplParserKernel, ClkPutNeedsWhenForallAndANest) {
   SemanticPatch P = parsed(readInput("cocci/kernel/free/clk_put.cocci"));
   EXPECT_REFUSED(P, "when forall");
   EXPECT_REFUSED(P, "nested dots <... ...>");
-  EXPECT_REFUSED(P, "argument-level or parameter-level ellipsis");
+  EXPECT_REFUSED(P, "condition ellipsis");
   expectWellFormedRefusals(P);
 }
 
 TEST(SmplParserKernel, EnoNeedsBackslashDisjunction) {
   // Named as tier 1 in the first scoping pass, and it is not: the allocator
-  // list is a backslash disjunction and the call takes argument-level dots.
+  // list is a backslash disjunction. Its argument-level dots are inside the
+  // subset now, so the disjunction is the whole of what stops it.
   SemanticPatch P = parsed(readInput("cocci/kernel/null/eno.cocci"));
   EXPECT_REFUSED(P, "backslash disjunction \\( \\| \\)");
-  EXPECT_REFUSED(P, "argument-level or parameter-level ellipsis");
   // The statement-level ellipsis and its `when !=` are still understood.
   bool SawDots = false;
   for (const Rule &R : P.Rules)
@@ -1355,9 +1383,15 @@ TEST(SmplParserSweep, EveryNativeSampleLandsInOneOfThreeStates) {
 
   // Constructs the subset took in after the corpus manifest was written, so
   // a file the manifest blocks only on these is expected to parse clean now.
-  const StringRef SupportedSincePhase1[] = {
+  //
+  // The last entry is the name that used to cover five levels at once. It is
+  // whitelisted whole because the manifest records only that name, and a file
+  // wrongly freed under it is still caught by the named-or-compiles check
+  // above, which no name in this list can satisfy on its own.
+  const StringRef SupportedSinceManifest[] = {
       "symbol declaration", "typedef declaration",
-      "ellipsis inside a one-line block", "#spatch embedded options"};
+      "ellipsis inside a one-line block", "#spatch embedded options",
+      "argument-level or parameter-level ellipsis"};
 
   for (const std::string &File : Files) {
     StringRef Rel = StringRef(File).drop_front(Root.size());
@@ -1396,24 +1430,33 @@ TEST(SmplParserSweep, EveryNativeSampleLandsInOneOfThreeStates) {
         EXPECT_FALSE(Rf.Reason.empty()) << Rel << ": " << Rf.Construct;
         EXPECT_NE(0u, Rf.Line) << Rel << ": " << Rf.Construct;
       }
-      // No ellipsis may reach a statement's text without a refusal naming
-      // its level, because the text is handed on verbatim and '...' is not C.
-      std::vector<const PatternItem *> Items;
-      for (const Rule &Rule : R.Patch->Rules)
+      // An ellipsis that reaches a statement's text must either be named by
+      // a refusal or compile to a matcher. Naming alone was the earlier bar
+      // and it let a pattern through that reported NOT COMPILED, which is the
+      // silent misparse this scanner exists to catch.
+      for (const Rule &Rule : R.Patch->Rules) {
+        std::vector<const PatternItem *> Items;
         collectItems(Rule.Body, Items);
-      for (const PatternItem *It : Items) {
-        if (It->Kind != ItemKind::Statement ||
-            !StringRef(It->Text).contains("..."))
-          continue;
-        bool Named = false;
-        for (const Refusal &Rf : R.Patch->Refusals)
-          if (Rf.Line == It->Line &&
-              StringRef(Rf.Construct).contains("ellipsis"))
-            Named = true;
-        EXPECT_TRUE(Named) << Rel << ":" << It->Line
-                           << ": an ellipsis reached a statement's text with "
-                              "no refusal naming its level: "
-                           << It->Text;
+        for (const PatternItem *It : Items) {
+          if (It->Kind != ItemKind::Statement ||
+              !StringRef(It->Text).contains("..."))
+            continue;
+          bool Named = false;
+          for (const Refusal &Rf : R.Patch->Refusals)
+            if (Rf.Line == It->Line &&
+                StringRef(Rf.Construct).contains("ellipsis"))
+              Named = true;
+          if (Named)
+            continue;
+          std::string Error;
+          const bool Compiled =
+              compileCallPattern(It->Text, Rule.MetaVars, Error).has_value();
+          EXPECT_TRUE(Compiled)
+              << Rel << ":" << It->Line
+              << ": an ellipsis reached a statement's text with no refusal "
+                 "naming its level and no matcher to run: "
+              << It->Text << " [" << Error << "]";
+        }
       }
       // A `@script:` rule has no pattern and is never compiled, so it is
       // counted separately. A file that has one and records none would be
@@ -1511,7 +1554,7 @@ TEST(SmplParserSweep, EveryNativeSampleLandsInOneOfThreeStates) {
           continue;
         }
         bool Supported = false;
-        for (StringRef S : SupportedSincePhase1)
+        for (StringRef S : SupportedSinceManifest)
           if (E == S)
             Supported = true;
         if (!Supported)

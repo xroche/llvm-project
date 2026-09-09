@@ -9,6 +9,7 @@ include_directories(
   )
 
 add_extra_unittest(ClangSpatchTests
+  PatternCompilerTest.cpp
   SmplParserTest.cpp
   )
 
