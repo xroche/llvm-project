@@ -148,6 +148,20 @@ struct FlatRule {
   bool Rewrites = false; ///< Is this a `-`/`+` rule rather than `*`?
 };
 
+/// Do \p Items open with a `{` and close with a `}`?
+///
+/// Such a side is one construct written across several lines rather than a
+/// sequence of statements, so its lines are an initialiser element or a record
+/// member and not a statement each. `tests/defineinit.cocci`,
+/// `tests/substruct.cocci` and `tests/td.cocci` are the corpus cases, and all
+/// three used to be refused for missing statement adjacency, which is not what
+/// any of them asks for.
+bool opensABracedGroup(const std::vector<PatternItem> &Items) {
+  const llvm::StringRef First = llvm::StringRef(Items.front().Text).trim();
+  const llvm::StringRef Last = llvm::StringRef(Items.back().Text).trim();
+  return First.ends_with("{") && (Last.ends_with("}") || Last.ends_with("};"));
+}
+
 std::optional<FlatRule> flattenOf(const Rule &R, std::string &Why) {
   for (const std::vector<PatternItem> *Side : {&R.Minus, &R.Plus})
     for (const PatternItem &I : *Side)
@@ -157,10 +171,15 @@ std::optional<FlatRule> flattenOf(const Rule &R, std::string &Why) {
         return std::nullopt;
       }
   if (R.Minus.size() != 1) {
-    Why = R.Minus.empty()
-              ? "a dot-free rule with nothing to match on the `-` side"
-              : "a dot-free rule matching a sequence of statements needs "
-                "statement adjacency, which this version does not build";
+    if (R.Minus.empty())
+      Why = "a dot-free rule with nothing to match on the `-` side";
+    else if (opensABracedGroup(R.Minus))
+      Why = "the `-` side is a brace-delimited group, so its lines are parts "
+            "of one construct rather than a sequence of statements, and "
+            "matching it needs a pattern for a node inside the braces";
+    else
+      Why = "a dot-free rule matching a sequence of statements needs "
+            "statement adjacency, which this version does not build";
     return std::nullopt;
   }
   FlatRule F;
