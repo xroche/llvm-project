@@ -7,6 +7,7 @@ add_clang_library(clangSpatch STATIC
   PatternCompiler.cpp
   PatternParser.cpp
   Edit.cpp
+  Unify.cpp
   PathQuery.cpp
   PatchRunner.cpp
 )

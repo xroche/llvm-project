@@ -30,7 +30,7 @@ std::string rewritten(llvm::StringRef Patch, llvm::StringRef Code) {
     return "!refused: " + Refusals;
   }
   std::unique_ptr<ASTUnit> Unit =
-      tooling::buildASTFromCodeWithArgs(Code, {"-std=gnu11", "-w"});
+      tooling::buildASTFromCodeWithArgs(Code, {"-std=gnu11", "-w"}, "input.c");
   if (!Unit)
     return "!no AST";
   RunResult Result;

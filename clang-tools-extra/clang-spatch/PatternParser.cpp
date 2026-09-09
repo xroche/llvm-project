@@ -223,7 +223,9 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
     for (size_t At = Body.find("..."); At != std::string::npos;
          At = Body.find("...", At))
       Body.replace(At, 3, (DotsMarker + "()").str());
-    Src += "void " + ItemPrefix.str() + std::to_string(I) + "(void) {\n";
+    // The wrapper returns int so that `return E;` is a valid pattern. A void
+    // wrapper made it a -Wreturn-mismatch warning, which `-w` then hid.
+    Src += "int " + ItemPrefix.str() + std::to_string(I) + "(void) {\n";
     Src += Body;
     if (!llvm::StringRef(Body).rtrim().ends_with(";") &&
         !llvm::StringRef(Body).rtrim().ends_with("}"))
@@ -241,13 +243,16 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
     Error = "Clang could not be run on the synthesised pattern";
     return std::nullopt;
   }
+  // The result owns the translation unit. Every node in ParsedPattern::Items
+  // points into it, so letting it die here leaves them all dangling.
+  P.Unit = std::move(Unit);
 
   // Clang error-recovers, so a node can come back from text it could not read.
   // The wrapper each item sits in is known by line, so an error inside one
   // marks that item unparsed rather than letting a partial tree through.
-  const SourceManager &DiagSM = Unit->getSourceManager();
+  const SourceManager &DiagSM = P.Unit->getSourceManager();
   llvm::DenseMap<unsigned, std::string> ErrorAtLine;
-  for (auto It = Unit->stored_diag_begin(), E = Unit->stored_diag_end();
+  for (auto It = P.Unit->stored_diag_begin(), E = P.Unit->stored_diag_end();
        It != E; ++It) {
     if (It->getLevel() < DiagnosticsEngine::Error)
       continue;
@@ -258,7 +263,7 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
     ErrorAtLine.try_emplace(Line, It->getMessage().str());
   }
 
-  ASTContext &Ctx = Unit->getASTContext();
+  ASTContext &Ctx = P.Unit->getASTContext();
   for (Decl *D : Ctx.getTranslationUnitDecl()->decls()) {
     const auto *FD = dyn_cast<FunctionDecl>(D);
     if (!FD || !FD->hasBody()) {
