@@ -11,6 +11,7 @@
 #include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
 #include "clang/Basic/Diagnostic.h"
+#include "clang/Basic/DiagnosticSema.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Tooling/Tooling.h"
 #include "llvm/ADT/SmallVector.h"
@@ -99,6 +100,22 @@ std::string typeFor(llvm::StringRef Name, const Usage &U, std::string &Struct) {
   if (U.Subscripted)
     return "int *";
   return "int ";
+}
+
+/// Is \p ID a diagnostic the synthesised declarations provoke rather than the
+/// pattern?
+///
+/// A metavariable is declared `extern int` so that it accepts any use the
+/// pattern makes of it, and that permissiveness has consequences Clang
+/// reports. `static const char *str = E;` is a pattern Coccinelle accepts and
+/// a valid tree comes back for it, but a non-constant `E` initialising a
+/// static local is an error with no warning group to switch off. The tree
+/// still says what the pattern says, so the item is not marked unparsed.
+///
+/// The diagnostics that do have a group are switched off on the command line
+/// instead, which is the same policy said the other way round.
+bool isSynthesisArtefact(unsigned ID) {
+  return ID == diag::err_init_element_not_constant;
 }
 
 /// The C keywords a pattern can contain, which must never be declared as if
@@ -291,8 +308,21 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
 
   // Errors are wanted per statement rather than fatally, so diagnostics are
   // collected and attributed below instead of stopping the parse.
+  //
+  // Capturing them is what makes that attribution work at all. The default is
+  // to capture nothing, so `stored_diag_begin()` was always empty and the
+  // attribution below never fired, while the errors went to stderr as if the
+  // user had asked to compile the synthesised source. A pattern's own errors
+  // belong to the item they came from and nowhere else.
   std::unique_ptr<ASTUnit> Unit = tooling::buildASTFromCodeWithArgs(
-      Src, {"-std=gnu11", "-w", "-ferror-limit=0"}, "spatch-pattern.c");
+      Src,
+      {"-std=gnu11", "-w", "-ferror-limit=0", "-Wno-int-conversion",
+       "-Wno-incompatible-pointer-types"},
+      "spatch-pattern.c", "clang-spatch",
+      std::make_shared<PCHContainerOperations>(),
+      tooling::getClangStripDependencyFileAdjuster(),
+      tooling::FileContentMappings(), /*DiagConsumer=*/nullptr,
+      llvm::vfs::getRealFileSystem(), CaptureDiagsKind::All);
   if (!Unit) {
     Error = "Clang could not be run on the synthesised pattern";
     return std::nullopt;
@@ -308,7 +338,8 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
   llvm::DenseMap<unsigned, std::string> ErrorAtLine;
   for (auto It = P.Unit->stored_diag_begin(), E = P.Unit->stored_diag_end();
        It != E; ++It) {
-    if (It->getLevel() < DiagnosticsEngine::Error)
+    if (It->getLevel() < DiagnosticsEngine::Error ||
+        isSynthesisArtefact(It->getID()))
       continue;
     const FullSourceLoc Loc = It->getLocation();
     if (!Loc.isValid())

@@ -148,4 +148,30 @@ TEST(ParsePattern, OneStatementThatDoesNotParseLeavesTheOthersAlone) {
   EXPECT_EQ("CallExpr", Got[2]);
 }
 
+TEST(ParsePattern, AStatementClangErroredOnIsNotReportedAsANode) {
+  // Clang error-recovers, so a tree comes back from text it could not read.
+  // The diagnostics were not captured at all, so this reported an `IfStmt`
+  // for a pattern Clang had refused, which is the failure the tool exists to
+  // prevent. `NULL` reaches the parser undeclared because it is on the
+  // keyword list, so no declaration is synthesised for it.
+  const std::vector<MetaVar> MV = {mv(MetaVar::Kind::Expression, "x"),
+                                   mv(MetaVar::Kind::Statement, "S")};
+  const std::vector<std::string> Got = parsedKinds(MV, {"if (x == NULL) S"});
+  ASSERT_EQ(1u, Got.size());
+  EXPECT_EQ('!', Got[0][0]) << Got[0];
+}
+
+TEST(ParsePattern, ADiagnosticTheSynthesisCausedDoesNotRefuseThePattern) {
+  // A metavariable is `extern int` so that it accepts any use, and a
+  // non-constant initialiser for a static local is an error with no warning
+  // group to switch off. The tree still says what the pattern says, and
+  // `tests/cptr.cocci` reproduces its expected output from it byte for byte.
+  const std::vector<MetaVar> MV = {mv(MetaVar::Kind::Expression, "E"),
+                                   mv(MetaVar::Kind::Identifier, "s")};
+  const std::vector<std::string> Got =
+      parsedKinds(MV, {"static const char *s = E;"});
+  ASSERT_EQ(1u, Got.size());
+  EXPECT_EQ("DeclStmt", Got[0]);
+}
+
 } // namespace clang::spatch
