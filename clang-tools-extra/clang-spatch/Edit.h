@@ -42,6 +42,11 @@ struct PatternEdit {
 /// it bound to in \p Bound, so `+ bar(E)` against `foo(x + 1)` gives
 /// `bar(x + 1)`.
 ///
+/// \p PatternEndsInSemicolon says whether the `-` side was written as a whole
+/// statement, terminator included. A pattern written as a bare expression
+/// leaves the terminator where it is, so `- bar(F)` over `+ 4` rewrites
+/// `bar(12);` to `4;` rather than to `4`.
+///
 /// Returns std::nullopt and sets \p Error when no edit can be built. That is
 /// not a failure of the match, and a caller must count it rather than ignore
 /// it: the commonest cause is a range inside a macro expansion, where
@@ -50,6 +55,7 @@ struct PatternEdit {
 /// reporting success.
 std::optional<PatternEdit> buildEdit(DynTypedNode Matched,
                                      llvm::StringRef PlusText,
+                                     bool PatternEndsInSemicolon,
                                      const Bindings &Bound, ASTContext &Context,
                                      std::string &Error);
 

@@ -70,12 +70,18 @@ bool ownsItsTerminator(DynTypedNode Matched, ASTContext &Context) {
 }
 
 /// The range \p Matched occupies, extended over its terminating semicolon
-/// when it owns one, so that replacing it does not leave the terminator
-/// behind.
-CharSourceRange matchedRange(DynTypedNode Matched, ASTContext &Context) {
+/// when both the target position and the pattern claim it.
+///
+/// The target position alone is not enough. A pattern written as a bare
+/// expression describes the expression and not the statement around it, so
+/// `- bar(F)` over `+ 4` leaves the `;` of `bar(12);` in place and yields
+/// `4;`. Deciding this on the target position alone took the terminator
+/// whenever the expression happened to be a statement on its own.
+CharSourceRange matchedRange(DynTypedNode Matched, bool PatternClaimsIt,
+                             ASTContext &Context) {
   const CharSourceRange Token =
       CharSourceRange::getTokenRange(Matched.getSourceRange());
-  if (!ownsItsTerminator(Matched, Context))
+  if (!PatternClaimsIt || !ownsItsTerminator(Matched, Context))
     return Token;
   return tooling::maybeExtendRange(Token, tok::semi, Context);
 }
@@ -215,9 +221,11 @@ llvm::StringRef sourceTextOf(SourceRange Range, ASTContext &Context) {
 
 std::optional<PatternEdit> buildEdit(DynTypedNode Matched,
                                      llvm::StringRef PlusText,
+                                     bool PatternEndsInSemicolon,
                                      const Bindings &Bound, ASTContext &Context,
                                      std::string &Error) {
-  const CharSourceRange Range = matchedRange(Matched, Context);
+  const CharSourceRange Range =
+      matchedRange(Matched, PatternEndsInSemicolon, Context);
   // Every range is validated before a Replacement is built from it, because
   // `Replacement::setFromSourceRange` takes the spelling location
   // unconditionally. A node spelled inside a macro body would otherwise get an

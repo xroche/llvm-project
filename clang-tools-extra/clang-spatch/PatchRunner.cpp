@@ -157,6 +157,9 @@ struct FlatRule {
   };
   const PatternItem *Match = nullptr; ///< The statement to match.
   std::string PlusText; ///< What replaces it. Empty for a pure deletion.
+  /// Was the `-` side written as a whole statement rather than as a bare
+  /// expression? It decides whether the edit takes the terminator with it.
+  bool MatchEndsInSemicolon = false;
   Purpose Purpose = Purpose::Rewrite;
 };
 
@@ -196,6 +199,7 @@ std::optional<FlatRule> flattenOf(const Rule &R, std::string &Why) {
   }
   FlatRule F;
   F.Match = &R.Minus.front();
+  F.MatchEndsInSemicolon = llvm::StringRef(F.Match->Text).rtrim().ends_with(";");
   // A `*` rule reports and never rewrites, so its plus side is unread.
   if (F.Match->Marker == PatternItem::Marker::Star) {
     F.Purpose = FlatRule::Purpose::Report;
@@ -298,7 +302,8 @@ void runFlatRule(const Rule &R, const FlatRule &F,
         continue;
       std::string EditError;
       std::optional<PatternEdit> E =
-          buildEdit(M.Node, F.PlusText, M.Bound, Context, EditError);
+          buildEdit(M.Node, F.PlusText, F.MatchEndsInSemicolon, M.Bound,
+                    Context, EditError);
       if (!E) {
         ++Result.EditsRefused;
         continue;

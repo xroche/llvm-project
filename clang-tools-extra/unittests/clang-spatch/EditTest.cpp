@@ -192,6 +192,23 @@ TEST(FlatRule, ASubExpressionMatchKeepsTheStatementTerminator) {
             rewritten("@r@\n@@\n- 12\n+ 10\n", "int f(void) { return 12; }\n"));
 }
 
+TEST(FlatRule, AnExpressionPatternLeavesTheTerminatorWhereItIs) {
+  // `spatch` rewrites `bar(12);` to `4;` here: the `-` side describes the
+  // expression and says nothing about the statement around it. Deciding this
+  // on the target position alone took the `;` whenever the expression
+  // happened to be a statement on its own, which is what
+  // `tests/orexp.cocci` disagreed with Coccinelle on.
+  EXPECT_EQ("void bar(int);\nvoid f(void) { 4; }\n",
+            rewritten("@r@\nexpression F;\n@@\n- bar(F)\n+ 4\n",
+                      "void bar(int);\nvoid f(void) { bar(12); }\n"));
+}
+
+TEST(FlatRule, AStatementPatternTakesTheTerminatorWithIt) {
+  EXPECT_EQ("void bar(int);\nvoid f(void) { 4; }\n",
+            rewritten("@r@\nexpression F;\n@@\n- bar(F);\n+ 4;\n",
+                      "void bar(int);\nvoid f(void) { bar(12); }\n"));
+}
+
 TEST(FlatRule, AContextLineInsideTheChangedStatementIsMatchedWithIt) {
   // The head of a transformed `if` sits on a context line and its condition
   // on a `-` and a `+` line, so the two sides of the rule are
