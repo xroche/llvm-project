@@ -23,6 +23,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/Tooling/Core/Replacement.h"
+#include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
 #include <optional>
 #include <string>
@@ -58,6 +59,30 @@ std::optional<PatternEdit> buildEdit(DynTypedNode Matched,
                                      bool PatternEndsInSemicolon,
                                      const Bindings &Bound, ASTContext &Context,
                                      std::string &Error);
+
+/// Builds the edit that writes \p Statements on their own lines beside
+/// \p Matched, above it when \p Above is set and below it otherwise.
+///
+/// An inserted statement takes the indentation of the statement it is
+/// anchored to, and the indentation the patch wrote is discarded. Measured
+/// against `spatch`: `+          a();` anchored on a statement indented by six
+/// spaces comes out indented by six, and two `+` lines written at column zero
+/// come out on two lines at the anchor's own indentation.
+///
+/// The anchor is taken through the terminator the target wrote, because an
+/// inserted statement is placed beside a whole statement. A caller must
+/// refuse a pattern that is not one: `spatch` rejects such a patch when it
+/// parses it, and writing below a bare expression lands before the semicolon
+/// that ends the statement holding it.
+///
+/// Returns std::nullopt and sets \p Error when the anchor's line cannot carry
+/// the insertion, which a caller must count rather than fall back on.
+/// Coccinelle breaks the line in that case, and that layout is not built here:
+/// inserting below `anchor(); y();` moves `y();` down with the inserted text.
+std::optional<PatternEdit>
+buildInsertion(DynTypedNode Matched, llvm::ArrayRef<std::string> Statements,
+               bool Above, const Bindings &Bound, ASTContext &Context,
+               std::string &Error);
 
 /// What an in-place edit overwrites, and what kind of thing it is.
 struct InnerEdit {

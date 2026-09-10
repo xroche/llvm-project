@@ -297,6 +297,62 @@ std::optional<PatternEdit> buildEdit(DynTypedNode Matched,
                                           *Text, Context.getLangOpts())};
 }
 
+std::optional<PatternEdit>
+buildInsertion(DynTypedNode Matched, llvm::ArrayRef<std::string> Statements,
+               bool Above, const Bindings &Bound, ASTContext &Context,
+               std::string &Error) {
+  const SourceManager &SM = Context.getSourceManager();
+  const LangOptions &Opts = Context.getLangOpts();
+  const CharSourceRange Range =
+      matchedRange(Matched, /*PatternEndsInSemicolon=*/true, Context);
+  if (llvm::Error Invalid = tooling::validateEditRange(Range, SM)) {
+    Error = "the anchor's range cannot be edited: " +
+            llvm::toString(std::move(Invalid));
+    return std::nullopt;
+  }
+  const std::optional<Span> At = spanOf(Range, SM, Opts);
+  if (!At) {
+    Error = "the anchor's range does not lie in one file";
+    return std::nullopt;
+  }
+  const llvm::StringRef Buffer = SM.getBufferData(
+      SM.getFileID(Lexer::makeFileCharRange(Range, SM, Opts).getBegin()));
+  assert(At->End <= Buffer.size() && "offsets outside their own buffer");
+
+  const BufferLines Lines(Buffer);
+  const size_t LineBegin = Lines.startOfLine(At->Begin);
+  const llvm::StringRef Indent = Buffer.slice(LineBegin, At->Begin);
+  if (!Lines.onlySpaceBetween(LineBegin, At->Begin)) {
+    Error = "the anchor does not begin its line, so an insertion beside it "
+            "breaks the line rather than taking the anchor's indentation";
+    return std::nullopt;
+  }
+  // Below the anchor, whatever else its line holds would move down with the
+  // inserted text. `spatch` writes `anchor();` then `a(); y();` for that
+  // shape, which is the same broken line seen from the other end.
+  if (!Above &&
+      !Lines.onlySpaceBetween(At->End, Lines.pastEndOfLine(At->End))) {
+    Error = "the anchor does not end its line, so an insertion below it "
+            "breaks the line rather than taking the anchor's indentation";
+    return std::nullopt;
+  }
+
+  std::string Text;
+  for (const std::string &S : Statements) {
+    const std::optional<std::string> One = substitute(S, Bound, Context, Error);
+    if (!One)
+      return std::nullopt;
+    if (Above)
+      Text += *One + "\n" + Indent.str();
+    else
+      Text += "\n" + Indent.str() + *One;
+  }
+  const SourceLocation Where =
+      Above ? Range.getBegin()
+            : Lexer::makeFileCharRange(Range, SM, Opts).getEnd();
+  return PatternEdit{tooling::Replacement(SM, Where, /*Length=*/0, Text)};
+}
+
 CharSourceRange inPlaceEditRange(CharSourceRange Range, std::string &Text,
                                  ASTContext &Context,
                                  bool RangeIsAWrittenType) {

@@ -263,6 +263,97 @@ TEST(FlatRule, ABraceGroupOfSeveralElementsIsRefused) {
                       "struct s v = { .a = 1, .b = 2, };\n"));
 }
 
+TEST(Insertion, AnInsertedStatementTakesTheAnchorsIndentation) {
+  // `tests/bigin.cocci` and `tests/change.cocci` are the corpus patches this
+  // reaches, and both agree with Coccinelle's expected output byte for byte.
+  EXPECT_EQ("int main() {\n      a();\n      anchor();\n}\n",
+            rewritten("@r@\n@@\n+a();\n anchor();\n",
+                      "int main() {\n      anchor();\n}\n"));
+}
+
+TEST(Insertion, AnInsertedStatementGoesWhereThePatchWroteIt) {
+  // Below the anchor, which also pins that the anchor is taken through the
+  // terminator the target wrote: without that the insertion lands between
+  // `anchor()` and its own `;`.
+  EXPECT_EQ("int main() {\n      anchor();\n      a();\n}\n",
+            rewritten("@r@\n@@\n anchor();\n+a();\n",
+                      "int main() {\n      anchor();\n}\n"));
+}
+
+TEST(Insertion, ThePatchsOwnIndentationIsDiscarded) {
+  // Measured against `spatch`, which indents an inserted line to the anchor
+  // whatever the patch wrote.
+  EXPECT_EQ("int main() {\n      a();\n      anchor();\n}\n",
+            rewritten("@r@\n@@\n+          a();\n anchor();\n",
+                      "int main() {\n      anchor();\n}\n"));
+}
+
+TEST(Insertion, EachInsertedStatementTakesItsOwnLine) {
+  EXPECT_EQ("int main() {\n  a();\n  b();\n  anchor();\n}\n",
+            rewritten("@r@\n@@\n+a();\n+b();\n anchor();\n",
+                      "int main() {\n  anchor();\n}\n"));
+}
+
+TEST(Insertion, ABoundMetavariableIsWrittenIntoTheInsertedStatement) {
+  EXPECT_EQ("int main() {\n  anchor(12);\n  a(12);\n}\n",
+            rewritten("@r@\nexpression E;\n@@\n anchor(E);\n+a(E);\n",
+                      "int main() {\n  anchor(12);\n}\n"));
+}
+
+TEST(Insertion, AnAnchorThatDoesNotBeginItsLineIsRefused) {
+  // `spatch` breaks the line for this shape rather than indenting, so the
+  // edit is refused and counted. `rewritten` reports a refused edit as `!`.
+  EXPECT_EQ("!1 edit(s) the run could not build",
+            rewritten("@r@\n@@\n+a();\n anchor();\n",
+                      "int main() {\n  x(); anchor();\n}\n"));
+}
+
+TEST(Insertion, AnAnchorThatDoesNotEndItsLineIsRefusedBelowOnly) {
+  // Below the anchor, `spatch` moves the rest of the line down with the
+  // inserted text. Above it, the anchor's line is left alone and the
+  // insertion is placed, which is why the two directions ask different
+  // questions of the same line.
+  EXPECT_EQ("!1 edit(s) the run could not build",
+            rewritten("@r@\n@@\n anchor();\n+a();\n",
+                      "int main() {\n  anchor(); y();\n}\n"));
+  EXPECT_EQ("int main() {\n  a();\n  anchor(); y();\n}\n",
+            rewritten("@r@\n@@\n+a();\n anchor();\n",
+                      "int main() {\n  anchor(); y();\n}\n"));
+}
+
+TEST(Insertion, InsertingOnBothSidesOfOneMatchIsRefused) {
+  // `tests/void_spacingfailure.cocci` writes one, and it is a ceiling for
+  // other reasons.
+  EXPECT_EQ("a rule inserting both above and below its match, which needs "
+            "two edits at one match, and this version builds one\n",
+            unrunReasons("@r@\n@@\n+a();\n anchor();\n+b();\n",
+                         "int main() {\n  anchor();\n}\n"));
+}
+
+TEST(Insertion, ABraceGroupWithAnInsertedElementIsRefusedAsAnInnerEdit) {
+  // A brace group is one item holding every line inside its braces, so an
+  // inserted element is part of that item rather than a statement beside it.
+  // Inserting into a list is a separate question, and this is the refusal it
+  // reaches rather than one of its own.
+  EXPECT_EQ("a rule whose `+` line is part of the statement it matches rather "
+            "than a statement beside it, so it needs an edit inside the "
+            "match, which this version builds only where the `-` side marks "
+            "the region to overwrite\n",
+            unrunReasons("@r@\n@@\n{\n  .a = 1,\n+ .b = 2,\n}\n",
+                         "struct S { int a; int b; };\n"
+                         "struct S s = { .a = 1, };\n"));
+}
+
+TEST(Insertion, APatternThatIsNotAWholeStatementIsRefused) {
+  // `spatch` reports "plus: parse error" for this patch, so there is no
+  // behaviour to reproduce. Accepting it inserted beside an expression that
+  // stands inside a statement.
+  EXPECT_EQ("a rule inserting beside a pattern that is not written as a whole "
+            "statement, which `spatch` rejects when it parses the patch\n",
+            unrunReasons("@r@\nexpression E;\n@@\n foo(E)\n+a();\n",
+                         "int main() {\n  foo(12);\n}\n"));
+}
+
 TEST(Whitespace, ADeletedStatementTakesItsWholeLine) {
   EXPECT_EQ("void del(void);\nvoid a(void);\n"
             "void f(void) {\n  a();\n  a();\n}\n",
@@ -668,13 +759,16 @@ TEST(Disjunction, ARuleWhoseEveryBranchIsUnreadableIsRefused) {
                          "void k(int *);\nvoid f(int *p) { k(p); }\n"));
 }
 
-TEST(Disjunction, AnInsertingBranchIsRefusedLikeAnInsertingRule) {
-  // `tests/const_adding.cocci` deletes nothing in its first branch and
-  // inserts in its second, so the insertion needs a position relative to the
-  // match. The refusal names the branch it came from.
-  EXPECT_EQ("branch 2 of the disjunction: a dot-free rule that only inserts "
-            "needs the insertion placed relative to the match, which this "
-            "version does not build\n",
+TEST(Disjunction, ABranchInsertingIntoItsMatchIsRefused) {
+  // `tests/const_adding.cocci` deletes nothing in its first branch and adds a
+  // qualifier in its second. Grouping joins that `+ const` onto the
+  // declaration below it, so the branch asks for an edit at a written type
+  // rather than for a statement beside the match. The refusal names the
+  // branch it came from.
+  EXPECT_EQ("branch 2 of the disjunction: a rule whose `+` line is part of "
+            "the statement it matches rather than a statement beside it, so "
+            "it needs an edit inside the match, which this version builds "
+            "only where the `-` side marks the region to overwrite\n",
             unrunReasons("@r@\nidentifier I;\n@@\n"
                          "(\n  const int I;\n|\n+ const\n  int I;\n)\n",
                          "void f(void) { const int a; int b; }\n"));

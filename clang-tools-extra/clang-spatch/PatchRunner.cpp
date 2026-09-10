@@ -182,6 +182,11 @@ struct FlatRule {
     /// `int *` is a whole type rather than a broken statement, so the caller
     /// checks this once the pattern is parsed.
     std::string FragmentWhy;
+    /// The statements a rule that only inserts writes, in the order the patch
+    /// wrote them. Empty for every other rule.
+    std::vector<std::string> Inserted;
+    /// Whether \c Inserted goes above the match or below it.
+    bool InsertsAbove = false;
     RulePurpose Purpose = RulePurpose::Rewrite;
   };
 
@@ -269,9 +274,61 @@ alternativeOf(const std::vector<PatternItem> &Minus,
       return I.Marker == PatternItem::Marker::Plus;
     });
     if (Adds) {
-      Why = "a dot-free rule that only inserts needs the insertion placed "
-            "relative to the match, which this version does not build";
-      return std::nullopt;
+      // Coccinelle writes an inserted statement where the patch wrote it, so
+      // the context line is the divider between what goes above the match and
+      // what goes below.
+      // The context line is on both sides, so it is always in `Plus` and the
+      // divider below always moves. A rule with no context line and no `-`
+      // line is refused by the SmPL parser, which reports Coccinelle's own
+      // "minus slice can't be empty".
+      std::vector<std::string> AboveIt, BelowIt;
+      bool PastTheMatch = false;
+      for (const PatternItem &I : Plus) {
+        const bool BesideTheMatch =
+            I.Marker == PatternItem::Marker::Plus &&
+            llvm::none_of(I.Spans, [](const PatternItem::Span &Sp) {
+              return Sp.LineMarker != PatternItem::Marker::Plus;
+            });
+        if (!BesideTheMatch) {
+          // A `+` line that grouping joined onto the statement it matches
+          // writes inside that statement rather than beside it. `+ const`
+          // over `  int I;` is one item holding both lines, and what it asks
+          // for is a qualifier at a written type rather than a statement.
+          if (I.Marker == PatternItem::Marker::Plus) {
+            // A brace group is one item holding every line inside the braces,
+            // so a group with an inserted element arrives here rather than as
+            // a statement beside the match. Inserting into a list is a
+            // separate question and nothing below can be reached with a
+            // group.
+            Why = "a rule whose `+` line is part of the statement it matches "
+                  "rather than a statement beside it, so it needs an edit "
+                  "inside the match, which this version builds only where the "
+                  "`-` side marks the region to overwrite";
+            return std::nullopt;
+          }
+          PastTheMatch = true;
+          continue;
+        }
+        (PastTheMatch ? BelowIt : AboveIt).push_back(I.Text);
+      }
+      if (!AboveIt.empty() && !BelowIt.empty()) {
+        Why = "a rule inserting both above and below its match, which needs "
+              "two edits at one match, and this version builds one";
+        return std::nullopt;
+      }
+      // `spatch` rejects a patch whose `+` statement is anchored on a line
+      // that is not a whole statement, so `  foo(E)` with `+ a();` below it
+      // is a parse error there rather than an insertion. Accepting it here
+      // inserted beside an expression that stands inside a statement.
+      if (!A.PatternEndsInSemicolon) {
+        Why = "a rule inserting beside a pattern that is not written as a "
+              "whole statement, which `spatch` rejects when it parses the "
+              "patch";
+        return std::nullopt;
+      }
+      A.InsertsAbove = !AboveIt.empty();
+      A.Inserted = A.InsertsAbove ? std::move(AboveIt) : std::move(BelowIt);
+      return A;
     }
     // The rule asks for no change and is still worth running, because a
     // later rule may declare `expression thisrule.X` and the values bound
@@ -571,12 +628,16 @@ void runFlatRule(const Rule &R, const FlatRule &F,
         In = {M.Node.getSourceRange(), /*IsAWrittenType=*/true};
         InPlaceText = A.PlusText;
       }
-      std::optional<PatternEdit> E =
-          In.Range.isValid()
-              ? buildInnerEdit(In.Range, InPlaceText, In.IsAWrittenType,
-                               M.Bound, Context, EditError)
-              : buildEdit(M.Node, A.PlusText, A.PatternEndsInSemicolon, M.Bound,
-                          Context, EditError);
+      std::optional<PatternEdit> E;
+      if (!A.Inserted.empty())
+        E = buildInsertion(M.Node, A.Inserted, A.InsertsAbove, M.Bound, Context,
+                           EditError);
+      else if (In.Range.isValid())
+        E = buildInnerEdit(In.Range, InPlaceText, In.IsAWrittenType, M.Bound,
+                           Context, EditError);
+      else
+        E = buildEdit(M.Node, A.PlusText, A.PatternEndsInSemicolon, M.Bound,
+                      Context, EditError);
       if (!E) {
         ++Result.EditsRefused;
         continue;
