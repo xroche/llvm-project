@@ -318,8 +318,24 @@ alternativeOf(const std::vector<PatternItem> &Minus,
           "which needs an edit inside the matched node rather than over it";
     if (!A.PlusText.empty())
       A.PlusText += " ";
-    A.PlusText +=
-        I.BraceGroup ? braceGroupElements(I.Text) : llvm::StringRef(I.Text);
+    // The braces come off only when the `-` side lost its own, which is what
+    // makes the edit element for element. A `-` side that is an ordinary
+    // statement is replaced by the whole plus construct, braces included, so
+    // stripping them there wrote `.a = 1` where `{ .a = 1, }` belonged.
+    A.PlusText += I.BraceGroup && A.Match->BraceGroup
+                      ? braceGroupElements(I.Text)
+                      : llvm::StringRef(I.Text);
+  }
+  // A `+` side that did not group is a fragment of the construct the `-` side
+  // matched, and reassembling it wrote `int a; int b; };` over a whole record.
+  // Coccinelle rejects such a patch at meta-parse, so there is nothing to
+  // reproduce.
+  if (A.Match->BraceGroup &&
+      (Plus.size() != 1 || !Plus.front().BraceGroup)) {
+    Why = "the `-` side is a brace group and the `+` side is not, so the "
+          "replacement is a fragment of the construct rather than a group "
+          "that can stand in its place";
+    return std::nullopt;
   }
   // An element taken out of a list leaves the separator the target wrote
   // behind it, and an element's range stops before its comma, so deleting the

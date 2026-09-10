@@ -77,6 +77,16 @@ constexpr llvm::StringLiteral GroupDeclarator = "int __spatch_group[] =";
 /// as readily as against a `struct`.
 constexpr llvm::StringLiteral RecordGroupTag = "struct __spatch_rec";
 
+/// The opening of every message that comes from a Clang diagnostic rather
+/// than from this file's own reading of the tree.
+///
+/// The second pass tells the two apart by it: a diagnostic there names a
+/// declarator the synthesis invented, so the first pass's wording is what a
+/// user reads, while this file's own reading of the group says what the rule
+/// needs and has to survive.
+constexpr llvm::StringLiteral NotCPrefix =
+    "the pattern statement did not parse as C";
+
 /// The message an item gets when its element list holds more than one element.
 constexpr llvm::StringLiteral AGroupOfSeveralElements =
     "the pattern's brace group holds more than one element, so matching it "
@@ -543,7 +553,7 @@ void parseOnce(llvm::ArrayRef<MetaVar> MetaVars,
     for (unsigned L = First; L <= Last && !Errored; ++L)
       if (auto Found = ErrorAtLine.find(L); Found != ErrorAtLine.end()) {
         P.Errors[Index] =
-            "the pattern statement did not parse as C: " + Found->second;
+            NotCPrefix.str() + ": " + Found->second;
         Errored = true;
       }
     if (Errored)
@@ -612,6 +622,15 @@ void parseOnce(llvm::ArrayRef<MetaVar> MetaVars,
       const auto *List =
           dyn_cast_or_null<InitListExpr>(peelRecovery(VD ? VD->getInit()
                                                          : nullptr));
+      // The form a designator survives in. A parse Clang accepted hands back
+      // the semantic form, where the designator has already been resolved away
+      // and the element is the bare initialiser, so `{ [0] = E, }` came back as
+      // `E` and matched every expression in the file. A field designator
+      // against the array wrapper cannot resolve, so that parse fails and
+      // leaves the syntactic form as the only form, which is why the corpus
+      // case worked while an array designator did not.
+      if (List && List->isSemanticForm() && List->getSyntacticForm())
+        List = List->getSyntacticForm();
       if (!List) {
         P.Errors[Index] = "the pattern names a brace group Clang could not "
                           "read as an initialiser list";
@@ -619,6 +638,16 @@ void parseOnce(llvm::ArrayRef<MetaVar> MetaVars,
       }
       if (List->getNumInits() != 1) {
         P.Errors[Index] = AGroupOfSeveralElements.str();
+        continue;
+      }
+      // An element with no designator is not a pattern for a list element at
+      // all: it is a bare expression, and searching for one rewrote every
+      // occurrence in the file. `spatch` 1.1.1 changes nothing for such a
+      // patch, on an array target or a struct one.
+      if (!isa<DesignatedInitExpr>(List->getInit(0))) {
+        P.Errors[Index] =
+            "the pattern's brace group holds an element with no designator, "
+            "which names a bare expression rather than a place in a list";
         continue;
       }
       P.Items[Index] = List->getInit(0);
@@ -645,7 +674,7 @@ void parseOnce(llvm::ArrayRef<MetaVar> MetaVars,
 
   for (unsigned I : Wrapped)
     if (!P.Items[I] && P.Errors[I].empty())
-      P.Errors[I] = "the pattern statement did not parse as C";
+      P.Errors[I] = NotCPrefix.str();
 }
 
 } // namespace
@@ -703,12 +732,13 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
   for (unsigned I = 0, E = Statements.size(); I != E; ++I) {
     if (AsType[I] && !Typed.Errors[I].empty())
       Typed.Errors[I] = "the pattern names a type Clang could not read";
-    // A group that the wrapper could not get Clang to read is reported as the
-    // first pass read it, because that message names what the pattern wrote
-    // and this one would name a declarator the synthesis invented. The count
-    // of elements is this pass's own finding and says what the rule needs.
-    if (AsGroup[I] != GroupWrapper::None && !Typed.Errors[I].empty() &&
-        Typed.Errors[I] != AGroupOfSeveralElements)
+    // A group Clang could not read is reported as the first pass read it,
+    // because a diagnostic here names a declarator the synthesis invented.
+    // What this pass read of the group itself says what the rule needs, so it
+    // survives: remapping every message hid all three of those behind a
+    // Clang error about the wrapper.
+    if (AsGroup[I] != GroupWrapper::None &&
+        llvm::StringRef(Typed.Errors[I]).starts_with(NotCPrefix))
       Typed.Errors[I] = P.Errors[I];
   }
   return Typed;

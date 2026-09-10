@@ -191,6 +191,54 @@ TEST(FlatRule, AOneElementBraceGroupRewritesThatElementInPlace) {
                       "struct s { int a; };\nstruct s v = { .a = 1, };\n"));
 }
 
+TEST(FlatRule, AnArrayDesignatorInAGroupMatchesByItsIndex) {
+  // A parse Clang accepts hands back the semantic form of the list, where the
+  // designator is already resolved away, so this group came back as the bare
+  // `E` and rewrote every expression in the file: `int y[3] = { [1] = 7, };`
+  // printed `int y[g(3)] = g({ [1] = 7, });` at exit 0.
+  const llvm::StringRef Patch =
+      "@r@\nexpression E;\n@@\n{\n- [0] = E,\n+ g(E),\n}\n";
+  EXPECT_EQ("int y[3] = { g(7), };\n",
+            rewritten(Patch, "int y[3] = { [0] = 7, };\n"));
+  for (llvm::StringRef Code :
+       {"int y[3] = { [1] = 7, };\n", "int y[3] = { [2] = 7, };\n"})
+    EXPECT_EQ(Code.str(), rewritten(Patch, Code)) << Code;
+}
+
+TEST(FlatRule, AGroupElementWithNoDesignatorIsRefused) {
+  // Such an element is a bare expression, and searching for one rewrote every
+  // occurrence in the file rather than the one in the list. `spatch` 1.1.1
+  // changes nothing for this patch, on an array target or a struct one.
+  EXPECT_EQ("!pattern: the pattern's brace group holds an element with no "
+            "designator, which names a bare expression rather than a place in "
+            "a list",
+            rewritten("@r@\n@@\n{\n- old_fn,\n+ new_fn,\n}\n",
+                      "extern void old_fn(void);\nextern void new_fn(void);\n"
+                      "void (*table[1])(void) = { old_fn };\n"
+                      "void h(void) { old_fn(); }\n"));
+}
+
+TEST(FlatRule, APlusGroupKeepsItsBracesOverAStatementMinusSide) {
+  // The braces come off the plus side only when the `-` side lost its own.
+  // Stripping them whenever the plus item was a group wrote `.a = 1` where the
+  // whole construct belonged, so `f(1);` became `{ .a = 1 }`.
+  EXPECT_EQ("void f(int);\nvoid g(void) { { .a = 1, } }\n",
+            rewritten("@r@\nexpression E;\n@@\n- f(E);\n+ {\n+ .a = E,\n"
+                      "+ }\n",
+                      "void f(int);\nvoid g(void) { f(1); }\n"));
+}
+
+TEST(FlatRule, AGroupMinusSideNeedsAGroupPlusSide) {
+  // A `+` side that did not group is a fragment of the construct the `-` side
+  // matched, and reassembling it wrote `int a; int b; };` over a whole record
+  // at exit 0. Coccinelle rejects this patch at meta-parse.
+  EXPECT_EQ("!the `-` side is a brace group and the `+` side is not, so the "
+            "replacement is a fragment of the construct rather than a group "
+            "that can stand in its place",
+            rewritten("@r@\ntype T;\n@@\n- T {\n  int a;\n+ int b;\n};\n",
+                      "struct s { int a; };\n"));
+}
+
 TEST(FlatRule, TakingAnElementOutOfABraceGroupIsRefused) {
   // The element's range stops before its comma, so deleting the element alone
   // printed `{ , }` at exit 0. `spatch` 1.1.1 changes nothing for this patch
