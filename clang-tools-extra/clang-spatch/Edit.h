@@ -78,13 +78,19 @@ struct InnerEdit {
 /// where a rule marking the `int` of `T (*x[2])(int x)` is answered: a type is
 /// not a \c Stmt, so it has no entry in \p Pairs at all.
 ///
+/// \p DeclarationPairs answers a rule marking a whole record member, which is
+/// neither of those. A member's range stops before its `;` while the patch
+/// marks the line including it, so each side of such a pair is taken through
+/// its own terminator, in its own \p PatternContext or \p Context.
+///
 /// Covering no node is common and is not an error. `- foo(` over `+ bar(`
 /// marks a callee and a parenthesis, and `- -` over `  x` marks part of a
 /// unary operator. Neither has a range of its own in the target, so a caller
 /// falls back to replacing the whole match with the plus side reassembled.
 InnerEdit innerEditRange(unsigned PatternBegin, unsigned PatternEnd,
                          const NodePairs &Pairs, const TypeLocPairs &TypePairs,
-                         ASTContext &PatternContext);
+                         const DeclPairs &DeclarationPairs,
+                         ASTContext &PatternContext, ASTContext &Context);
 
 /// Builds the edit that writes \p PlusText over the target range \p Target
 /// and leaves the rest of the matched statement as the target wrote it.

@@ -81,6 +81,22 @@ bool ownsItsTerminator(DynTypedNode Matched, ASTContext &Context) {
   return false;
 }
 
+/// \p Range extended over the semicolon that follows it.
+///
+/// Only a declaration reached through \c DeclPairs is given to this, and no
+/// such declaration's range ends at its own `;`: a record member's stops at
+/// the declarator, and so does a file-scope variable's or typedef's. A
+/// block-scope declaration's does end there, and it never arrives here,
+/// because its `DeclStmt` covers the same characters and \c innerEditRange
+/// searches \c NodePairs first. **Extending a range that already ends in `;`
+/// takes a second one**, which is how `int lx;` followed by a bare `;` loses
+/// the null statement elsewhere, so a caller that widens this to another kind
+/// of declaration has to check first.
+CharSourceRange throughItsTerminator(CharSourceRange Range,
+                                     ASTContext &Context) {
+  return tooling::maybeExtendRange(Range, tok::semi, Context);
+}
+
 /// The range \p Matched occupies, extended over its terminating semicolon
 /// only when the target position owns one and \p PatternEndsInSemicolon says
 /// the rule asked for it. See buildEdit for why the pattern decides too.
@@ -345,12 +361,16 @@ CharSourceRange inPlaceEditRange(CharSourceRange Range, std::string &Text,
 
 InnerEdit innerEditRange(unsigned PatternBegin, unsigned PatternEnd,
                          const NodePairs &Pairs, const TypeLocPairs &TypePairs,
-                         ASTContext &PatternContext) {
-  const auto Covers = [&](SourceRange Pattern) {
+                         const DeclPairs &DeclarationPairs,
+                         ASTContext &PatternContext, ASTContext &Context) {
+  const auto CoversChars = [&](CharSourceRange Pattern) {
     const std::optional<Span> Here =
-        spanOf(CharSourceRange::getTokenRange(Pattern),
-               PatternContext.getSourceManager(), PatternContext.getLangOpts());
+        spanOf(Pattern, PatternContext.getSourceManager(),
+               PatternContext.getLangOpts());
     return Here && Here->Begin == PatternBegin && Here->End == PatternEnd;
+  };
+  const auto Covers = [&](SourceRange Pattern) {
+    return CoversChars(CharSourceRange::getTokenRange(Pattern));
   };
   // The first exact match wins. A pattern node and an implicit cast over it
   // name the same characters, so either one gives the same range.
@@ -360,6 +380,30 @@ InnerEdit innerEditRange(unsigned PatternBegin, unsigned PatternEnd,
   for (const auto &Pair : TypePairs)
     if (Covers(Pair.Pattern.getSourceRange()))
       return {Pair.Target.getSourceRange(), /*IsAWrittenType=*/true};
+  // A declaration last, so a rule marking a member's type alone takes the
+  // type's range from the pair above rather than the whole member's from here.
+  //
+  // Each side's range is extended over its own terminator, because a member's
+  // range stops before its `;` while the patch marks the line including it:
+  // `- int a;` inside `T { ... };` would otherwise match no pattern range at
+  // all, and the whole record would be replaced instead.
+  for (const auto &Pair : DeclarationPairs) {
+    if (Covers(Pair.Pattern->getSourceRange()))
+      return {Pair.Target->getSourceRange(), /*IsAWrittenType=*/false};
+    if (!CoversChars(throughItsTerminator(
+            CharSourceRange::getTokenRange(Pair.Pattern->getSourceRange()),
+            PatternContext)))
+      continue;
+    // The pattern marked the terminator, so the target's own goes with the
+    // edit. Taken from the target's manager, because the two sides are
+    // separate translation units and one side's offsets mean nothing in the
+    // other's.
+    return {throughItsTerminator(
+                CharSourceRange::getTokenRange(Pair.Target->getSourceRange()),
+                Context)
+                .getAsRange(),
+            /*IsAWrittenType=*/false};
+  }
   return {};
 }
 

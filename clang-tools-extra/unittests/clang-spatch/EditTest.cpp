@@ -410,11 +410,78 @@ TEST(FlatRule, AFileScopeDeclarationOfTwoThingsIsLeftAlone) {
                       "long long a, b;\n"));
 }
 
+TEST(FlatRule, ARecordGroupRewritesOneMemberAndKeepsTheTargetsLayout) {
+  // `tests/td.cocci` is this shape. The member's own range is what the edit
+  // covers, so the rest of the record keeps the spacing the target wrote:
+  // replacing the whole match instead reprinted it as `struct foo { int b; };`
+  // from the pattern.
+  EXPECT_EQ("struct foo {int b;};\n",
+            rewritten("@r@\ntype T;\n@@\nT {\n- int a;\n+ int b;\n};\n",
+                      "struct foo {int a;};\n"));
+  // A member's range stops before its `;` while the patch marks the line
+  // including it, so each side is taken through its own terminator. Without
+  // that the pattern range matched nothing and the whole record was replaced;
+  // extending only the pattern's side wrote `{int b;;}`.
+  EXPECT_EQ("typedef struct blah {int b;} name;\n",
+            rewritten("@r@\ntype T;\n@@\nT {\n- int a;\n+ int b;\n};\n",
+                      "typedef struct blah {int a;} name;\n"));
+}
+
+TEST(FlatRule, ARecordGroupsTagIsComparedUnlessItStandsForAMetavariable) {
+  // A type metavariable in the tag position constrains neither the kind nor
+  // the name: `spatch` 1.1.1 rewrites a `union` for the pattern above, and all
+  // three of `struct foo`, `typedef struct blah {...} name` and
+  // `typedef struct {...} xxx`.
+  EXPECT_EQ("union foo {int b;};\n",
+            rewritten("@r@\ntype T;\n@@\nT {\n- int a;\n+ int b;\n};\n",
+                      "union foo {int a;};\n"));
+  // A tag the patch wrote by name is compared, by kind as well as by name:
+  // `spatch` leaves `union foo` alone for a pattern writing `struct foo`,
+  // where the two names agree and only the kind does not.
+  for (llvm::StringRef Code : {"struct bar {int a;};\n", "union foo {int a;};\n"})
+    EXPECT_EQ(Code.str(),
+              rewritten("@r@\n@@\nstruct foo {\n- int a;\n+ int b;\n};\n",
+                        Code))
+        << Code;
+}
+
+TEST(FlatRule, ARecordGroupNeedsTheTargetToIntroduceTheTypeAndNothingElse) {
+  // Read off `spatch` 1.1.1: a declaration that also declares a variable, a
+  // pointer or a second typedef name is left alone, and a member list that
+  // does not match the pattern's exactly is too. Nothing implicit stands
+  // between the members, unlike an initialiser list.
+  const llvm::StringRef Patch =
+      "@r@\ntype T;\n@@\nT {\n- int a;\n+ int b;\n};\n";
+  for (llvm::StringRef Code :
+       {"struct foo {int a;} v;\n", "extern struct foo {int a;} v;\n",
+        "struct foo {int a;} *p;\n",
+        "typedef struct blah {int a;} name, name2;\n",
+        "struct foo {int a; int c;};\n", "enum e { a };\n",
+        "struct outer { struct inner { int a; } i; };\n",
+        // An anonymous record introduces no name for `T` to bind, and this
+        // is the shape that reaches the test inside the comparison: at file
+        // scope such a record is never offered at all.
+        "void f(void) { struct { int a; }; }\n"})
+    EXPECT_EQ(Code.str(), rewritten(Patch, Code)) << Code;
+
+  // A record and the typedef that names it share one `DeclStmt` inside a
+  // function body and are two declarations at file scope, and `spatch`
+  // rewrites both. Comparing the two groups element for element matched only
+  // the second.
+  EXPECT_EQ("void f(void) { typedef struct blah {int b;} name; }\n",
+            rewritten(Patch,
+                      "void f(void) { typedef struct blah {int a;} name; }\n"));
+}
+
 TEST(FlatRule, ADeclarationTheComparisonCannotReadIsRefused) {
-  // An anonymous tag has no name to compare, and comparing its members
-  // instead would accept a different type that happens to agree.
-  EXPECT_EQ("!the pattern's declaration holds a Record declarator, which the "
-            "comparison has no counterpart for",
+  // An anonymous tag written as a declarator's own type is refused by the
+  // type comparison, which has no name to compare and no `TypeLoc` class for
+  // one. `spatch` 1.1.1 does apply this patch, rewriting the anonymous target
+  // and leaving `struct foo { int a; } s;` and
+  // `struct { int a; int c; } s;` alone, so this is an under-match named
+  // rather than a difference of intent.
+  EXPECT_EQ("!the pattern declares an anonymous Record, which the type "
+            "comparison does not handle",
             rewritten("@r@\nidentifier x;\n@@\n- struct { int a; } x;\n"
                       "+ int x;\n",
                       "int f(void) { struct { int a; } s; return 0; }\n"));

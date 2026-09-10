@@ -66,11 +66,68 @@ constexpr llvm::StringLiteral ATypeNotAStatement =
 /// characters the pattern occupies.
 constexpr llvm::StringLiteral GroupDeclarator = "int __spatch_group[] =";
 
+/// The tag a record group's type metavariable is replaced by, so that Clang
+/// reads the group as a record definition.
+///
+/// `T { int a; };` does not parse, because `T` is a typedef name in the
+/// synthesised source and no type name may precede a brace body. The tag is
+/// registered as the metavariable's own declaration, so the comparison finds
+/// it through \c ParsedPattern::metaVarFor and neither the tag's kind nor its
+/// name is compared: `spatch` 1.1.1 matches `T { int a; };` against a `union`
+/// as readily as against a `struct`.
+constexpr llvm::StringLiteral RecordGroupTag = "struct __spatch_rec";
+
 /// The message an item gets when its element list holds more than one element.
 constexpr llvm::StringLiteral AGroupOfSeveralElements =
     "the pattern's brace group holds more than one element, so matching it "
     "needs the elements found adjacent in the target's own list, which this "
     "version does not build";
+
+/// What a brace group has to be wrapped in for Clang to read it.
+enum class GroupWrapper {
+  None,        ///< Not a group, or its own text is what Clang was given.
+  Initialiser, ///< A group written with no prefix, so its lines are elements.
+  Record       ///< A group whose prefix is a type metavariable of the rule.
+};
+
+/// What a brace group writes before its `{`, trimmed.
+llvm::StringRef groupPrefix(llvm::StringRef Text) {
+  Text = Text.trim();
+  const size_t Open = Text.find('{');
+  return Open == llvm::StringRef::npos ? llvm::StringRef()
+                                       : Text.take_front(Open).rtrim();
+}
+
+/// The type metavariable of \p MetaVars that \p Prefix names, or null.
+const MetaVar *typeVarNamed(llvm::StringRef Prefix,
+                            llvm::ArrayRef<MetaVar> MetaVars) {
+  if (Prefix.empty())
+    return nullptr;
+  for (const MetaVar &M : MetaVars)
+    if (M.Kind == MetaVar::Kind::Type && M.Name == Prefix)
+      return &M;
+  return nullptr;
+}
+
+/// Which wrapper \p Text needs, for an item grouping marked as a brace group.
+///
+/// A group written with nothing before its `{` is an initialiser list, which
+/// is the group's own delimiter and not a guess about its contents. A prefix
+/// that is exactly one type metavariable of this rule is a record definition,
+/// which is a fact about the rule's header: in C nothing but a tag may precede
+/// a brace body. Any other prefix is a declaration Clang already read as
+/// written, so there is nothing to wrap.
+GroupWrapper wrapperFor(llvm::StringRef Text,
+                        llvm::ArrayRef<MetaVar> MetaVars) {
+  if (llvm::StringRef(Text).trim().find('{') == llvm::StringRef::npos)
+    return GroupWrapper::None;
+  const llvm::StringRef Prefix = groupPrefix(Text);
+  if (Prefix.empty())
+    return GroupWrapper::Initialiser;
+  return typeVarNamed(Prefix, MetaVars) ? GroupWrapper::Record
+                                        : GroupWrapper::None;
+}
+
 
 /// \p E without the \c RecoveryExpr the group wrapper's own unresolvable
 /// designator provokes.
@@ -361,8 +418,8 @@ namespace {
 void parseOnce(llvm::ArrayRef<MetaVar> MetaVars,
                llvm::ArrayRef<std::string> Statements,
                llvm::ArrayRef<std::string> TypeNames,
-               llvm::ArrayRef<bool> AsType, llvm::ArrayRef<bool> AsGroup,
-               ParsedPattern &P) {
+               llvm::ArrayRef<bool> AsType,
+               llvm::ArrayRef<GroupWrapper> AsGroup, ParsedPattern &P) {
   P.Items.assign(Statements.size(), nullptr);
   P.TypeItems.assign(Statements.size(), TypeLoc());
   P.Errors.assign(Statements.size(), std::string());
@@ -389,15 +446,28 @@ void parseOnce(llvm::ArrayRef<MetaVar> MetaVars,
     Src += "int " + ItemPrefix.str() + std::to_string(I) + "(void) {\n";
     // The declarator comes before the group's own braces, so the offsets the
     // caller holds have to be taken after it.
-    if (AsGroup[I])
+    if (AsGroup[I] == GroupWrapper::Initialiser)
       Src += GroupDeclarator.str() + " ";
-    P.ItemOffsets[I] = Src.size();
-    Src += Body;
+    if (AsGroup[I] == GroupWrapper::Record) {
+      // The tag replaces the one prefix token rather than joining it, so the
+      // braces and everything after them keep the characters they held and the
+      // offset is shifted by the difference in length.
+      const size_t Open = llvm::StringRef(Body).find('{');
+      Body = RecordGroupTag.str() + " " + Body.substr(Open);
+      P.ItemOffsets[I] = Src.size() + RecordGroupTag.size() + 1 - Open;
+      Src += Body;
+    } else {
+      P.ItemOffsets[I] = Src.size();
+      Src += Body;
+    }
     if (AsType[I])
       // The declarator comes after the item's own text, so the offsets the
       // caller holds still name the characters the type occupies.
       Src += " " + TypedDeclarator.str() + ";";
-    else if (AsGroup[I])
+    else if (AsGroup[I] == GroupWrapper::Initialiser)
+      Src += ";";
+    else if (AsGroup[I] == GroupWrapper::Record &&
+             !llvm::StringRef(Body).rtrim().ends_with(";"))
       Src += ";";
     else if (!llvm::StringRef(Body).rtrim().ends_with(";") &&
              !llvm::StringRef(Body).rtrim().ends_with("}"))
@@ -508,7 +578,26 @@ void parseOnce(llvm::ArrayRef<MetaVar> MetaVars,
       P.Errors[Index] = "the pattern line carries no statement";
       continue;
     }
-    if (AsGroup[Index]) {
+    if (AsGroup[Index] == GroupWrapper::Record) {
+      // The tag stands for the rule's type metavariable, so it is registered
+      // as that metavariable's own declaration and the comparison finds it the
+      // way it finds any other reference to one.
+      const auto *DS = dyn_cast<DeclStmt>(Only);
+      const auto *RD = DS && DS->isSingleDecl()
+                           ? dyn_cast<RecordDecl>(DS->getSingleDecl())
+                           : nullptr;
+      if (!RD) {
+        P.Errors[Index] = "the pattern names a brace group Clang could not "
+                          "read as a record definition";
+        continue;
+      }
+      if (const MetaVar *M =
+              typeVarNamed(groupPrefix(Statements[Index]), MetaVars))
+        P.MetaVarDecls[RD->getCanonicalDecl()] = M;
+      P.Items[Index] = Only;
+      continue;
+    }
+    if (AsGroup[Index] == GroupWrapper::Initialiser) {
       // The group's braces said which context to read its lines in, and what
       // the rule means is what stands between them. One element is that
       // element: `spatch` 1.1.1 rewrites the `.a = 7,` of
@@ -567,7 +656,8 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
              llvm::ArrayRef<std::string> TypeNames,
              llvm::ArrayRef<bool> BraceGroups, std::string &Error) {
   llvm::SmallVector<bool, 4> AsType(Statements.size(), false);
-  llvm::SmallVector<bool, 4> AsGroup(Statements.size(), false);
+  llvm::SmallVector<GroupWrapper, 4> AsGroup(Statements.size(),
+                                            GroupWrapper::None);
   ParsedPattern P;
   parseOnce(MetaVars, Statements, TypeNames, AsType, AsGroup, P);
   if (!P.Unit) {
@@ -594,8 +684,8 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
       Again = true;
     } else if (!P.Errors[I].empty() && I < BraceGroups.size() &&
                BraceGroups[I]) {
-      AsGroup[I] = true;
-      Again = true;
+      AsGroup[I] = wrapperFor(Statements[I], MetaVars);
+      Again |= AsGroup[I] != GroupWrapper::None;
     }
   }
   if (!Again)
@@ -617,7 +707,7 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
     // first pass read it, because that message names what the pattern wrote
     // and this one would name a declarator the synthesis invented. The count
     // of elements is this pass's own finding and says what the rule needs.
-    if (AsGroup[I] && !Typed.Errors[I].empty() &&
+    if (AsGroup[I] != GroupWrapper::None && !Typed.Errors[I].empty() &&
         Typed.Errors[I] != AGroupOfSeveralElements)
       Typed.Errors[I] = P.Errors[I];
   }

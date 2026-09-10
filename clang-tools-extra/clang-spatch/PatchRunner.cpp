@@ -547,7 +547,8 @@ void runFlatRule(const Rule &R, const FlatRule &F,
         const unsigned Begin =
             Parsed->ItemOffsets[M.Pattern] + A.Inner->MinusOffset;
         In = innerEditRange(Begin, Begin + A.Inner->MinusLength, M.Pairs,
-                            M.TypePairs, Parsed->Unit->getASTContext());
+                            M.TypePairs, M.DeclarationPairs,
+                            Parsed->Unit->getASTContext(), Context);
         InPlaceText = A.Inner->PlusText;
       } else if (MatchesAWrittenType) {
         In = {M.Node.getSourceRange(), /*IsAWrittenType=*/true};

@@ -23,6 +23,7 @@
 #include "PatternParser.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTTypeTraits.h"
+#include "clang/AST/Decl.h"
 #include "clang/AST/Stmt.h"
 #include "clang/AST/TypeLoc.h"
 #include "llvm/ADT/ArrayRef.h"
@@ -80,6 +81,22 @@ struct NodePair {
 /// are absent, because a declarator is not a \c Stmt.
 using NodePairs = std::vector<NodePair>;
 
+/// One declaration written in the pattern and the declaration it matched.
+///
+/// A record member is neither a \c Stmt nor a written type, so a rule marking
+/// the `int a;` of `T { int a; };` has no entry in \c NodePairs and none in
+/// \c TypeLocPairs, and the range to overwrite is the member's own. Both
+/// sides point into their own translation unit, as in \c NodePair, so a holder
+/// must keep both alive.
+struct DeclPair {
+  const Decl *Pattern;
+  const Decl *Target;
+};
+
+/// Which target declaration each declaration of the pattern matched, in the
+/// order the comparison reached them.
+using DeclPairs = std::vector<DeclPair>;
+
 /// One type occurrence written in the pattern and the one it matched.
 ///
 /// A type is not a \c Stmt, so a rule marking the `int` of `T (*x[2])(int x)`
@@ -111,6 +128,8 @@ struct Match {
   NodePairs Pairs;
   /// Filled only when \c MatchOptions::WantNodePairs asked for it.
   TypeLocPairs TypePairs;
+  /// Filled only when \c MatchOptions::WantNodePairs asked for it.
+  DeclPairs DeclarationPairs;
 };
 
 /// What a search over the target is allowed to match.

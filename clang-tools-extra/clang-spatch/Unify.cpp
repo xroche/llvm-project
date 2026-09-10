@@ -204,6 +204,11 @@ ArgPattern splitArgs(const CallExpr &Call) {
   return P;
 }
 
+/// The name \p RD's own declaration introduces, or an invalid range when that
+/// declaration introduces anything besides the type. Defined below, beside the
+/// enumeration that reads it for the same reason.
+SourceRange introducedTypeRange(const RecordDecl &RD);
+
 class Unifier {
 public:
   Unifier(const ParsedPattern &Parsed, ASTContext &Context)
@@ -215,16 +220,21 @@ public:
   /// type matched. Neither is cleared, so both must be empty on the way in
   /// and the caller owns one pair of them per candidate.
   bool run(const Stmt *Pattern, const Stmt *Target, Bindings &Bound,
-           NodePairs *Out = nullptr, TypeLocPairs *TypeOut = nullptr) {
+           NodePairs *Out = nullptr, TypeLocPairs *TypeOut = nullptr,
+           DeclPairs *DeclOut = nullptr) {
     assert((!Out || Out->empty()) &&
            "run appends, so the caller owns one NodePairs per candidate");
     assert((!TypeOut || TypeOut->empty()) &&
            "run appends, so the caller owns one TypeLocPairs per candidate");
+    assert((!DeclOut || DeclOut->empty()) &&
+           "run appends, so the caller owns one DeclPairs per candidate");
     Pairs = Out;
     TypePairs = TypeOut;
+    DeclarationPairs = DeclOut;
     const bool Matched = match(Pattern, Target, Bound);
     Pairs = nullptr;
     TypePairs = nullptr;
+    DeclarationPairs = nullptr;
     return Matched;
   }
 
@@ -236,6 +246,7 @@ public:
   bool runOnType(TypeLoc Pattern, TypeLoc Target, Bindings &Bound) {
     Pairs = nullptr;
     TypePairs = nullptr;
+    DeclarationPairs = nullptr;
     return matchTypeLoc(Pattern, Target, Bound);
   }
 
@@ -245,14 +256,18 @@ public:
   /// \p Out and \p TypeOut are as in \c run.
   bool runOnDecl(const DeclStmt &Pattern, llvm::ArrayRef<const Decl *> Target,
                  Bindings &Bound, NodePairs *Out = nullptr,
-                 TypeLocPairs *TypeOut = nullptr) {
+                 TypeLocPairs *TypeOut = nullptr,
+                 DeclPairs *DeclOut = nullptr) {
     assert((!Out || Out->empty()) && (!TypeOut || TypeOut->empty()) &&
+           (!DeclOut || DeclOut->empty()) &&
            "runOnDecl appends, so the caller owns one of each per candidate");
     Pairs = Out;
     TypePairs = TypeOut;
+    DeclarationPairs = DeclOut;
     const bool Matched = matchDecls(Pattern, Target, Bound);
     Pairs = nullptr;
     TypePairs = nullptr;
+    DeclarationPairs = nullptr;
     return Matched;
   }
 
@@ -267,6 +282,10 @@ private:
   /// Where to record the written-type correspondence, or null. Owned the same
   /// way \c Pairs is.
   TypeLocPairs *TypePairs = nullptr;
+  /// Where to record the declaration correspondence, or null. Owned the same
+  /// way \c Pairs is. Named apart from the \c DeclPairs type so that the
+  /// member and the type do not read as one another.
+  DeclPairs *DeclarationPairs = nullptr;
 
   bool bind(const MetaVar &M, const Stmt *Target, Bindings &Bound) {
     if (!kindAccepts(M.Kind, Target))
@@ -331,40 +350,128 @@ private:
     return true;
   }
 
-  /// Matches a declaration statement: the written type, the declared name and
-  /// the initialiser, one declarator at a time.
+  /// Does one declaration of the pattern match one of the target?
   ///
-  /// None of the three is a child of the `DeclStmt`, so comparing class plus
-  /// children made every childless declaration match every other one.
+  /// The written type, the declared name and the initialiser are compared,
+  /// and none of the three is a child of the declaration, so comparing class
+  /// plus children made every childless declaration match every other one.
+  ///
+  /// A record member goes through here too. A \c FieldDecl is a
+  /// \c DeclaratorDecl, so its written type and its name are compared the way
+  /// a variable's are, and the bit-field width is the one thing it can carry
+  /// that a variable cannot.
+  bool matchOneDecl(const Decl *PD, const Decl *TD, Bindings &Bound) {
+    // Recorded before anything is compared, so a rule marking a member names
+    // the range the target wrote it over. A member is neither a `Stmt` nor a
+    // written type, so this is the only correspondence that can carry it.
+    if (DeclarationPairs)
+      DeclarationPairs->push_back({PD, TD});
+    const auto *PDecl = dyn_cast<DeclaratorDecl>(PD);
+    const auto *TDecl = dyn_cast<DeclaratorDecl>(TD);
+    const auto *PT = dyn_cast<TypedefNameDecl>(PD);
+    const auto *TT = dyn_cast<TypedefNameDecl>(TD);
+    const auto *PR = dyn_cast<RecordDecl>(PD);
+    const auto *TR = dyn_cast<RecordDecl>(TD);
+    if (PDecl && TDecl) {
+      if (!matchWrittenType(PDecl->getTypeSourceInfo(),
+                            TDecl->getTypeSourceInfo(), Bound) ||
+          !matchDeclaredName(*PDecl, *TDecl, Bound))
+        return false;
+      const auto *PF = dyn_cast<FieldDecl>(PDecl);
+      const auto *TF = dyn_cast<FieldDecl>(TDecl);
+      if (PF && TF) {
+        if (PF->isBitField() != TF->isBitField())
+          return false;
+        return !PF->isBitField() ||
+               match(PF->getBitWidth(), TF->getBitWidth(), Bound);
+      }
+      const auto *PV = dyn_cast<VarDecl>(PDecl);
+      const auto *TV = dyn_cast<VarDecl>(TDecl);
+      if (!PV != !TV)
+        return false;
+      return !PV || match(PV->getInit(), TV->getInit(), Bound);
+    }
+    if (PR && TR)
+      return matchRecord(*PR, *TR, Bound);
+    if (!PT || !TT)
+      return false;
+    return matchWrittenType(PT->getTypeSourceInfo(), TT->getTypeSourceInfo(),
+                            Bound) &&
+           matchTypedefName(*PT, *TT, Bound);
+  }
+
+  /// Does a record definition written in the pattern match one in the target?
+  ///
+  /// The member list is compared element for element with nothing implicit
+  /// between the members. `spatch` 1.1.1 refuses `T { int a; };` against
+  /// `struct foo {int a; int c;};` and against
+  /// `typedef struct blah {int a; int c;} name;`, and writing `...` inside the
+  /// braces is what asks for the loose reading. So a record body is unlike an
+  /// initialiser list, where one element matches inside a longer one.
+  bool matchRecord(const RecordDecl &Pattern, const RecordDecl &Target,
+                   Bindings &Bound) {
+    if (!Pattern.isCompleteDefinition() || !Target.isCompleteDefinition())
+      return false;
+    // A tag that stands for a type metavariable constrains neither the kind
+    // nor the name: `spatch` 1.1.1 matches `T { int a; };` against a `union`
+    // as readily as against a `struct`, and against all three of `struct foo`,
+    // `typedef struct blah {...} name` and `typedef struct {...} xxx`. What it
+    // does require is that the declaration introduce the type and nothing
+    // else, which is what the binding's own range says.
+    if (const MetaVar *M = Parsed.metaVarFor(Pattern.getCanonicalDecl())) {
+      const SourceRange Introduced = introducedTypeRange(Target);
+      if (!Introduced.isValid() ||
+          !bindTo(*M, Binding{nullptr, Introduced}, Bound))
+        return false;
+      return matchMembers(Pattern, Target, Bound);
+    }
+    if (Pattern.getTagKind() != Target.getTagKind())
+      return false;
+    // The tag the patch wrote, with "no tag" a spelling of its own. `spatch`
+    // 1.1.1 leaves `struct bar {int a;};` alone for a pattern writing
+    // `struct foo`, leaves `struct foo { int a; } s;` alone for one writing
+    // `struct { int a; } s;`, and rewrites the anonymous target for that same
+    // pattern. Comparing the members alone rewrote `struct bar` from a
+    // pattern naming `struct foo`.
+    const IdentifierInfo *PN = Pattern.getIdentifier();
+    const IdentifierInfo *TN = Target.getIdentifier();
+    if (!PN != !TN)
+      return false;
+    if (PN && PN->getName() != TN->getName())
+      return false;
+    return matchMembers(Pattern, Target, Bound);
+  }
+
+  /// Do the two member lists agree, member for member?
+  bool matchMembers(const RecordDecl &Pattern, const RecordDecl &Target,
+                    Bindings &Bound) {
+    auto PIt = Pattern.decls_begin(), PEnd = Pattern.decls_end();
+    auto TIt = Target.decls_begin(), TEnd = Target.decls_end();
+    for (; PIt != PEnd && TIt != TEnd; ++PIt, ++TIt)
+      if (!matchOneDecl(*PIt, *TIt, Bound))
+        return false;
+    return PIt == PEnd && TIt == TEnd;
+  }
+
   bool matchDecls(const DeclStmt &Pattern, llvm::ArrayRef<const Decl *> Target,
                   Bindings &Bound) {
+    // A pattern that is one record definition is compared against the record
+    // of the target's group, and whether the rest of that group is acceptable
+    // is `introducedTypeRange`'s question. Comparing the groups element for
+    // element instead left `typedef struct blah {int a;} name;` unmatched
+    // inside a function body, where both declarations share one `DeclStmt`,
+    // while the same declaration at file scope matched: there the record is
+    // offered on its own.
+    if (Pattern.isSingleDecl())
+      if (const auto *PR = dyn_cast<RecordDecl>(Pattern.getSingleDecl()))
+        for (const Decl *D : Target)
+          if (const auto *TR = dyn_cast<RecordDecl>(D))
+            return matchOneDecl(PR, TR, Bound);
     auto PIt = Pattern.decl_begin(), PEnd = Pattern.decl_end();
     auto TIt = Target.begin(), TEnd = Target.end();
-    for (; PIt != PEnd && TIt != TEnd; ++PIt, ++TIt) {
-      const auto *PD = dyn_cast<DeclaratorDecl>(*PIt);
-      const auto *TD = dyn_cast<DeclaratorDecl>(*TIt);
-      const auto *PT = dyn_cast<TypedefNameDecl>(*PIt);
-      const auto *TT = dyn_cast<TypedefNameDecl>(*TIt);
-      if (PD && TD) {
-        if (!matchWrittenType(PD->getTypeSourceInfo(), TD->getTypeSourceInfo(),
-                              Bound) ||
-            !matchDeclaredName(*PD, *TD, Bound))
-          return false;
-        const auto *PV = dyn_cast<VarDecl>(PD);
-        const auto *TV = dyn_cast<VarDecl>(TD);
-        if (!PV != !TV)
-          return false;
-        if (PV && !match(PV->getInit(), TV->getInit(), Bound))
-          return false;
-        continue;
-      }
-      if (!PT || !TT)
+    for (; PIt != PEnd && TIt != TEnd; ++PIt, ++TIt)
+      if (!matchOneDecl(*PIt, *TIt, Bound))
         return false;
-      if (!matchWrittenType(PT->getTypeSourceInfo(), TT->getTypeSourceInfo(),
-                            Bound) ||
-          !matchTypedefName(*PT, *TT, Bound))
-        return false;
-    }
     return PIt == PEnd && TIt == TEnd;
   }
 
@@ -655,22 +762,80 @@ std::string whyNotComparableType(const TypeSourceInfo *Info) {
   return uncomparableType(Info->getType());
 }
 
+std::string whyNotComparableOneDecl(const Decl *D) {
+  // A record definition is compared through its members, each of which is a
+  // declaration in its own right.
+  if (const auto *RD = dyn_cast<RecordDecl>(D)) {
+    if (!RD->isCompleteDefinition())
+      return "the pattern names a record without defining it, so there is no "
+             "member list to match";
+    for (const Decl *Member : RD->decls())
+      if (std::string Why = whyNotComparableOneDecl(Member); !Why.empty())
+        return Why;
+    return std::string();
+  }
+  const TypeSourceInfo *Info = nullptr;
+  if (const auto *DD = dyn_cast<DeclaratorDecl>(D))
+    Info = DD->getTypeSourceInfo();
+  else if (const auto *TD = dyn_cast<TypedefNameDecl>(D))
+    Info = TD->getTypeSourceInfo();
+  else
+    return std::string("the pattern's declaration holds a ") +
+           D->getDeclKindName() +
+           " declarator, which the comparison has no counterpart for";
+  if (std::string Why = whyNotComparableType(Info); !Why.empty())
+    return "the pattern declares " + Why +
+           ", which the type comparison does not handle";
+  return std::string();
+}
+
 std::string whyNotComparableInDecls(const DeclStmt &S) {
-  for (const Decl *D : S.decls()) {
+  for (const Decl *D : S.decls())
+    if (std::string Why = whyNotComparableOneDecl(D); !Why.empty())
+      return Why;
+  return std::string();
+}
+
+/// The name \p RD's own declaration introduces, or an invalid range when that
+/// declaration introduces anything besides the type.
+///
+/// This is what `T { int a; };` asks of a target and what `T` binds to, read
+/// off `spatch` 1.1.1 with a script rule printing the binding.
+/// `struct foo {int a;};`, `union foo {int a;};`,
+/// `typedef struct blah {int a;} name;` and `typedef struct {int a;} xxx;` all
+/// match, binding `struct foo`, `union foo`, `name` and `xxx`.
+/// `struct foo {int a;} v;`, `extern struct foo {int a;} v;`,
+/// `struct foo {int a;} *p;` and `typedef struct blah {int a;} name, name2;`
+/// all fail to match, because each introduces something besides the type.
+///
+/// A tag written on its own is free standing and introduces its own name. A
+/// tag written inside a declarator is owned by whatever that declarator
+/// declares, and `TagType::isTagOwned` says so, so the declarations of the
+/// enclosing context that own this one are the whole answer: exactly one, and
+/// a typedef.
+SourceRange introducedTypeRange(const RecordDecl &RD) {
+  if (!RD.isEmbeddedInDeclarator())
+    return RD.getIdentifier() ? SourceRange(RD.getBeginLoc(), RD.getLocation())
+                              : SourceRange();
+  const Decl *Owner = nullptr;
+  for (const Decl *D : RD.getDeclContext()->decls()) {
     const TypeSourceInfo *Info = nullptr;
     if (const auto *DD = dyn_cast<DeclaratorDecl>(D))
       Info = DD->getTypeSourceInfo();
     else if (const auto *TD = dyn_cast<TypedefNameDecl>(D))
       Info = TD->getTypeSourceInfo();
-    else
-      return std::string("the pattern's declaration holds a ") +
-             D->getDeclKindName() +
-             " declarator, which the comparison has no counterpart for";
-    if (std::string Why = whyNotComparableType(Info); !Why.empty())
-      return "the pattern declares " + Why +
-             ", which the type comparison does not handle";
+    if (!Info)
+      continue;
+    const auto *Tag = Info->getType()->getAs<TagType>();
+    if (!Tag || !Tag->isTagOwned() ||
+        Tag->getDecl()->getCanonicalDecl() != RD.getCanonicalDecl())
+      continue;
+    if (Owner)
+      return SourceRange(); // Two names, as `typedef struct {} a, b;` writes.
+    Owner = D;
   }
-  return std::string();
+  const auto *TD = dyn_cast_or_null<TypedefNameDecl>(Owner);
+  return TD ? SourceRange(TD->getLocation()) : SourceRange();
 }
 
 /// Every declaration written at file scope, and by default only those that
@@ -692,9 +857,13 @@ fileScopeDeclarations(ASTContext &Context, bool MultiDeclaratorOK) {
   // Clang puts its own predefined typedefs, `__builtin_va_list` among them,
   // at the head of every translation unit with no source location at all. No
   // patch can name one, and a match on one has nowhere to be reported.
-  const auto Eligible = [](const Decl *D) {
-    return isa<DeclaratorDecl, TypedefNameDecl>(D) && !isa<FunctionDecl>(D) &&
-           !D->isImplicit() && D->getBeginLoc().isValid();
+  const auto Eligible = [&](const Decl *D) {
+    if (D->isImplicit() || D->getBeginLoc().isInvalid())
+      return false;
+    if (const auto *RD = dyn_cast<RecordDecl>(D))
+      return RD->isCompleteDefinition() &&
+             introducedTypeRange(*RD).isValid();
+    return isa<DeclaratorDecl, TypedefNameDecl>(D) && !isa<FunctionDecl>(D);
   };
   // Clang gives every declarator of one declaration the same begin location,
   // which is what separates `int a, b;` from `int a; int b;`.
@@ -818,7 +987,8 @@ std::vector<Match> findTypeMatches(TypeLoc Pattern, const ParsedPattern &Parsed,
     Bindings Bound = Seed;
     if (!Shared.runOnType(Pattern, TL, Bound))
       continue;
-    Out.push_back({DynTypedNode::create(TL), std::move(Bound), 0, {}, {}});
+    Out.push_back(
+        {DynTypedNode::create(TL), std::move(Bound), 0, {}, {}, {}});
   }
   return Out;
 }
@@ -901,13 +1071,16 @@ std::vector<Match> findMatches(llvm::ArrayRef<const Stmt *> Patterns,
       // the list would report every near miss as the match's own.
       NodePairs Pairs;
       TypeLocPairs TypePairs;
+      DeclPairs DeclarationPairs;
       if (!Shared.run(Patterns[P], S, Bound,
                       Opts.WantNodePairs ? &Pairs : nullptr,
-                      Opts.WantNodePairs ? &TypePairs : nullptr))
+                      Opts.WantNodePairs ? &TypePairs : nullptr,
+                      Opts.WantNodePairs ? &DeclarationPairs : nullptr))
         continue;
       StmtRanges.push_back(R);
       Out.push_back({DynTypedNode::create(*S), std::move(Bound), P,
-                     std::move(Pairs), std::move(TypePairs)});
+                     std::move(Pairs), std::move(TypePairs),
+                     std::move(DeclarationPairs)});
     }
     const auto *DS = dyn_cast<DeclStmt>(peel(Patterns[P]));
     if (!DS)
@@ -919,14 +1092,17 @@ std::vector<Match> findMatches(llvm::ArrayRef<const Stmt *> Patterns,
       Bindings Bound = Seed;
       NodePairs Pairs;
       TypeLocPairs TypePairs;
+      DeclPairs DeclarationPairs;
       if (!Shared.runOnDecl(*DS, D, Bound,
                             Opts.WantNodePairs ? &Pairs : nullptr,
-                            Opts.WantNodePairs ? &TypePairs : nullptr))
+                            Opts.WantNodePairs ? &TypePairs : nullptr,
+                            Opts.WantNodePairs ? &DeclarationPairs : nullptr))
         continue;
       ClaimedDecls.insert(D);
       DeclRanges.push_back(D->getSourceRange());
       Out.push_back({DynTypedNode::create(*D), std::move(Bound), P,
-                     std::move(Pairs), std::move(TypePairs)});
+                     std::move(Pairs), std::move(TypePairs),
+                     std::move(DeclarationPairs)});
     }
   }
 
