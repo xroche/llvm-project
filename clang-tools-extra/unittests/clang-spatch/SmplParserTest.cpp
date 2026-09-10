@@ -1833,15 +1833,27 @@ TEST(SmplParser, TwoCompleteStatementsAreNotFusedByALeadingOperator) {
   EXPECT_EQ("*p = 0;", P.Rules[0].Minus[1].Text);
 }
 
-TEST(SmplParser, AnOpeningBraceIsNotJoinedToTheStatementInsideIt) {
-  // The joined text would leave a brace unclosed, and every item of a rule
-  // shares one translation unit, so the imbalance takes the items after it
-  // with it. `tests/defineinit.cocci` and `tests/strangeorder.cocci` both
-  // lost a later statement metavariable that way.
+TEST(SmplParser, ABalancedBraceGroupIsOneItemAndAnUnbalancedOneIsNot) {
+  // A brace group is one construct written across lines, and handing it to
+  // the pattern parser whole is what lets Clang say which construct it is.
+  // `tests/defineinit.cocci` writes the group below.
   SemanticPatch P = parsed("@r@\nexpression E;\n@@\n  {\n- .foo = E\n  }\n");
   ASSERT_EQ(1u, P.Rules.size());
-  ASSERT_LE(2u, P.Rules[0].Minus.size()) << refusalList(P);
-  EXPECT_EQ("{", P.Rules[0].Minus[0].Text);
+  ASSERT_EQ(1u, P.Rules[0].Minus.size()) << refusalList(P);
+  EXPECT_EQ("{ .foo = E }", P.Rules[0].Minus[0].Text);
+
+  // A run that never closes on this side stays as it was. The joined text
+  // would leave a brace unclosed, and every item of a rule shares one
+  // translation unit, so the imbalance takes the items after it with it:
+  // `tests/strangeorder.cocci` lost a later statement metavariable that way.
+  // Deleting the closing brace alone leaves the `+` side exactly there.
+  SemanticPatch Q =
+      parsed("@r@\nstatement S;\n@@\n  {\n  S\n- }\n");
+  ASSERT_EQ(1u, Q.Rules.size());
+  ASSERT_EQ(1u, Q.Rules[0].Minus.size()) << refusalList(Q);
+  EXPECT_EQ("{ S }", Q.Rules[0].Minus[0].Text);
+  ASSERT_LE(2u, Q.Rules[0].Plus.size()) << refusalList(Q);
+  EXPECT_EQ("{", Q.Rules[0].Plus[0].Text);
 }
 
 TEST(SmplParser, AStatementOpeningWithAnOperatorIsAFragment) {

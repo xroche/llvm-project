@@ -199,20 +199,6 @@ constexpr llvm::StringLiteral ATypeSideNotBuilt =
     "type, which this version builds only for a rule whose whole `-` side is "
     "the type";
 
-/// Do \p Items open with a `{` and close with a `}`?
-///
-/// Such a side is one construct written across several lines rather than a
-/// sequence of statements, so its lines are an initialiser element or a record
-/// member and not a statement each. `tests/defineinit.cocci`,
-/// `tests/substruct.cocci` and `tests/td.cocci` are the corpus cases, and all
-/// three used to be refused for missing statement adjacency, which is not what
-/// any of them asks for.
-bool opensABracedGroup(const std::vector<PatternItem> &Items) {
-  const llvm::StringRef First = llvm::StringRef(Items.front().Text).trim();
-  const llvm::StringRef Last = llvm::StringRef(Items.back().Text).trim();
-  return First.ends_with("{") && (Last.ends_with("}") || Last.ends_with("};"));
-}
-
 /// Is \p Items a rule body that is nothing but one disjunction?
 bool isOneDisjunction(const std::vector<PatternItem> &Items) {
   return Items.size() == 1 &&
@@ -238,10 +224,6 @@ alternativeOf(const std::vector<PatternItem> &Minus,
   if (Minus.size() != 1) {
     if (Minus.empty())
       Why = "a dot-free rule with nothing to match on the `-` side";
-    else if (opensABracedGroup(Minus))
-      Why = "the `-` side is a brace-delimited group, so its lines are parts "
-            "of one construct rather than a sequence of statements, and "
-            "matching it needs a pattern for a node inside the braces";
     else
       Why = "a dot-free rule matching a sequence of statements needs "
             "statement adjacency, which this version does not build";

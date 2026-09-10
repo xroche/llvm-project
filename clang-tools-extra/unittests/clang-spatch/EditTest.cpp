@@ -181,15 +181,14 @@ TEST(FlatRule, AMinusWithNoPlusDeletesTheStatement) {
 // indentation, or a newly blank line behind, which was 20 of the 186
 // disagreements with Coccinelle's own `.res` files.
 
-TEST(FlatRule, ABracedGroupIsNotAStatementSequence) {
-  // `tests/defineinit.cocci`, `tests/substruct.cocci` and `tests/td.cocci`
-  // write an initialiser element or a record member between braces, so the
-  // `{`, the body and the `}` land as three items. All three used to be
-  // refused for missing statement adjacency, and 14 rules of the corpus with
-  // a C input were mislabelled the same way.
-  EXPECT_EQ("!the `-` side is a brace-delimited group, so its lines are parts "
-            "of one construct rather than a sequence of statements, and "
-            "matching it needs a pattern for a node inside the braces",
+TEST(FlatRule, ABracedGroupReachesTheParserWholeAndIsRefusedByWhatClangSays) {
+  // `tests/substruct.cocci` writes an initialiser element between braces and
+  // `tests/td.cocci` a record member, and neither inner line parses on its
+  // own. The group is one item now, so the reason a rule cannot run is the
+  // obstacle Clang names rather than one blanket message over 14 corpus
+  // rules: an initialiser element needs a context that admits one.
+  EXPECT_EQ("!pattern: the pattern statement did not parse as C: expected "
+            "expression",
             rewritten("@r@\nexpression E;\n@@\n{\n- .a = E,\n}\n",
                       "struct s { int a; };\nstruct s v = { .a = 1, };\n"));
 }

@@ -82,15 +82,9 @@ bool isStatementMetaVar(StringRef T, ArrayRef<MetaVar> MetaVars) {
   return false;
 }
 
-/// The depth of unclosed `(` and `[` that \p T leaves behind, ignoring any
-/// inside a string or a character literal.
-///
-/// A brace is deliberately not counted. `(` and `[` continue an expression
-/// onto the next line, so `foo(` takes the lines after it. A `{` opens a block
-/// whose contents are separate statements, and joining them produced a
-/// `CompoundStmt` out of an unbalanced brace and broke the statements after it
-/// in the same translation unit.
-int bracketDepth(StringRef T) {
+/// How many of \p T's \p Open characters its \p Close ones leave unclosed,
+/// ignoring any inside a string or a character literal.
+int nestingDepth(StringRef T, StringRef Open, StringRef Close) {
   int Depth = 0;
   bool InString = false, InChar = false;
   for (size_t I = 0, E = T.size(); I != E; ++I) {
@@ -106,13 +100,27 @@ int bracketDepth(StringRef T) {
       InString = true;
     else if (C == '\'')
       InChar = true;
-    else if (C == '(' || C == '[')
+    else if (Open.contains(C))
       ++Depth;
-    else if (C == ')' || C == ']')
+    else if (Close.contains(C))
       --Depth;
   }
   return Depth;
 }
+
+/// The depth of unclosed `(` and `[` that \p T leaves behind, ignoring any
+/// inside a string or a character literal.
+///
+/// A brace is deliberately not counted. `(` and `[` continue an expression
+/// onto the next line, so `foo(` takes the lines after it. A `{` opens a block
+/// whose contents are separate statements, and joining them produced a
+/// `CompoundStmt` out of an unbalanced brace and broke the statements after it
+/// in the same translation unit.
+int bracketDepth(StringRef T) { return nestingDepth(T, "([", ")]"); }
+
+/// The depth of unclosed `{` that \p T leaves behind, ignoring any inside a
+/// string or a character literal.
+int braceDepth(StringRef T) { return nestingDepth(T, "{", "}"); }
 
 /// Is every word of \p T a type keyword or a declared type metavariable?
 ///
@@ -219,6 +227,24 @@ bool continuesTheLineAbove(StringRef Above, StringRef Next) {
   return opensMidStatement(Next);
 }
 
+/// Joins \p It onto \p Into as one more line of the same statement.
+void joinOnto(PatternItem &Into, const PatternItem &It) {
+  const unsigned Shift = Into.Text.size() + 1;
+  for (PatternItem::Span Sp : It.Spans) {
+    Sp.Offset += Shift;
+    Into.Spans.push_back(Sp);
+  }
+  Into.Text += " ";
+  Into.Text += StringRef(It.Text).trim();
+  // A position on a joined line still belongs to the statement.
+  if (Into.PositionVar.empty())
+    Into.PositionVar = It.PositionVar;
+  // A statement holding one changed line is a changed statement, whichever
+  // line of it opened the group.
+  if (It.Marker != ItemMarker::Context)
+    Into.Marker = It.Marker;
+}
+
 /// Appends \p It to one side's statement sequence, joining it onto the
 /// statement already there when that one is unfinished.
 void appendToSide(std::vector<PatternItem> &Side, const PatternItem &It,
@@ -241,20 +267,7 @@ void appendToSide(std::vector<PatternItem> &Side, const PatternItem &It,
     Side.push_back(It);
     return;
   }
-  const unsigned Shift = Side.back().Text.size() + 1;
-  for (PatternItem::Span Sp : It.Spans) {
-    Sp.Offset += Shift;
-    Side.back().Spans.push_back(Sp);
-  }
-  Side.back().Text += " ";
-  Side.back().Text += StringRef(It.Text).trim();
-  // A position on a joined line still belongs to the statement.
-  if (Side.back().PositionVar.empty())
-    Side.back().PositionVar = It.PositionVar;
-  // A statement holding one changed line is a changed statement, whichever
-  // line of it opened the group.
-  if (It.Marker != ItemMarker::Context)
-    Side.back().Marker = It.Marker;
+  joinOnto(Side.back(), It);
 }
 
 /// Does \p It belong to the side \p Minus names?
@@ -290,6 +303,51 @@ void groupInto(std::vector<PatternItem> &Side,
   }
 }
 
+/// Joins each run of \p Side that one line's `{` opens and a later line's `}`
+/// closes into a single item.
+///
+/// A brace group is one construct written across several lines, and its inner
+/// lines are parts of that construct rather than statements: `{ .a = E, }` is
+/// an initialiser list and `T { int a; };` a record body, and no inner line of
+/// either parses on its own. Handing the group to the pattern parser whole is
+/// what lets Clang say which construct it is.
+///
+/// \c continuesOntoNextLine deliberately does not count a brace, because
+/// joining a `{` to only some of the lines below it builds unbalanced text and
+/// every item of a rule shares one translation unit. A run that closes on this
+/// side is balanced, so that reason does not reach it, and a run that never
+/// closes is left exactly as it was.
+///
+/// A statement-level `...` inside the run stops it, because such a line is a
+/// \c Dots item rather than a statement and the scan below only crosses
+/// statements. An argument-level one is part of a statement's own text and is
+/// carried along with it.
+void joinBraceGroups(std::vector<PatternItem> &Side) {
+  for (size_t I = 0; I != Side.size(); ++I) {
+    if (Side[I].Kind == ItemKind::Disjunction) {
+      // A branch is a rule body in miniature, so it holds groups of its own.
+      for (std::vector<PatternItem> &Branch : Side[I].Branches)
+        joinBraceGroups(Branch);
+      continue;
+    }
+    if (Side[I].Kind != ItemKind::Statement || braceDepth(Side[I].Text) <= 0)
+      continue;
+    int Depth = braceDepth(Side[I].Text);
+    size_t Last = I;
+    for (size_t J = I + 1; J != Side.size() && Depth > 0; ++J) {
+      if (Side[J].Kind != ItemKind::Statement)
+        break;
+      Depth += braceDepth(Side[J].Text);
+      Last = J;
+    }
+    if (Depth != 0)
+      continue;
+    for (size_t J = I + 1; J <= Last; ++J)
+      joinOnto(Side[I], Side[J]);
+    Side.erase(Side.begin() + I + 1, Side.begin() + Last + 1);
+  }
+}
+
 /// Marks every statement of \p Side that grouping left incomplete.
 ///
 /// A group that closed while its text was still open never got the lines that
@@ -320,6 +378,8 @@ void markUnfinished(std::vector<PatternItem> &Side,
 void groupSides(Rule &R) {
   groupInto(R.Minus, R.Body, /*Minus=*/true, R.MetaVars);
   groupInto(R.Plus, R.Body, /*Minus=*/false, R.MetaVars);
+  joinBraceGroups(R.Minus);
+  joinBraceGroups(R.Plus);
   markUnfinished(R.Minus, R.MetaVars);
   markUnfinished(R.Plus, R.MetaVars);
 }
