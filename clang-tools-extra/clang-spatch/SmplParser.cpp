@@ -345,6 +345,7 @@ void joinBraceGroups(std::vector<PatternItem> &Side) {
     for (size_t J = I + 1; J <= Last; ++J)
       joinOnto(Side[I], Side[J]);
     Side.erase(Side.begin() + I + 1, Side.begin() + Last + 1);
+    Side[I].BraceGroup = true;
   }
 }
 
@@ -1868,7 +1869,7 @@ void SmplParser::scanRefusedConstructs(unsigned LineNo, StringRef T, Rule &R,
   if (DotNames.empty() && T.contains("...")) {
     std::string Why;
     std::optional<ParsedPattern> P =
-        parsePattern(R.MetaVars, {T.str()}, Patch.TypeNames, Why);
+        parsePattern(R.MetaVars, {T.str()}, Patch.TypeNames, {}, Why);
     if (!P)
       refuse(LineNo, "argument-level ellipsis in a pattern Clang cannot read",
              Why);

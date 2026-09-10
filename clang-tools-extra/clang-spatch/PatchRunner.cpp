@@ -199,6 +199,29 @@ constexpr llvm::StringLiteral ATypeSideNotBuilt =
     "type, which this version builds only for a rule whose whole `-` side is "
     "the type";
 
+/// The element list of a brace group, without its braces and without the
+/// separator that would follow the last element.
+///
+/// The group's braces said which context to read its lines in, and the node a
+/// one-element group means is the element. So the text that replaces that
+/// element is the plus group's own element list, and the separator belongs to
+/// the target's list rather than to either side of the patch: an element's
+/// range stops before its comma on both sides.
+llvm::StringRef braceGroupElements(llvm::StringRef Text) {
+  Text = Text.trim();
+  if (!Text.consume_front("{"))
+    return Text;
+  Text = Text.rtrim();
+  if (Text.ends_with(";"))
+    Text = Text.drop_back(1).rtrim();
+  if (Text.ends_with("}"))
+    Text = Text.drop_back(1);
+  Text = Text.trim();
+  if (Text.ends_with(","))
+    Text = Text.drop_back(1).rtrim();
+  return Text;
+}
+
 /// Is \p Items a rule body that is nothing but one disjunction?
 bool isOneDisjunction(const std::vector<PatternItem> &Items) {
   return Items.size() == 1 &&
@@ -295,7 +318,20 @@ alternativeOf(const std::vector<PatternItem> &Minus,
           "which needs an edit inside the matched node rather than over it";
     if (!A.PlusText.empty())
       A.PlusText += " ";
-    A.PlusText += I.Text;
+    A.PlusText +=
+        I.BraceGroup ? braceGroupElements(I.Text) : llvm::StringRef(I.Text);
+  }
+  // An element taken out of a list leaves the separator the target wrote
+  // behind it, and an element's range stops before its comma, so deleting the
+  // element alone printed `{ , }`. `spatch` 1.1.1 changes nothing for such a
+  // patch on any of `{ .a = 1, }`, `{ .a = 1, .c = 2, }` and
+  // `{ .c = 2, .a = 1, }`, so there is nothing to reproduce and the separator
+  // is not this step's to move.
+  if (A.Match->BraceGroup && llvm::StringRef(A.PlusText).trim().empty()) {
+    Why = "the rule takes an element out of a brace group, which leaves the "
+          "separator the target wrote beside it, and moving that separator is "
+          "not what this version builds";
+    return std::nullopt;
   }
   A.Purpose = RulePurpose::Rewrite;
   return A;
@@ -369,12 +405,17 @@ void runFlatRule(const Rule &R, const FlatRule &F,
   // share one translation unit and one set of metavariable declarations, and
   // an alternative keeps the index its branch has.
   std::vector<std::string> Texts;
-  for (const FlatRule::Alternative &A : F.Alts)
+  // Whether grouping built each text out of a brace group, which the text
+  // alone does not say and which decides the wrapper it is parsed in.
+  llvm::SmallVector<bool, 4> Groups;
+  for (const FlatRule::Alternative &A : F.Alts) {
     Texts.push_back(A.Match->Text);
+    Groups.push_back(A.Match->BraceGroup);
+  }
   // The pattern is parsed rather than compiled to a matcher expression, so
   // every statement form Clang can read is available and not only a call.
   std::optional<ParsedPattern> Parsed =
-      parsePattern(R.MetaVars, Texts, TypeNames, Error);
+      parsePattern(R.MetaVars, Texts, TypeNames, Groups, Error);
   if (!Parsed) {
     Result.UnrunRules.push_back({R.Name, "pattern: " + Error});
     return;
@@ -675,7 +716,7 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
     // declarations.
     std::optional<ParsedPattern> Parsed = parsePattern(
         R.MetaVars, {Shape->Anchor->Text, Shape->Dots->WhenNot.front()},
-        Patch.TypeNames, Error);
+        Patch.TypeNames, {Shape->Anchor->BraceGroup, false}, Error);
     if (!Parsed) {
       Result.UnrunRules.push_back({R.Name, "pattern: " + Error});
       continue;

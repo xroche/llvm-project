@@ -21,9 +21,13 @@ MetaVar mv(enum MetaVar::Kind K, llvm::StringRef Name) {
 
 /// Matches \p Pattern against \p Code and returns one line per match, listing
 /// the matched text and each binding, or "!" plus the reason none was tried.
+///
+/// \p BraceGroup says the pattern is one brace group, which is what grouping
+/// tells the pattern parser and what the text alone cannot say.
 std::vector<std::string> matches(llvm::StringRef Pattern,
                                  std::vector<MetaVar> MetaVars,
-                                 llvm::StringRef Code) {
+                                 llvm::StringRef Code,
+                                 bool BraceGroup = false) {
   std::vector<std::string> Out;
   std::unique_ptr<ASTUnit> Unit =
       tooling::buildASTFromCodeWithArgs(Code, {"-std=gnu11", "-w"}, "input.c");
@@ -31,11 +35,13 @@ std::vector<std::string> matches(llvm::StringRef Pattern,
     return {"!no AST"};
   std::string Error;
   std::optional<ParsedPattern> P =
-      parsePattern(MetaVars, {Pattern.str()}, {}, Error);
+      parsePattern(MetaVars, {Pattern.str()}, {}, {BraceGroup}, Error);
   if (!P)
     return {"!" + Error};
   if (!P->Items[0])
     return {"!" + P->Errors[0]};
+  if (std::string Why = whyNotComparable(P->Items[0]); !Why.empty())
+    return {"!" + Why};
   ASTContext &Ctx = Unit->getASTContext();
   for (const Match &M : findMatches(P->Items[0], *P, Ctx)) {
     std::string Line = sourceTextOf(M.Node.getSourceRange(), Ctx).str();
@@ -69,7 +75,7 @@ std::vector<std::string> pairedWith(llvm::StringRef Pattern,
     return {"!no AST"};
   std::string Error;
   std::optional<ParsedPattern> P =
-      parsePattern(MetaVars, {Pattern.str()}, {}, Error);
+      parsePattern(MetaVars, {Pattern.str()}, {}, {}, Error);
   if (!P || !P->Items[0])
     return {"!" + (P ? P->Errors[0] : Error)};
   ASTContext &Ctx = Unit->getASTContext();
@@ -216,7 +222,7 @@ TEST(Unify, NoPairsAreRecordedUnlessTheCallerAsksForThem) {
   std::unique_ptr<ASTUnit> Unit = tooling::buildASTFromCodeWithArgs(
       "void m() { g(1); }", {"-std=gnu11", "-w"}, "input.c");
   std::string Error;
-  std::optional<ParsedPattern> P = parsePattern(E, {"g(e);"}, {}, Error);
+  std::optional<ParsedPattern> P = parsePattern(E, {"g(e);"}, {}, {}, Error);
   ASSERT_TRUE(P.has_value()) << Error;
   std::vector<Match> M = findMatches(P->Items[0], *P, Unit->getASTContext());
   ASSERT_EQ(1u, M.size());
@@ -253,13 +259,34 @@ TEST(Unify, ABlockAsTheWholeMinusSideIsRefusedAndOneInsideAPatternIsNot) {
   const std::vector<MetaVar> None;
   std::string Error;
   std::optional<ParsedPattern> P =
-      parsePattern(None, {"{ 1; }", "if (1) { 2; }"}, {}, Error);
+      parsePattern(None, {"{ 1; }", "if (1) { 2; }"}, {}, {}, Error);
   ASSERT_TRUE(P.has_value()) << Error;
   ASSERT_TRUE(P->Items[0] != nullptr) << P->Errors[0];
   ASSERT_TRUE(P->Items[1] != nullptr) << P->Errors[1];
   EXPECT_THAT(whyNotComparable(P->Items[0]),
               testing::HasSubstr("the `-` side is a block"));
   EXPECT_EQ("", whyNotComparable(P->Items[1]));
+}
+
+TEST(Unify, AOneElementBraceGroupMatchesThatElementWhereverItStands) {
+  // `spatch` 1.1.1 rewrites the `.a = 7,` of `{ .a = 7, .c = 8, }` and leaves
+  // the rest, so the group is not the whole list. It matches one nested in
+  // another list and one in a compound literal, and it refuses a different
+  // designator, an array designator against a field one, and an element with
+  // no designator at all.
+  const std::vector<MetaVar> E = {mv(MetaVar::Kind::Expression, "E")};
+  EXPECT_EQ(Strings({".a = 7 {E=7}"}),
+            matches("{ .a = E, }", E,
+                    "struct a { int a; int c; } y = { .a = 7, .c = 8, };\n",
+                    /*BraceGroup=*/true));
+  EXPECT_EQ(Strings({}), matches("{ .a = E, }", E,
+                                 "struct a { int b; } y = { .b = 7, };\n",
+                                 /*BraceGroup=*/true));
+  EXPECT_EQ(Strings({}), matches("{ .a = E, }", E,
+                                 "struct a { int a; } y = { 7, };\n",
+                                 /*BraceGroup=*/true));
+  EXPECT_EQ(Strings({}), matches("{ .a = E, }", E, "int y[2] = { [0] = 7, };\n",
+                                 /*BraceGroup=*/true));
 }
 
 } // namespace clang::spatch

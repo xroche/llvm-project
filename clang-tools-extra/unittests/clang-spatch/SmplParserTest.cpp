@@ -1599,8 +1599,9 @@ TEST(SmplParserSweep, EveryNativeSampleLandsInOneOfThreeStates) {
           if (Named)
             continue;
           std::string Error;
-          std::optional<ParsedPattern> Parsed = parsePattern(
-              Rule.MetaVars, {It->Text}, R.Patch->TypeNames, Error);
+          std::optional<ParsedPattern> Parsed =
+              parsePattern(Rule.MetaVars, {It->Text}, R.Patch->TypeNames,
+                           {It->BraceGroup}, Error);
           const bool Compiled = Parsed && Parsed->Items[0];
           if (Parsed && !Parsed->Items[0])
             Error = Parsed->Errors[0];

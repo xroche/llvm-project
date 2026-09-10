@@ -15,6 +15,7 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_SPATCH_SEMANTICPATCH_H
 
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringRef.h"
 #include <optional>
 #include <string>
@@ -92,6 +93,14 @@ struct PatternItem {
   bool WhenStrict = false;
   /// For Kind::Disjunction, the alternative branches in source order.
   std::vector<std::vector<PatternItem>> Branches;
+  /// True when grouping joined a `{` to the lines below it and to the `}`
+  /// that closes them.
+  ///
+  /// Such an item is one construct written across lines, and the pattern
+  /// parser needs to know so: `{ .a = E, }` is an initialiser list and no
+  /// inner line of it parses on its own, so Clang has to be given a context
+  /// that admits an initialiser element before it can say what the group is.
+  bool BraceGroup = false;
   /// True when the statement is still incomplete after grouping, as in an
   /// `if` head whose body sits on the other side of the patch. Such an item
   /// is a fragment rather than a statement, and writing one back as a
@@ -168,16 +177,24 @@ struct ScriptRule {
 /// A branch's statements are pattern statements of the rule, so a reader that
 /// stops at the top level sees none of them for a rule whose whole body is a
 /// disjunction.
+///
+/// \p Groups, when given, takes \c PatternItem::BraceGroup for each statement
+/// in the same order, which is what a caller passing the statements on to
+/// \c parsePattern needs.
 inline void collectStatements(const std::vector<PatternItem> &Side,
-                              std::vector<std::string> &Out) {
+                              std::vector<std::string> &Out,
+                              llvm::SmallVectorImpl<bool> *Groups = nullptr) {
   for (const PatternItem &I : Side) {
     if (I.Kind == PatternItem::Kind::Disjunction) {
       for (const std::vector<PatternItem> &Branch : I.Branches)
-        collectStatements(Branch, Out);
+        collectStatements(Branch, Out, Groups);
       continue;
     }
-    if (I.Kind == PatternItem::Kind::Statement)
-      Out.push_back(I.Text);
+    if (I.Kind != PatternItem::Kind::Statement)
+      continue;
+    Out.push_back(I.Text);
+    if (Groups)
+      Groups->push_back(I.BraceGroup);
   }
 }
 

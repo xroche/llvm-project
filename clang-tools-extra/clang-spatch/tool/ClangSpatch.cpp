@@ -145,7 +145,8 @@ int main(int argc, const char **argv) {
       for (const auto &[SideName, Side] :
            {std::pair{"minus", &R.Minus}, std::pair{"plus", &R.Plus}}) {
         std::vector<std::string> Stmts;
-        collectStatements(*Side, Stmts);
+        llvm::SmallVector<bool, 4> Groups;
+        collectStatements(*Side, Stmts, &Groups);
         llvm::outs() << "rule " << (R.Name.empty() ? "<unnamed>" : R.Name)
                      << " side=" << SideName << " statements=" << Stmts.size()
                      << "\n";
@@ -153,7 +154,7 @@ int main(int argc, const char **argv) {
           continue;
         std::string Error;
         std::optional<ParsedPattern> P =
-            parsePattern(R.MetaVars, Stmts, Patch->TypeNames, Error);
+            parsePattern(R.MetaVars, Stmts, Patch->TypeNames, Groups, Error);
         if (!P) {
           llvm::outs() << "  SYNTH FAILED: " << Error << "\n";
           continue;

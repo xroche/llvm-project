@@ -181,16 +181,38 @@ TEST(FlatRule, AMinusWithNoPlusDeletesTheStatement) {
 // indentation, or a newly blank line behind, which was 20 of the 186
 // disagreements with Coccinelle's own `.res` files.
 
-TEST(FlatRule, ABracedGroupReachesTheParserWholeAndIsRefusedByWhatClangSays) {
-  // `tests/substruct.cocci` writes an initialiser element between braces and
-  // `tests/td.cocci` a record member, and neither inner line parses on its
-  // own. The group is one item now, so the reason a rule cannot run is the
-  // obstacle Clang names rather than one blanket message over 14 corpus
-  // rules: an initialiser element needs a context that admits one.
-  EXPECT_EQ("!pattern: the pattern statement did not parse as C: expected "
-            "expression",
+TEST(FlatRule, AOneElementBraceGroupRewritesThatElementInPlace) {
+  // `tests/substruct.cocci` is this shape. The braces said which context to
+  // read the line in, so the node is the element and the text that replaces
+  // it is the plus group's own element: writing the whole plus group there
+  // gave `{ { DECLARE_A(7), }, }`.
+  EXPECT_EQ("struct s { int a; };\nstruct s v = { g(1), };\n",
+            rewritten("@r@\nexpression E;\n@@\n{\n- .a = E,\n+ g(E),\n}\n",
+                      "struct s { int a; };\nstruct s v = { .a = 1, };\n"));
+}
+
+TEST(FlatRule, TakingAnElementOutOfABraceGroupIsRefused) {
+  // The element's range stops before its comma, so deleting the element alone
+  // printed `{ , }` at exit 0. `spatch` 1.1.1 changes nothing for this patch
+  // on `{ .a = 1, }`, on `{ .a = 1, .c = 2, }` or on `{ .c = 2, .a = 1, }`.
+  EXPECT_EQ("!the rule takes an element out of a brace group, which leaves "
+            "the separator the target wrote beside it, and moving that "
+            "separator is not what this version builds",
             rewritten("@r@\nexpression E;\n@@\n{\n- .a = E,\n}\n",
                       "struct s { int a; };\nstruct s v = { .a = 1, };\n"));
+}
+
+TEST(FlatRule, ABraceGroupOfSeveralElementsIsRefused) {
+  // One element is found wherever it stands, which is what searching for the
+  // element alone does. Several need them found adjacent in the target's own
+  // list, which is the same question statement adjacency asks.
+  EXPECT_EQ("!pattern: the pattern's brace group holds more than one element, "
+            "so matching it needs the elements found adjacent in the target's "
+            "own list, which this version does not build",
+            rewritten("@r@\nexpression E;\n@@\n{\n- .a = E,\n+ g(E),\n"
+                      "- .b = E,\n+ h(E),\n}\n",
+                      "struct s { int a; int b; };\n"
+                      "struct s v = { .a = 1, .b = 2, };\n"));
 }
 
 TEST(Whitespace, ADeletedStatementTakesItsWholeLine) {

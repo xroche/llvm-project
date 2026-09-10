@@ -22,7 +22,7 @@ MetaVar mv(enum MetaVar::Kind K, llvm::StringRef Name) {
 std::vector<std::string> parsedKinds(llvm::ArrayRef<MetaVar> MetaVars,
                                      llvm::ArrayRef<std::string> Stmts) {
   std::string Error;
-  std::optional<ParsedPattern> P = parsePattern(MetaVars, Stmts, {}, Error);
+  std::optional<ParsedPattern> P = parsePattern(MetaVars, Stmts, {}, {}, Error);
   std::vector<std::string> Out;
   if (!P) {
     Out.push_back("!" + Error);
@@ -96,7 +96,7 @@ TEST(SynthesiseDeclarations, AWideCharacterTypeNameTakesTheTypeCGivesIt) {
       << S;
   EXPECT_NE(std::string::npos, S.find("typedef __WCHAR_TYPE__ wchar_t;")) << S;
   std::string Error;
-  std::optional<ParsedPattern> P = parsePattern({}, Stmts, TypeNames, Error);
+  std::optional<ParsedPattern> P = parsePattern({}, Stmts, TypeNames, {}, Error);
   ASSERT_TRUE(P.has_value()) << Error;
   for (unsigned I = 0; I != Stmts.size(); ++I)
     EXPECT_TRUE(P->Items[I]) << Stmts[I] << ": " << P->Errors[I];
@@ -138,7 +138,7 @@ TEST(ParsePattern, AMetavariableReferenceResolvesToADeclarationWeOwn) {
   // mistaken for the metavariable.
   const std::vector<MetaVar> MV = {mv(MetaVar::Kind::Expression, "E")};
   std::string Error;
-  std::optional<ParsedPattern> P = parsePattern(MV, {"foo(E);"}, {}, Error);
+  std::optional<ParsedPattern> P = parsePattern(MV, {"foo(E);"}, {}, {}, Error);
   ASSERT_TRUE(P.has_value()) << Error;
   ASSERT_NE(nullptr, P->Items[0]);
   const auto *Call = dyn_cast<CallExpr>(P->Items[0]);
@@ -154,7 +154,7 @@ TEST(ParsePattern, AMetavariableReferenceResolvesToADeclarationWeOwn) {
 
 TEST(ParsePattern, AnArgumentEllipsisSurvivesAsAMarkerCall) {
   std::string Error;
-  std::optional<ParsedPattern> P = parsePattern({}, {"foo(...);"}, {}, Error);
+  std::optional<ParsedPattern> P = parsePattern({}, {"foo(...);"}, {}, {}, Error);
   ASSERT_TRUE(P.has_value()) << Error;
   ASSERT_NE(nullptr, P->Items[0]);
   const auto *Call = dyn_cast<CallExpr>(P->Items[0]);

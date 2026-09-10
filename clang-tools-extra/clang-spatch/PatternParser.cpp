@@ -55,6 +55,32 @@ constexpr llvm::StringLiteral TypedDeclarator = "*__spatch_typed";
 constexpr llvm::StringLiteral ATypeNotAStatement =
     "the pattern declares nothing, so it is a type rather than a statement";
 
+/// The declarator an initialiser group is given so that Clang reads its lines
+/// as initialiser elements.
+///
+/// An array, because a field designator cannot resolve against it and so the
+/// element keeps the name the patch wrote rather than one Clang looked up. The
+/// designator survives that: the parser records the written name and Sema
+/// overwrites it only once it has found the field. The group's own braces
+/// follow this text unchanged, so the offsets a caller holds still name the
+/// characters the pattern occupies.
+constexpr llvm::StringLiteral GroupDeclarator = "int __spatch_group[] =";
+
+/// The message an item gets when its element list holds more than one element.
+constexpr llvm::StringLiteral AGroupOfSeveralElements =
+    "the pattern's brace group holds more than one element, so matching it "
+    "needs the elements found adjacent in the target's own list, which this "
+    "version does not build";
+
+/// \p E without the \c RecoveryExpr the group wrapper's own unresolvable
+/// designator provokes.
+const Expr *peelRecovery(const Expr *E) {
+  if (const auto *R = dyn_cast_or_null<RecoveryExpr>(E))
+    return R->subExpressions().size() == 1 ? R->subExpressions().front()
+                                           : nullptr;
+  return E;
+}
+
 bool isIdentChar(char C) {
   return isalnum(static_cast<unsigned char>(C)) || C == '_';
 }
@@ -143,7 +169,13 @@ std::string typeFor(llvm::StringRef Name, const Usage &U, std::string &Struct) {
 /// The diagnostics that do have a group are switched off on the command line
 /// instead, which is the same policy said the other way round.
 bool isSynthesisArtefact(unsigned ID) {
-  return ID == diag::err_init_element_not_constant;
+  // A field designator cannot resolve against the array an initialiser group
+  // is wrapped in, which is the point of choosing an array: the element then
+  // keeps the name the patch wrote. The `InitListExpr` and its designators
+  // come back intact under a `RecoveryExpr`, so the tree still says what the
+  // pattern says.
+  return ID == diag::err_init_element_not_constant ||
+         ID == diag::err_field_designator_non_aggr;
 }
 
 /// The macro Clang predefines for one of C's wide-character type names, or an
@@ -329,7 +361,8 @@ namespace {
 void parseOnce(llvm::ArrayRef<MetaVar> MetaVars,
                llvm::ArrayRef<std::string> Statements,
                llvm::ArrayRef<std::string> TypeNames,
-               llvm::ArrayRef<bool> AsType, ParsedPattern &P) {
+               llvm::ArrayRef<bool> AsType, llvm::ArrayRef<bool> AsGroup,
+               ParsedPattern &P) {
   P.Items.assign(Statements.size(), nullptr);
   P.TypeItems.assign(Statements.size(), TypeLoc());
   P.Errors.assign(Statements.size(), std::string());
@@ -354,12 +387,18 @@ void parseOnce(llvm::ArrayRef<MetaVar> MetaVars,
     // The wrapper returns int so that `return E;` is a valid pattern. A void
     // wrapper made it a -Wreturn-mismatch warning, which `-w` then hid.
     Src += "int " + ItemPrefix.str() + std::to_string(I) + "(void) {\n";
+    // The declarator comes before the group's own braces, so the offsets the
+    // caller holds have to be taken after it.
+    if (AsGroup[I])
+      Src += GroupDeclarator.str() + " ";
     P.ItemOffsets[I] = Src.size();
     Src += Body;
     if (AsType[I])
       // The declarator comes after the item's own text, so the offsets the
       // caller holds still name the characters the type occupies.
       Src += " " + TypedDeclarator.str() + ";";
+    else if (AsGroup[I])
+      Src += ";";
     else if (!llvm::StringRef(Body).rtrim().ends_with(";") &&
              !llvm::StringRef(Body).rtrim().ends_with("}"))
       Src += ";";
@@ -469,6 +508,33 @@ void parseOnce(llvm::ArrayRef<MetaVar> MetaVars,
       P.Errors[Index] = "the pattern line carries no statement";
       continue;
     }
+    if (AsGroup[Index]) {
+      // The group's braces said which context to read its lines in, and what
+      // the rule means is what stands between them. One element is that
+      // element: `spatch` 1.1.1 rewrites the `.a = 7,` of
+      // `{ .a = 7, .c = 8, }` and leaves the rest, matches one nested inside
+      // another list, and matches one in a compound literal, which is what
+      // searching for the element alone does. More than one needs them found
+      // adjacent in the target's own list.
+      const auto *DS = dyn_cast<DeclStmt>(Only);
+      const auto *VD = DS && DS->isSingleDecl()
+                           ? dyn_cast<VarDecl>(DS->getSingleDecl())
+                           : nullptr;
+      const auto *List =
+          dyn_cast_or_null<InitListExpr>(peelRecovery(VD ? VD->getInit()
+                                                         : nullptr));
+      if (!List) {
+        P.Errors[Index] = "the pattern names a brace group Clang could not "
+                          "read as an initialiser list";
+        continue;
+      }
+      if (List->getNumInits() != 1) {
+        P.Errors[Index] = AGroupOfSeveralElements.str();
+        continue;
+      }
+      P.Items[Index] = List->getInit(0);
+      continue;
+    }
     if (AsType[Index]) {
       // The declarator is only there to give the type a location, so what the
       // rule means is the type its pointee was written over.
@@ -498,10 +564,12 @@ void parseOnce(llvm::ArrayRef<MetaVar> MetaVars,
 std::optional<ParsedPattern>
 parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
              llvm::ArrayRef<std::string> Statements,
-             llvm::ArrayRef<std::string> TypeNames, std::string &Error) {
+             llvm::ArrayRef<std::string> TypeNames,
+             llvm::ArrayRef<bool> BraceGroups, std::string &Error) {
   llvm::SmallVector<bool, 4> AsType(Statements.size(), false);
+  llvm::SmallVector<bool, 4> AsGroup(Statements.size(), false);
   ParsedPattern P;
-  parseOnce(MetaVars, Statements, TypeNames, AsType, P);
+  parseOnce(MetaVars, Statements, TypeNames, AsType, AsGroup, P);
   if (!P.Unit) {
     Error = "Clang could not be run on the synthesised pattern";
     return std::nullopt;
@@ -512,17 +580,29 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
   // location, and both the binding a metavariable holds and the range an edit
   // covers are locations. The second parse costs one more translation unit
   // and only for a patch that writes such a line.
+  //
+  // A brace group is synthesised again for the same reason. Its inner lines
+  // are initialiser elements, which do not parse where a statement belongs,
+  // so the group needs a declarator in front of it before Clang can read it.
+  // Only the caller knows an item is a group, because the braces were joined
+  // by grouping and the text alone does not say a `{` opened a construct
+  // rather than a block.
   bool Again = false;
-  for (unsigned I = 0, E = Statements.size(); I != E; ++I)
+  for (unsigned I = 0, E = Statements.size(); I != E; ++I) {
     if (P.Errors[I] == ATypeNotAStatement) {
       AsType[I] = true;
       Again = true;
+    } else if (!P.Errors[I].empty() && I < BraceGroups.size() &&
+               BraceGroups[I]) {
+      AsGroup[I] = true;
+      Again = true;
     }
+  }
   if (!Again)
     return P;
 
   ParsedPattern Typed;
-  parseOnce(MetaVars, Statements, TypeNames, AsType, Typed);
+  parseOnce(MetaVars, Statements, TypeNames, AsType, AsGroup, Typed);
   // The first pass read every other item, so it is what a caller gets when
   // the second cannot run at all. The type items are then reported as types
   // rather than as statements, which is what they are.
@@ -530,9 +610,17 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
     return P;
   // A declarator this synthesis invented must not reach a message a user
   // reads, and a failure here is a failure to read the type.
-  for (unsigned I = 0, E = Statements.size(); I != E; ++I)
+  for (unsigned I = 0, E = Statements.size(); I != E; ++I) {
     if (AsType[I] && !Typed.Errors[I].empty())
       Typed.Errors[I] = "the pattern names a type Clang could not read";
+    // A group that the wrapper could not get Clang to read is reported as the
+    // first pass read it, because that message names what the pattern wrote
+    // and this one would name a declarator the synthesis invented. The count
+    // of elements is this pass's own finding and says what the rule needs.
+    if (AsGroup[I] && !Typed.Errors[I].empty() &&
+        Typed.Errors[I] != AGroupOfSeveralElements)
+      Typed.Errors[I] = P.Errors[I];
+  }
   return Typed;
 }
 

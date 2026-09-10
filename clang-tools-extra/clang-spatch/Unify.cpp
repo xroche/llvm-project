@@ -502,6 +502,47 @@ private:
     return M && M->Kind == MetaVar::Kind::Type ? M : nullptr;
   }
 
+  /// Do the two designations name the same fields and indices, in order?
+  ///
+  /// A designator is compared as the patch wrote it. The pattern's array
+  /// wrapper cannot resolve a field designator, so its own name is the
+  /// identifier the parser recorded while the target's is the field Sema
+  /// found, and `getFieldName` gives the identifier on both sides. `spatch`
+  /// 1.1.1 refuses `.a` against `.b` and refuses `[0]` against `.a`, so the
+  /// kind and the name both count. An index is compared by its written text
+  /// for the same reason a literal is.
+  bool matchDesignators(const DesignatedInitExpr &P,
+                        const DesignatedInitExpr &T) {
+    if (P.size() != T.size())
+      return false;
+    for (unsigned I = 0, E = P.size(); I != E; ++I) {
+      const DesignatedInitExpr::Designator &PD = *P.getDesignator(I);
+      const DesignatedInitExpr::Designator &TD = *T.getDesignator(I);
+      if (PD.isFieldDesignator() != TD.isFieldDesignator() ||
+          PD.isArrayDesignator() != TD.isArrayDesignator())
+        return false;
+      if (PD.isFieldDesignator()) {
+        // By name and not by identifier. Each side has its own
+        // `IdentifierTable`, so two spellings that are one name inside one
+        // translation unit are two pointers across the pair, which is the
+        // same trap the literal comparison below records for `SourceManager`.
+        const IdentifierInfo *PN = PD.getFieldName(), *TN = TD.getFieldName();
+        if (!PN || !TN || PN->getName() != TN->getName())
+          return false;
+        continue;
+      }
+      // An array or array-range designator holds its bounds as expressions of
+      // the list rather than as children of the designator.
+      const Expr *PLo = P.getArrayIndex(PD), *TLo = T.getArrayIndex(TD);
+      if (!PLo || !TLo ||
+          sourceTextOf(*PLo, PatternContext) != sourceTextOf(*TLo, Context))
+        return false;
+      if (PD.isArrayRangeDesignator() != TD.isArrayRangeDesignator())
+        return false;
+    }
+    return true;
+  }
+
   bool match(const Stmt *Pattern, const Stmt *Target, Bindings &Bound) {
     if (!Pattern || !Target)
       return Pattern == Target;
@@ -563,6 +604,11 @@ private:
         return matchWrittenType(PSize->getArgumentTypeInfo(),
                                 TSize->getArgumentTypeInfo(), Bound);
       return match(PSize->getArgumentExpr(), TSize->getArgumentExpr(), Bound);
+    } else if (const auto *PDes = dyn_cast<DesignatedInitExpr>(P)) {
+      const auto *TDes = cast<DesignatedInitExpr>(T);
+      if (!matchDesignators(*PDes, *TDes))
+        return false;
+      return match(PDes->getInit(), TDes->getInit(), Bound);
     } else if (isa<IntegerLiteral, FloatingLiteral, CharacterLiteral,
                    StringLiteral>(P)) {
       // Each side is read with its own SourceManager. Reading the pattern's
@@ -594,7 +640,8 @@ bool isComparableByStructure(const Stmt &S) {
 bool isComparedExplicitly(const Stmt &S) {
   return isa<BinaryOperator, UnaryOperator, DeclRefExpr, MemberExpr, CallExpr,
              DeclStmt, CStyleCastExpr, UnaryExprOrTypeTraitExpr, IntegerLiteral,
-             FloatingLiteral, CharacterLiteral, StringLiteral>(&S);
+             FloatingLiteral, CharacterLiteral, StringLiteral,
+             DesignatedInitExpr>(&S);
 }
 
 /// Why a declaration pattern cannot be compared, or an empty string.

@@ -119,10 +119,17 @@ struct ParsedPattern {
 /// sets \p Error. A statement that fails to parse is reported per statement in
 /// ParsedPattern::Errors rather than failing the whole rule, because one
 /// unsupported line must not decide the fate of the others.
+///
+/// \p BraceGroups says, per statement, that grouping joined a `{` to the lines
+/// below it and to the `}` that closes them, which the text alone does not
+/// say. Such a statement is one construct and its inner lines are elements of
+/// that construct, so a statement wrapper cannot hold it. May be shorter than
+/// \p Statements or empty, and a missing entry means no.
 std::optional<ParsedPattern>
 parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
              llvm::ArrayRef<std::string> Statements,
-             llvm::ArrayRef<std::string> TypeNames, std::string &Error);
+             llvm::ArrayRef<std::string> TypeNames,
+             llvm::ArrayRef<bool> BraceGroups, std::string &Error);
 
 /// The declarations \p MetaVars and \p TypeNames need in order for
 /// \p Statements to parse.
