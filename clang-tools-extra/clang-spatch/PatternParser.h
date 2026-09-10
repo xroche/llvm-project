@@ -22,6 +22,7 @@
 #define LLVM_CLANG_TOOLS_EXTRA_CLANG_SPATCH_PATTERNPARSER_H
 
 #include "SemanticPatch.h"
+#include "clang/AST/TypeLoc.h"
 #include "clang/Frontend/ASTUnit.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/DenseMap.h"
@@ -69,6 +70,17 @@ struct ParsedPattern {
   /// One entry per statement handed in, in the same order. Null where that
   /// statement did not parse, and \c Errors then names it.
   std::vector<const Stmt *> Items;
+  /// The written type of each statement that is a type rather than a
+  /// statement, in \c Items order, and null for the ones that are
+  /// statements.
+  ///
+  /// Coccinelle reads a `-` side that is a bare type name as a type pattern:
+  /// `- LPINT` over `+ int *` rewrites every occurrence of that type.
+  /// A type written alone declares nothing, so Clang gives it no location at
+  /// all, and such a statement is synthesised a second time with a pointer
+  /// declarator over it. \c Items then holds that declaration and this holds
+  /// the type it was written over, which is the part the rule means.
+  std::vector<TypeLoc> TypeItems;
   /// The declaration each metavariable was given, so that a reference to one
   /// is recognised by comparing declarations rather than by comparing names.
   llvm::DenseMap<const Decl *, const MetaVar *> MetaVarDecls;

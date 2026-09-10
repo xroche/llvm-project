@@ -171,6 +171,27 @@ std::string whyNotComparable(const Stmt *Pattern);
 std::vector<Match> findMatches(const Stmt *Pattern, const ParsedPattern &Parsed,
                                ASTContext &Context, MatchOptions Opts = {});
 
+/// Every written type occurrence in \p Context's translation unit that
+/// \p Pattern matches, in source order.
+///
+/// This is what a `-` side written as a bare type name means: Coccinelle
+/// rewrites every occurrence of the type, wherever a declarator, a cast or a
+/// `sizeof` wrote it, and not the declaration that introduced the name. In
+/// `typedef int *LPINT;` the type written is `int *` and `LPINT` is the name
+/// being declared, so that line is outside the search rather than excluded
+/// from it.
+///
+/// Each match's \c Node is the target \c TypeLoc and its \c TypePairs holds
+/// the correspondence, so a caller edits the occurrence where it stands.
+/// Call \c whyNotATypePattern first: a pattern this refuses names occurrences
+/// whose range is not the type alone.
+std::vector<Match> findTypeMatches(TypeLoc Pattern, const ParsedPattern &Parsed,
+                                   ASTContext &Context, MatchOptions Opts = {});
+
+/// Why \p Pattern cannot be used as a type pattern, as one sentence, or an
+/// empty string when it can.
+std::string whyNotATypePattern(TypeLoc Pattern, const ParsedPattern &Parsed);
+
 /// Every place any of \p Patterns matches, with an earlier pattern winning
 /// over a later one wherever the two want the same text.
 ///

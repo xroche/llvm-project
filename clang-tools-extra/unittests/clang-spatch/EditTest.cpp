@@ -660,18 +660,32 @@ TEST(FlatRule, ADeclaredTypeNameIsAvailableToEveryRuleOfThePatch) {
                       "void f(void) { myint v = 0; }\n"));
 }
 
-TEST(FlatRule, ATypeNameWrittenAloneIsATypePatternAndIsRefused) {
+TEST(FlatRule, ATypeNameWrittenAloneRewritesEveryOccurrenceOfTheType) {
   // `tests/compare.cocci`, `tests/devlink.cocci`, `tests/macro.cocci` and
   // `tests/weirdinit_failure.cocci` each write a bare type name as their
-  // whole `-` side and mean the type. Each of them used to run: the name was
-  // undeclared, so it was synthesised as a variable and the pattern read as
-  // an expression referring to one, which matched nothing the patch meant.
-  // Declaring the name makes the line declare nothing, which is what it is.
-  EXPECT_EQ("pattern: the pattern declares nothing, so it is a type rather "
-            "than a statement\n",
-            unrunReasons("@r@\ntypedef mytype;\n@@\n- mytype\n"
-                         "+ struct other\n",
-                         "typedef int mytype;\nvoid f(mytype *p) { }\n"));
+  // whole `-` side and mean the type, and so do `tests/ifzz.cocci`,
+  // `tests/starprint.cocci` and `tests/ty_tyexp.cocci`. The declaration that
+  // introduced the name is left alone, because the name there is what is
+  // being declared and the type written is what it aliases. Read off
+  // `spatch` 1.1.1.
+  EXPECT_EQ("typedef int mytype;\nvoid f(struct other *p) { }\n",
+            rewritten("@r@\ntypedef mytype;\n@@\n- mytype\n"
+                      "+ struct other\n",
+                      "typedef int mytype;\nvoid f(mytype *p) { }\n"));
+}
+
+TEST(FlatRule, ATypeMetavariableWrittenAloneAsTheMinusSideIsRefused) {
+  // Such a rule names the whole written type of every declaration in the
+  // file, and `spatch` reprints each declaration it touches: `long f(short
+  // s);` comes back as `int f;`. Writing the new type where the old one stood
+  // cannot produce that, and the written type of a function declaration
+  // covers the name being declared, so the edit would eat it.
+  EXPECT_EQ(
+      "the `-` side is a type metavariable written on its own, so it "
+      "names the whole written type of every declaration in the file, "
+      "and Coccinelle reprints each of those declarations rather than "
+      "writing the new type where the old one stood\n",
+      unrunReasons("@@\ntype T;\n@@\n- T\n+ int\n", "long f(short s);\n"));
 }
 
 TEST(SourceTextOf, AMacroArgumentComesThroughAsWritten) {
@@ -774,6 +788,27 @@ TEST(Edit, AMarkedTypeOccurrenceIsEditedWhereTheTargetWroteIt) {
             rewritten("@@\nidentifier x;\n@@\n\nint (*x[2])(\n- int\n"
                       "+ char\n  x);\n",
                       "int (*x[2])(int x);\n"));
+}
+
+TEST(Edit, APlusTextEndingInAPointerStarTakesTheWhitespaceAfterIt) {
+  // `tests/starprint.cocci`. The star binds to what follows it, so `LPINT x`
+  // becomes `int *x` rather than `int * x`, and the occurrence under `LPINT
+  // *y` is reached through the pointer it sits below. Read off `spatch`
+  // 1.1.1, which is where every clause of the in-place whitespace rule comes
+  // from.
+  EXPECT_EQ("typedef int *LPINT;\nint foo(int *x, int **y) { return 0; }\n",
+            rewritten("@@\ntypedef LPINT;\n@@\n- LPINT\n+ int *\n",
+                      "typedef int *LPINT;\n"
+                      "int foo(LPINT x, LPINT *y) { return 0; }\n"));
+}
+
+TEST(Edit, AStarAfterAWrittenTypeIsADeclaratorAndNotAnOperator) {
+  // The clause that writes a space before a binary operator is off for a type
+  // occurrence, because the `*` of `LPINT*y` declares a pointer. Read off
+  // `spatch` 1.1.1, which leaves the two tokens touching.
+  EXPECT_EQ("typedef int *LPINT;\nunsigned*y;\n",
+            rewritten("@@\ntypedef LPINT;\n@@\n- LPINT\n+ unsigned\n",
+                      "typedef int *LPINT;\nLPINT*y;\n"));
 }
 
 TEST(Edit, ABareExpressionPatternMatchesInsideASiteItAlreadyMatched) {

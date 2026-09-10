@@ -41,6 +41,20 @@ namespace {
 /// after it maps a body back to the statement it came from.
 constexpr llvm::StringLiteral ItemPrefix = "__spatch_item_";
 
+/// The declarator a type pattern is given so that Clang produces a location
+/// for the type. It is local to one wrapper, so every item may reuse it.
+///
+/// A pointer, because an object of incomplete type cannot be declared and
+/// `struct scsi_cmnd` is what `tests/compare.cocci` writes. The type keeps
+/// the characters it occupied, so the offsets a caller holds still name it.
+constexpr llvm::StringLiteral TypedDeclarator = "*__spatch_typed";
+
+/// The message an item gets when Clang read it as a type rather than as a
+/// statement. Matched rather than re-derived, because the second synthesis
+/// pass keys on it.
+constexpr llvm::StringLiteral ATypeNotAStatement =
+    "the pattern declares nothing, so it is a type rather than a statement";
+
 bool isIdentChar(char C) {
   return isalnum(static_cast<unsigned char>(C)) || C == '_';
 }
@@ -304,12 +318,20 @@ std::string synthesiseDeclarations(llvm::ArrayRef<MetaVar> MetaVars,
   return Out;
 }
 
-std::optional<ParsedPattern>
-parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
-             llvm::ArrayRef<std::string> Statements,
-             llvm::ArrayRef<std::string> TypeNames, std::string &Error) {
-  ParsedPattern P;
+namespace {
+
+/// Synthesises the source for one pass over \p Statements and parses it into
+/// \p P, whose \c Unit is left null when Clang could not be run at all.
+///
+/// \p AsType says, per statement, that Clang read it as a type rather than as
+/// a statement, so it is given a declarator this time round. A type written
+/// alone declares nothing and Clang produces no location for it.
+void parseOnce(llvm::ArrayRef<MetaVar> MetaVars,
+               llvm::ArrayRef<std::string> Statements,
+               llvm::ArrayRef<std::string> TypeNames,
+               llvm::ArrayRef<bool> AsType, ParsedPattern &P) {
   P.Items.assign(Statements.size(), nullptr);
+  P.TypeItems.assign(Statements.size(), TypeLoc());
   P.Errors.assign(Statements.size(), std::string());
   P.ItemOffsets.assign(Statements.size(), 0);
 
@@ -334,8 +356,12 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
     Src += "int " + ItemPrefix.str() + std::to_string(I) + "(void) {\n";
     P.ItemOffsets[I] = Src.size();
     Src += Body;
-    if (!llvm::StringRef(Body).rtrim().ends_with(";") &&
-        !llvm::StringRef(Body).rtrim().ends_with("}"))
+    if (AsType[I])
+      // The declarator comes after the item's own text, so the offsets the
+      // caller holds still name the characters the type occupies.
+      Src += " " + TypedDeclarator.str() + ";";
+    else if (!llvm::StringRef(Body).rtrim().ends_with(";") &&
+             !llvm::StringRef(Body).rtrim().ends_with("}"))
       Src += ";";
     Src += "\n}\n";
     Wrapped.push_back(I);
@@ -359,10 +385,8 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
       tooling::getClangStripDependencyFileAdjuster(),
       tooling::FileContentMappings(), /*DiagConsumer=*/nullptr,
       llvm::vfs::getRealFileSystem(), CaptureDiagsKind::All);
-  if (!Unit) {
-    Error = "Clang could not be run on the synthesised pattern";
-    return std::nullopt;
-  }
+  if (!Unit)
+    return;
   // The result owns the translation unit. Every node in ParsedPattern::Items
   // points into it, so letting it die here leaves them all dangling.
   P.Unit = std::move(Unit);
@@ -420,11 +444,9 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
     if (!Body || Body->body_empty()) {
       // Clang read the line and it left no statement behind, which is what a
       // type name written alone does: `Scsi_Cmnd;` declares nothing and only
-      // warns. `tests/compare.cocci`, `tests/devlink.cocci`,
-      // `tests/macro.cocci` and `tests/weirdinit_failure.cocci` each write
-      // one as their whole `-` side, and each means the type.
-      P.Errors[Index] = "the pattern declares nothing, so it is a type "
-                        "rather than a statement";
+      // warns. `parsePattern` reads this message as "synthesise it again as a
+      // type", so an item reaching it is not the end of the story.
+      P.Errors[Index] = ATypeNotAStatement.str();
       continue;
     }
     // A pattern line is one statement. More than one means the line held a
@@ -439,8 +461,7 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
     // a type rather than a statement, so the node is not usable.
     if (const auto *DS = dyn_cast<DeclStmt>(Only))
       if (DS->decl_begin() == DS->decl_end()) {
-        P.Errors[Index] = "the pattern declares nothing, so it is a type "
-                          "rather than a statement";
+        P.Errors[Index] = ATypeNotAStatement.str();
         continue;
       }
     // A pattern that is only a semicolon carries nothing to match.
@@ -448,14 +469,65 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
       P.Errors[Index] = "the pattern line carries no statement";
       continue;
     }
+    if (AsType[Index]) {
+      // The declarator is only there to give the type a location, so what the
+      // rule means is the type its pointee was written over.
+      const auto *DS = dyn_cast<DeclStmt>(Only);
+      const auto *VD = DS && DS->isSingleDecl()
+                           ? dyn_cast<VarDecl>(DS->getSingleDecl())
+                           : nullptr;
+      const TypeSourceInfo *Info = VD ? VD->getTypeSourceInfo() : nullptr;
+      const PointerTypeLoc PTL =
+          Info ? Info->getTypeLoc().getAs<PointerTypeLoc>() : PointerTypeLoc();
+      if (!PTL) {
+        P.Errors[Index] = "the pattern names a type Clang could not read";
+        continue;
+      }
+      P.TypeItems[Index] = PTL.getPointeeLoc();
+    }
     P.Items[Index] = Only;
   }
 
   for (unsigned I : Wrapped)
     if (!P.Items[I] && P.Errors[I].empty())
       P.Errors[I] = "the pattern statement did not parse as C";
+}
 
-  return P;
+} // namespace
+
+std::optional<ParsedPattern>
+parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
+             llvm::ArrayRef<std::string> Statements,
+             llvm::ArrayRef<std::string> TypeNames, std::string &Error) {
+  llvm::SmallVector<bool, 4> AsType(Statements.size(), false);
+  ParsedPattern P;
+  parseOnce(MetaVars, Statements, TypeNames, AsType, P);
+  if (!P.Unit) {
+    Error = "Clang could not be run on the synthesised pattern";
+    return std::nullopt;
+  }
+
+  // A statement that turned out to be a type is synthesised again with a
+  // declarator over it, because that is the only way Clang gives the type a
+  // location, and both the binding a metavariable holds and the range an edit
+  // covers are locations. The second parse costs one more translation unit
+  // and only for a patch that writes such a line.
+  bool Again = false;
+  for (unsigned I = 0, E = Statements.size(); I != E; ++I)
+    if (P.Errors[I] == ATypeNotAStatement) {
+      AsType[I] = true;
+      Again = true;
+    }
+  if (!Again)
+    return P;
+
+  ParsedPattern Typed;
+  parseOnce(MetaVars, Statements, TypeNames, AsType, Typed);
+  if (!Typed.Unit) {
+    Error = "Clang could not be run on the synthesised pattern";
+    return std::nullopt;
+  }
+  return Typed;
 }
 
 } // namespace clang::spatch

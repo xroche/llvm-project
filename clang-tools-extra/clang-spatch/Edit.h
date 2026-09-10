@@ -86,12 +86,17 @@ SourceRange innerEditRange(unsigned PatternBegin, unsigned PatternEnd,
 /// layout it already had. Replacing the whole match reprints that layout from
 /// the pattern instead, which loses the target's own line breaks and spacing.
 ///
+/// \p TargetIsAWrittenType is passed on to \c inPlaceEditRange, whose
+/// whitespace rule reads a `*` after a type differently from one after an
+/// expression.
+///
 /// Returns std::nullopt and sets \p Error when the range cannot be edited,
 /// which a caller must count rather than fall back on: a range inside a macro
 /// expansion is refused for the same reason \c buildEdit refuses one.
 std::optional<PatternEdit>
 buildInnerEdit(SourceRange Target, llvm::StringRef PlusText,
-               const Bindings &Bound, ASTContext &Context, std::string &Error);
+               bool TargetIsAWrittenType, const Bindings &Bound,
+               ASTContext &Context, std::string &Error);
 
 /// The characters an in-place edit over \p Range overwrites, and the text it
 /// writes there.
@@ -103,8 +108,13 @@ buildInnerEdit(SourceRange Target, llvm::StringRef PlusText,
 ///
 /// - The whitespace before the region goes when the token before it is `(`,
 ///   and stays otherwise. A `[` does not take it.
+/// - The whitespace after the region goes when \p Text ends in a pointer
+///   star, which binds to whatever follows it.
 /// - The whitespace after the region stays when the token after it is a
-///   binary operator, and one space is written when there was none.
+///   binary operator, and one space is written when there was none. A `*`
+///   after a written type is a declarator star and not an operator, so
+///   \p RegionIsAWrittenType turns that clause off and `LPINT*y` becomes
+///   `unsigned*y`.
 /// - Otherwise it goes before a `,`, a `)` or a `;`, unless the region is a
 ///   single token, which keeps it.
 /// - Otherwise it stays as written. Only those three followers were measured,
@@ -114,7 +124,8 @@ buildInnerEdit(SourceRange Target, llvm::StringRef PlusText,
 /// writes the returned range with the updated \p Text and not with the string
 /// it passed in.
 CharSourceRange inPlaceEditRange(CharSourceRange Range, std::string &Text,
-                                 ASTContext &Context);
+                                 ASTContext &Context,
+                                 bool RegionIsAWrittenType);
 
 /// The source text of \p S exactly as written, macros included.
 ///

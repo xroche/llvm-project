@@ -174,6 +174,14 @@ struct FlatRule {
     /// it, and the edit then goes inside the match rather than over it.
     /// \c PlusText is unused in that case, because the hunk carries its own.
     std::optional<PatternHunk> Inner;
+    /// Why the `+` side is a fragment of a statement rather than one, or
+    /// empty when it is not.
+    ///
+    /// Recorded rather than refused, because a rule whose `-` side is a
+    /// written type has one on its `+` side too, and `int *` is a whole
+    /// written type while being an incomplete statement. Clang is what tells
+    /// the two apart, so a caller checks this once the pattern is parsed.
+    std::string FragmentWhy;
     RulePurpose Purpose = RulePurpose::Rewrite;
   };
 
@@ -289,11 +297,10 @@ alternativeOf(const std::vector<PatternItem> &Minus,
   // `if` head alone on the plus side, and writing that back would drop the
   // body and report success.
   for (const PatternItem &I : Plus) {
-    if (I.Unfinished) {
-      Why = "the rule takes part of a statement away and leaves a fragment, "
-            "which needs an edit inside the matched node rather than over it";
-      return std::nullopt;
-    }
+    if (I.Unfinished)
+      A.FragmentWhy =
+          "the rule takes part of a statement away and leaves a fragment, "
+          "which needs an edit inside the matched node rather than over it";
     if (!A.PlusText.empty())
       A.PlusText += " ";
     A.PlusText += I.Text;
@@ -335,6 +342,13 @@ std::optional<FlatRule> flattenOf(const Rule &R, std::string &Why) {
       Why = "branch " + std::to_string(I + 1) + " of the disjunction: " + Why;
       return std::nullopt;
     }
+    // A branch is refused here rather than carried, because a disjunction of
+    // written types is not built and a fragment in a branch is a fragment.
+    if (!A->FragmentWhy.empty()) {
+      Why = "branch " + std::to_string(I + 1) +
+            " of the disjunction: " + A->FragmentWhy;
+      return std::nullopt;
+    }
     // A rule that deletes in one branch and inserts in another asks for two
     // different edits from one match, and which one applies is decided per
     // site rather than per rule. Refusing says so instead of applying the
@@ -373,6 +387,29 @@ void runFlatRule(const Rule &R, const FlatRule &F,
     Result.UnrunRules.push_back({R.Name, "pattern: " + Error});
     return;
   }
+
+  // A rule whose `-` side is a written type matches type occurrences rather
+  // than statements. There is one such pattern per rule, because a
+  // disjunction of written types is not built.
+  const bool MatchesAWrittenType =
+      Texts.size() == 1 && !Parsed->TypeItems.front().isNull();
+  if (MatchesAWrittenType)
+    if (std::string Why =
+            whyNotATypePattern(Parsed->TypeItems.front(), *Parsed);
+        !Why.empty()) {
+      Result.UnrunRules.push_back({R.Name, Why});
+      return;
+    }
+  // A `+` side grouping left incomplete is a fragment of a statement, and
+  // writing one back would drop whatever completes it. It is not a fragment
+  // when both sides are written types, which is what the parse has just
+  // decided.
+  if (!MatchesAWrittenType)
+    for (const FlatRule::Alternative &A : F.Alts)
+      if (!A.FragmentWhy.empty()) {
+        Result.UnrunRules.push_back({R.Name, A.FragmentWhy});
+        return;
+      }
 
   // The patterns that can be read, in branch order, so that the first one
   // matching at a site is the earliest branch that matches there.
@@ -435,7 +472,11 @@ void runFlatRule(const Rule &R, const FlatRule &F,
 
   for (const Bindings &Seed : Seeds) {
     Opts.Inherited = &Seed;
-    for (const Match &M : findMatches(Patterns, *Parsed, Context, Opts)) {
+    const std::vector<Match> Matches =
+        MatchesAWrittenType
+            ? findTypeMatches(Parsed->TypeItems.front(), *Parsed, Context, Opts)
+            : findMatches(Patterns, *Parsed, Context, Opts);
+    for (const Match &M : Matches) {
       const void *Id = M.Node.getMemoizationData();
       if (Id && !Taken.insert(Id).second)
         continue;
@@ -456,19 +497,27 @@ void runFlatRule(const Rule &R, const FlatRule &F,
       if (!Rewrites)
         continue;
       std::string EditError;
-      // Invalid when the marked region covers no whole node of the pattern,
-      // and the whole match is replaced instead.
-      SourceRange Inner;
+      // Where the edit goes inside the match rather than over it, with the
+      // text that goes there. A type occurrence is always rewritten where it
+      // stands. A marked region covering part of a statement is too, unless
+      // it covers no whole node of the pattern, and then the range stays
+      // invalid and the whole match is replaced.
+      SourceRange InPlace;
+      llvm::StringRef InPlaceText;
       if (A.Inner) {
         const unsigned Begin =
             Parsed->ItemOffsets[M.Pattern] + A.Inner->MinusOffset;
-        Inner = innerEditRange(Begin, Begin + A.Inner->MinusLength, M.Pairs,
-                               M.TypePairs, Parsed->Unit->getASTContext());
+        InPlace = innerEditRange(Begin, Begin + A.Inner->MinusLength, M.Pairs,
+                                 M.TypePairs, Parsed->Unit->getASTContext());
+        InPlaceText = A.Inner->PlusText;
+      } else if (MatchesAWrittenType) {
+        InPlace = M.Node.getSourceRange();
+        InPlaceText = A.PlusText;
       }
       std::optional<PatternEdit> E =
-          Inner.isValid()
-              ? buildInnerEdit(Inner, A.Inner->PlusText, M.Bound, Context,
-                               EditError)
+          InPlace.isValid()
+              ? buildInnerEdit(InPlace, InPlaceText, MatchesAWrittenType,
+                               M.Bound, Context, EditError)
               : buildEdit(M.Node, A.PlusText, A.PatternEndsInSemicolon, M.Bound,
                           Context, EditError);
       if (!E) {

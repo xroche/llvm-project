@@ -283,7 +283,8 @@ std::optional<PatternEdit> buildEdit(DynTypedNode Matched,
 }
 
 CharSourceRange inPlaceEditRange(CharSourceRange Range, std::string &Text,
-                                 ASTContext &Context) {
+                                 ASTContext &Context,
+                                 bool RegionIsAWrittenType) {
   const SourceManager &SM = Context.getSourceManager();
   const LangOptions &Opts = Context.getLangOpts();
   const std::optional<Span> At = spanOf(Range, SM, Opts);
@@ -305,7 +306,11 @@ CharSourceRange inPlaceEditRange(CharSourceRange Range, std::string &Text,
   const size_t TrailEnd = spaceAfter(Buffer, At->End);
   const bool HasTrailing = TrailEnd > At->End;
   const char Next = TrailEnd < Buffer.size() ? Buffer[TrailEnd] : '\0';
-  if (opensABinaryOperator(Next)) {
+  if (llvm::StringRef(Text).rtrim().ends_with("*")) {
+    // The `+` text ends in a pointer star, which binds to whatever follows
+    // it, so `- LPINT` over `+ int *` writes `int *y` from `LPINT y`.
+    Wide.End = TrailEnd;
+  } else if (opensABinaryOperator(Next) && !RegionIsAWrittenType) {
     if (!HasTrailing)
       Text += " ";
   } else if (Next == ',' || Next == ')' || Next == ';') {
@@ -346,10 +351,12 @@ SourceRange innerEditRange(unsigned PatternBegin, unsigned PatternEnd,
 
 std::optional<PatternEdit>
 buildInnerEdit(SourceRange Target, llvm::StringRef PlusText,
-               const Bindings &Bound, ASTContext &Context, std::string &Error) {
+               bool TargetIsAWrittenType, const Bindings &Bound,
+               ASTContext &Context, std::string &Error) {
   std::string Text = substitute(PlusText, Bound, Context);
   const CharSourceRange Range =
-      inPlaceEditRange(CharSourceRange::getTokenRange(Target), Text, Context);
+      inPlaceEditRange(CharSourceRange::getTokenRange(Target), Text, Context,
+                       TargetIsAWrittenType);
   if (llvm::Error Invalid =
           tooling::validateEditRange(Range, Context.getSourceManager())) {
     Error = "the range inside the match cannot be edited: " +

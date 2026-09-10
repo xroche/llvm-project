@@ -228,6 +228,19 @@ public:
     return Matched;
   }
 
+  /// Matches a type pattern against one written type occurrence.
+  ///
+  /// \p TypeOut is as in \c run.
+  bool runOnType(TypeLoc Pattern, TypeLoc Target, Bindings &Bound,
+                 TypeLocPairs *TypeOut = nullptr) {
+    assert((!TypeOut || TypeOut->empty()) &&
+           "runOnType appends, so the caller owns one per candidate");
+    TypePairs = TypeOut;
+    const bool Matched = matchTypeLoc(Pattern, Target, Bound);
+    TypePairs = nullptr;
+    return Matched;
+  }
+
   /// Matches a declaration pattern against a declaration that is not inside
   /// any function body, so it has no `DeclStmt` to be compared through.
   ///
@@ -647,6 +660,20 @@ public:
   std::vector<Stmt *> All;
 };
 
+/// Collects every written type occurrence of a translation unit, outermost
+/// first.
+class TypeLocCollector : public RecursiveASTVisitor<TypeLocCollector> {
+public:
+  bool VisitTypeLoc(TypeLoc TL) {
+    // Clang's own predefined typedefs head every translation unit with no
+    // source location at all, and a match on one has nowhere to be reported.
+    if (TL.getSourceRange().getBegin().isValid())
+      All.push_back(TL);
+    return true;
+  }
+  std::vector<TypeLoc> All;
+};
+
 } // namespace
 
 std::string whyNotComparable(const Stmt *Pattern) {
@@ -696,6 +723,49 @@ std::string bindingKey(const Binding &B, ASTContext &Context) {
     return "decl:" + llvm::utohexstr(reinterpret_cast<uintptr_t>(
                          Ref->getDecl()->getCanonicalDecl()));
   return "text:" + sourceTextOf(B.Range, Context).str();
+}
+
+std::vector<Match> findTypeMatches(TypeLoc Pattern, const ParsedPattern &Parsed,
+                                   ASTContext &Context, MatchOptions Opts) {
+  std::vector<Match> Out;
+  if (Pattern.isNull())
+    return Out;
+  TypeLocCollector Collector;
+  Collector.TraverseDecl(Context.getTranslationUnitDecl());
+  Unifier Shared(Parsed, Context);
+  const Bindings Seed = Opts.Inherited ? *Opts.Inherited : Bindings();
+  for (TypeLoc TL : Collector.All) {
+    Bindings Bound = Seed;
+    // Fresh for each candidate, for the reason findMatches gives: a candidate
+    // that fails gets some way in first.
+    TypeLocPairs TypePairs;
+    if (!Shared.runOnType(Pattern, TL, Bound, &TypePairs))
+      continue;
+    Out.push_back({DynTypedNode::create(TL),
+                   std::move(Bound),
+                   0,
+                   {},
+                   std::move(TypePairs)});
+  }
+  return Out;
+}
+
+std::string whyNotATypePattern(TypeLoc Pattern, const ParsedPattern &Parsed) {
+  if (Pattern.isNull())
+    return "the `-` side names no type at all";
+  TypeLoc P = Pattern.getUnqualifiedLoc();
+  while (ParenTypeLoc Paren = P.getAs<ParenTypeLoc>())
+    P = Paren.getInnerLoc().getUnqualifiedLoc();
+  const auto *TD =
+      dyn_cast_or_null<TypedefType>(P.getType().getTypePtrOrNull());
+  const MetaVar *M =
+      TD ? Parsed.metaVarFor(TD->getDecl()->getCanonicalDecl()) : nullptr;
+  if (M && M->Kind == MetaVar::Kind::Type)
+    return "the `-` side is a type metavariable written on its own, so it "
+           "names the whole written type of every declaration in the file, "
+           "and Coccinelle reprints each of those declarations rather than "
+           "writing the new type where the old one stood";
+  return std::string();
 }
 
 std::vector<Match> findMatches(const Stmt *Pattern, const ParsedPattern &Parsed,
