@@ -1834,6 +1834,16 @@ TEST(SmplParser, TwoCompleteStatementsAreNotFusedByALeadingOperator) {
   EXPECT_EQ("*p = 0;", P.Rules[0].Minus[1].Text);
 }
 
+TEST(SmplParser, AnOpeningBraceInsideALiteralDoesNotEndTheScan) {
+  // The brace-level scan cuts the line at each `{` and asks the prefix whether
+  // it names a struct, so `f("{")` handed `findWord` the prefix `f("`, whose
+  // quote has no closer. The scan ran off the end and the tool aborted.
+  SemanticPatch P = parsed("@r@\n@@\n- f(\"{\");\n");
+  ASSERT_EQ(1u, P.Rules.size()) << refusalList(P);
+  ASSERT_EQ(1u, P.Rules[0].Minus.size()) << refusalList(P);
+  EXPECT_EQ("f(\"{\");", P.Rules[0].Minus[0].Text);
+}
+
 TEST(SmplParser, ABalancedBraceGroupIsOneItemAndAnUnbalancedOneIsNot) {
   // A brace group is one construct written across lines, and handing it to
   // the pattern parser whole is what lets Clang say which construct it is.

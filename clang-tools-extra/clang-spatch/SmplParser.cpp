@@ -397,7 +397,11 @@ StringRef firstWord(StringRef S) {
 /// Offset of \p Word in \p S as a whole word, skipping string and character
 /// literals. StringRef::npos when absent.
 size_t findWord(StringRef S, StringRef Word) {
-  for (size_t I = 0, E = S.size(); I != E; ++I) {
+  // The outer bound is `<` and not `!=`, because a quote with no closer leaves
+  // the inner scan at the end and the `continue` then steps one past it. A
+  // caller cutting a line at a brace produces exactly that: `f("{")` becomes
+  // the prefix `f("`, and reading `S[I]` there aborted the tool.
+  for (size_t I = 0, E = S.size(); I < E; ++I) {
     char C = S[I];
     if (C == '"' || C == '\'') {
       char Q = C;
