@@ -9,6 +9,7 @@
 #include "Unify.h"
 #include "Edit.h"
 #include "clang/Tooling/Tooling.h"
+#include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
 namespace clang::spatch {
@@ -242,6 +243,23 @@ TEST(Unify, PairsDoNotAccumulateAcrossCandidates) {
   EXPECT_EQ(Strings({"7@34"}),
             pairedWith("g(e, 7);", E,
                        "void m() { g(1, 8); g(2, 9); g(3, 7); }", "7"));
+}
+
+TEST(Unify, ABlockAsTheWholeMinusSideIsRefusedAndOneInsideAPatternIsNot) {
+  // `spatch` 1.1.1 changes nothing for `- { foo(); }` and leaves a function's
+  // own body alone even for the multi-line shape `braces.cocci` writes, while
+  // the walk here offers every `CompoundStmt` including a function body. So
+  // `int main() { foo(); }` came back as `int main() foo();` at exit 0.
+  const std::vector<MetaVar> None;
+  std::string Error;
+  std::optional<ParsedPattern> P =
+      parsePattern(None, {"{ 1; }", "if (1) { 2; }"}, {}, Error);
+  ASSERT_TRUE(P.has_value()) << Error;
+  ASSERT_TRUE(P->Items[0] != nullptr) << P->Errors[0];
+  ASSERT_TRUE(P->Items[1] != nullptr) << P->Errors[1];
+  EXPECT_THAT(whyNotComparable(P->Items[0]),
+              testing::HasSubstr("the `-` side is a block"));
+  EXPECT_EQ("", whyNotComparable(P->Items[1]));
 }
 
 } // namespace clang::spatch

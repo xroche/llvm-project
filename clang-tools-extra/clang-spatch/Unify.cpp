@@ -685,9 +685,14 @@ public:
   std::vector<TypeLoc> All;
 };
 
-} // namespace
-
-std::string whyNotComparable(const Stmt *Pattern) {
+/// \c whyNotComparable for a node reached from the `-` side, rather than for
+/// the `-` side itself.
+///
+/// The two differ for a block. Which blocks a block pattern may take is a
+/// question about the whole `-` side, while a block written inside a larger
+/// pattern is the body of the construct above it and is compared as one of its
+/// children.
+std::string whyNotComparableNode(const Stmt *Pattern) {
   if (!Pattern)
     return std::string();
   const Stmt *P = peel(Pattern);
@@ -719,9 +724,26 @@ std::string whyNotComparable(const Stmt *Pattern) {
         return "the pattern names " + Why +
                ", which the type comparison does not handle";
   for (const Stmt *Child : P->children())
-    if (std::string Why = whyNotComparable(Child); !Why.empty())
+    if (std::string Why = whyNotComparableNode(Child); !Why.empty())
       return Why;
   return std::string();
+}
+
+} // namespace
+
+std::string whyNotComparable(const Stmt *Pattern) {
+  // A `-` side that is a block matches where Coccinelle's own reading says it
+  // does not. `spatch` 1.1.1 leaves a function's own body alone for `- {` over
+  // `  foo();` over `- }`, and changes nothing at all when the same block is
+  // written on one line, while the walk here offers every `CompoundStmt`
+  // including a function body: `- { foo(); }` turned `int main() { foo(); }`
+  // into `int main() foo();` at exit 0. Which blocks a block pattern may take
+  // is the piece that is missing, so it is named rather than approximated.
+  if (isa_and_present<CompoundStmt>(peel(Pattern)))
+    return "the `-` side is a block, and which blocks a block pattern may "
+           "take is decided by more than the block itself: Coccinelle leaves "
+           "a function's own body alone, which this version does not express";
+  return whyNotComparableNode(Pattern);
 }
 
 bool unify(const Stmt *Pattern, const Stmt *Target, const ParsedPattern &Parsed,

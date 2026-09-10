@@ -763,6 +763,17 @@ TEST(Edit, TheWhitespaceAfterAnInPlaceEditGoesByWhatFollowsIt) {
             rewritten(Binary, "void m() { int x,y,Z; if(   (x = y)   + 0 ) { } }\n"));
 }
 
+TEST(Edit, ABlockPatternRewritesNothingRatherThanAFunctionsOwnBody) {
+  // `- { foo(); }` used to rewrite every `CompoundStmt` the walk offered, so
+  // `int main() { foo(); }` came back as `int main() foo();` at exit 0.
+  // `spatch` 1.1.1 changes nothing for this patch on this input.
+  EXPECT_EQ("!the `-` side is a block, and which blocks a block pattern may "
+            "take is decided by more than the block itself: Coccinelle leaves "
+            "a function's own body alone, which this version does not express",
+            rewritten("@@\n@@\n- { foo(); }\n+ foo();\n",
+                      "void foo(void);\nint main() { foo(); }\n"));
+}
+
 TEST(Edit, AMarkedRegionCoveringNoNodeFallsBackToReplacingTheMatch) {
   // `cptr.cocci` marks a declaration without its initialiser and `unary.cocci`
   // marks the `-` of a unary operator. Neither region has a range of its own
