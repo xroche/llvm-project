@@ -81,22 +81,6 @@ bool ownsItsTerminator(DynTypedNode Matched, ASTContext &Context) {
   return false;
 }
 
-/// \p Range extended over the semicolon that follows it.
-///
-/// Only a declaration reached through \c DeclPairs is given to this, and no
-/// such declaration's range ends at its own `;`: a record member's stops at
-/// the declarator, and so does a file-scope variable's or typedef's. A
-/// block-scope declaration's does end there, and it never arrives here,
-/// because its `DeclStmt` covers the same characters and \c innerEditRange
-/// searches \c NodePairs first. **Extending a range that already ends in `;`
-/// takes a second one**, which is how `int lx;` followed by a bare `;` loses
-/// the null statement elsewhere, so a caller that widens this to another kind
-/// of declaration has to check first.
-CharSourceRange throughItsTerminator(CharSourceRange Range,
-                                     ASTContext &Context) {
-  return tooling::maybeExtendRange(Range, tok::semi, Context);
-}
-
 /// The range \p Matched occupies, extended over its terminating semicolon
 /// only when the target position owns one and \p PatternEndsInSemicolon says
 /// the rule asked for it. See buildEdit for why the pattern decides too.
@@ -361,7 +345,7 @@ CharSourceRange inPlaceEditRange(CharSourceRange Range, std::string &Text,
 
 InnerEdit innerEditRange(unsigned PatternBegin, unsigned PatternEnd,
                          const NodePairs &Pairs, const TypeLocPairs &TypePairs,
-                         const DeclPairs &DeclarationPairs,
+                         const DeclarationPairs &DeclarationPairs,
                          ASTContext &PatternContext, ASTContext &Context) {
   const auto CoversChars = [&](CharSourceRange Pattern) {
     const std::optional<Span> Here =
@@ -383,25 +367,27 @@ InnerEdit innerEditRange(unsigned PatternBegin, unsigned PatternEnd,
   // A declaration last, so a rule marking a member's type alone takes the
   // type's range from the pair above rather than the whole member's from here.
   //
-  // Each side's range is extended over its own terminator, because a member's
-  // range stops before its `;` while the patch marks the line including it:
-  // `- int a;` inside `T { ... };` would otherwise match no pattern range at
-  // all, and the whole record would be replaced instead.
+  // Each side is also tried extended over the semicolon that follows it,
+  // because a member's range stops at its declarator while the patch marks the
+  // line including the `;`. Without that, `- int a;` inside `T { ... };`
+  // matched no pattern range at all and the whole record was replaced. Only a
+  // declaration whose range stops short of its `;` arrives here, so extending
+  // never takes a second one: a block-scope declaration's range does end
+  // there, and its `DeclStmt` covers the same characters and answers from
+  // `NodePairs` above.
+  const auto throughTerminator = [](const Decl *D, ASTContext &Of) {
+    return tooling::maybeExtendRange(
+        CharSourceRange::getTokenRange(D->getSourceRange()), tok::semi, Of);
+  };
   for (const auto &Pair : DeclarationPairs) {
     if (Covers(Pair.Pattern->getSourceRange()))
       return {Pair.Target->getSourceRange(), /*IsAWrittenType=*/false};
-    if (!CoversChars(throughItsTerminator(
-            CharSourceRange::getTokenRange(Pair.Pattern->getSourceRange()),
-            PatternContext)))
+    if (!CoversChars(throughTerminator(Pair.Pattern, PatternContext)))
       continue;
-    // The pattern marked the terminator, so the target's own goes with the
-    // edit. Taken from the target's manager, because the two sides are
+    // Each side's range comes from its own manager, because the two are
     // separate translation units and one side's offsets mean nothing in the
     // other's.
-    return {throughItsTerminator(
-                CharSourceRange::getTokenRange(Pair.Target->getSourceRange()),
-                Context)
-                .getAsRange(),
+    return {throughTerminator(Pair.Target, Context).getAsRange(),
             /*IsAWrittenType=*/false};
   }
   return {};

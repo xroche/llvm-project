@@ -95,7 +95,7 @@ struct DeclPair {
 
 /// Which target declaration each declaration of the pattern matched, in the
 /// order the comparison reached them.
-using DeclPairs = std::vector<DeclPair>;
+using DeclarationPairs = std::vector<DeclPair>;
 
 /// One type occurrence written in the pattern and the one it matched.
 ///
@@ -124,12 +124,11 @@ struct Match {
   /// Which of the patterns handed to \c findMatches matched here. Zero for a
   /// search over a single pattern.
   unsigned Pattern = 0;
-  /// Filled only when \c MatchOptions::WantNodePairs asked for it.
+  /// The three below are filled only when \c MatchOptions::WantPairs asked
+  /// for them.
   NodePairs Pairs;
-  /// Filled only when \c MatchOptions::WantNodePairs asked for it.
   TypeLocPairs TypePairs;
-  /// Filled only when \c MatchOptions::WantNodePairs asked for it.
-  DeclPairs DeclarationPairs;
+  DeclarationPairs DeclPairs;
 };
 
 /// What a search over the target is allowed to match.
@@ -148,11 +147,12 @@ struct MatchOptions {
   /// one `;` and replacing one would take the terminator the others need, so
   /// only a rule that asks for no change may be given it.
   bool MultiDeclaratorOK = false;
-  /// Record \c Match::Pairs and \c Match::TypePairs for every match.
+  /// Record \c Match::Pairs, \c Match::TypePairs and \c Match::DeclPairs for
+/// every match.
   ///
   /// Off by default, because a rule that replaces a whole statement has no use
   /// for it and every match would carry the vector.
-  bool WantNodePairs = false;
+  bool WantPairs = false;
   /// Which of the patterns handed in may also match inside a site they
   /// already matched, one entry per pattern in the same order, or empty for
   /// none of them.

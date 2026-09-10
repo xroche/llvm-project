@@ -89,7 +89,7 @@ struct InnerEdit {
 /// falls back to replacing the whole match with the plus side reassembled.
 InnerEdit innerEditRange(unsigned PatternBegin, unsigned PatternEnd,
                          const NodePairs &Pairs, const TypeLocPairs &TypePairs,
-                         const DeclPairs &DeclarationPairs,
+                         const DeclarationPairs &DeclarationPairs,
                          ASTContext &PatternContext, ASTContext &Context);
 
 /// Builds the edit that writes \p PlusText over the target range \p Target

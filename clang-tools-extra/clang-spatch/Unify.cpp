@@ -205,9 +205,38 @@ ArgPattern splitArgs(const CallExpr &Call) {
 }
 
 /// The name \p RD's own declaration introduces, or an invalid range when that
-/// declaration introduces anything besides the type. Defined below, beside the
-/// enumeration that reads it for the same reason.
-SourceRange introducedTypeRange(const RecordDecl &RD);
+/// declaration introduces anything besides the type.
+///
+/// This is what `T { int a; };` asks of a target, and what `T` binds to.
+///
+/// A tag written on its own is free standing and introduces its own name.
+/// `TagType::isTagOwned` says a tag inside a declarator is owned by whatever
+/// that declarator declares, so the declarations of the enclosing context that
+/// own this one are the whole answer: exactly one, and a typedef.
+SourceRange introducedTypeRange(const RecordDecl &RD) {
+  if (!RD.isEmbeddedInDeclarator())
+    return RD.getIdentifier() ? SourceRange(RD.getBeginLoc(), RD.getLocation())
+                              : SourceRange();
+  const Decl *Owner = nullptr;
+  for (const Decl *D : RD.getDeclContext()->decls()) {
+    const TypeSourceInfo *Info = nullptr;
+    if (const auto *DD = dyn_cast<DeclaratorDecl>(D))
+      Info = DD->getTypeSourceInfo();
+    else if (const auto *TD = dyn_cast<TypedefNameDecl>(D))
+      Info = TD->getTypeSourceInfo();
+    if (!Info)
+      continue;
+    const auto *Tag = Info->getType()->getAs<TagType>();
+    if (!Tag || !Tag->isTagOwned() ||
+        Tag->getDecl()->getCanonicalDecl() != RD.getCanonicalDecl())
+      continue;
+    if (Owner)
+      return SourceRange(); // Two names, as `typedef struct {} a, b;` writes.
+    Owner = D;
+  }
+  const auto *TD = dyn_cast_or_null<TypedefNameDecl>(Owner);
+  return TD ? SourceRange(TD->getLocation()) : SourceRange();
+}
 
 class Unifier {
 public:
@@ -221,7 +250,7 @@ public:
   /// and the caller owns one pair of them per candidate.
   bool run(const Stmt *Pattern, const Stmt *Target, Bindings &Bound,
            NodePairs *Out = nullptr, TypeLocPairs *TypeOut = nullptr,
-           DeclPairs *DeclOut = nullptr) {
+           DeclarationPairs *DeclOut = nullptr) {
     assert((!Out || Out->empty()) &&
            "run appends, so the caller owns one NodePairs per candidate");
     assert((!TypeOut || TypeOut->empty()) &&
@@ -230,11 +259,11 @@ public:
            "run appends, so the caller owns one DeclPairs per candidate");
     Pairs = Out;
     TypePairs = TypeOut;
-    DeclarationPairs = DeclOut;
+    DeclPairs = DeclOut;
     const bool Matched = match(Pattern, Target, Bound);
     Pairs = nullptr;
     TypePairs = nullptr;
-    DeclarationPairs = nullptr;
+    DeclPairs = nullptr;
     return Matched;
   }
 
@@ -246,7 +275,7 @@ public:
   bool runOnType(TypeLoc Pattern, TypeLoc Target, Bindings &Bound) {
     Pairs = nullptr;
     TypePairs = nullptr;
-    DeclarationPairs = nullptr;
+    DeclPairs = nullptr;
     return matchTypeLoc(Pattern, Target, Bound);
   }
 
@@ -257,17 +286,17 @@ public:
   bool runOnDecl(const DeclStmt &Pattern, llvm::ArrayRef<const Decl *> Target,
                  Bindings &Bound, NodePairs *Out = nullptr,
                  TypeLocPairs *TypeOut = nullptr,
-                 DeclPairs *DeclOut = nullptr) {
+                 DeclarationPairs *DeclOut = nullptr) {
     assert((!Out || Out->empty()) && (!TypeOut || TypeOut->empty()) &&
            (!DeclOut || DeclOut->empty()) &&
            "runOnDecl appends, so the caller owns one of each per candidate");
     Pairs = Out;
     TypePairs = TypeOut;
-    DeclarationPairs = DeclOut;
+    DeclPairs = DeclOut;
     const bool Matched = matchDecls(Pattern, Target, Bound);
     Pairs = nullptr;
     TypePairs = nullptr;
-    DeclarationPairs = nullptr;
+    DeclPairs = nullptr;
     return Matched;
   }
 
@@ -283,9 +312,8 @@ private:
   /// way \c Pairs is.
   TypeLocPairs *TypePairs = nullptr;
   /// Where to record the declaration correspondence, or null. Owned the same
-  /// way \c Pairs is. Named apart from the \c DeclPairs type so that the
-  /// member and the type do not read as one another.
-  DeclPairs *DeclarationPairs = nullptr;
+  /// way \c Pairs is.
+  DeclarationPairs *DeclPairs = nullptr;
 
   bool bind(const MetaVar &M, const Stmt *Target, Bindings &Bound) {
     if (!kindAccepts(M.Kind, Target))
@@ -364,8 +392,8 @@ private:
     // Recorded before anything is compared, so a rule marking a member names
     // the range the target wrote it over. A member is neither a `Stmt` nor a
     // written type, so this is the only correspondence that can carry it.
-    if (DeclarationPairs)
-      DeclarationPairs->push_back({PD, TD});
+    if (DeclPairs)
+      DeclPairs->push_back({PD, TD});
     const auto *PDecl = dyn_cast<DeclaratorDecl>(PD);
     const auto *TDecl = dyn_cast<DeclaratorDecl>(TD);
     const auto *PT = dyn_cast<TypedefNameDecl>(PD);
@@ -413,11 +441,9 @@ private:
     if (!Pattern.isCompleteDefinition() || !Target.isCompleteDefinition())
       return false;
     // A tag that stands for a type metavariable constrains neither the kind
-    // nor the name: `spatch` 1.1.1 matches `T { int a; };` against a `union`
-    // as readily as against a `struct`, and against all three of `struct foo`,
-    // `typedef struct blah {...} name` and `typedef struct {...} xxx`. What it
-    // does require is that the declaration introduce the type and nothing
-    // else, which is what the binding's own range says.
+    // nor the name, so `T { int a; };` matches a `union` as readily as a
+    // `struct`. What it does require is that the declaration introduce the
+    // type and nothing else, which is what the binding's own range says.
     if (const MetaVar *M = Parsed.metaVarFor(Pattern.getCanonicalDecl())) {
       const SourceRange Introduced = introducedTypeRange(Target);
       if (!Introduced.isValid() ||
@@ -453,6 +479,8 @@ private:
     return PIt == PEnd && TIt == TEnd;
   }
 
+  /// Does a declaration statement of the pattern match one of the target,
+  /// declarator by declarator?
   bool matchDecls(const DeclStmt &Pattern, llvm::ArrayRef<const Decl *> Target,
                   Bindings &Bound) {
     // A pattern that is one record definition is compared against the record
@@ -762,6 +790,9 @@ std::string whyNotComparableType(const TypeSourceInfo *Info) {
   return uncomparableType(Info->getType());
 }
 
+/// Why the unifier cannot compare a declaration \p D of a pattern, or an
+/// empty string. A record definition is answered through its members, each of
+/// which is a declaration in its own right.
 std::string whyNotComparableOneDecl(const Decl *D) {
   // A record definition is compared through its members, each of which is a
   // declaration in its own right.
@@ -796,47 +827,6 @@ std::string whyNotComparableInDecls(const DeclStmt &S) {
   return std::string();
 }
 
-/// The name \p RD's own declaration introduces, or an invalid range when that
-/// declaration introduces anything besides the type.
-///
-/// This is what `T { int a; };` asks of a target and what `T` binds to, read
-/// off `spatch` 1.1.1 with a script rule printing the binding.
-/// `struct foo {int a;};`, `union foo {int a;};`,
-/// `typedef struct blah {int a;} name;` and `typedef struct {int a;} xxx;` all
-/// match, binding `struct foo`, `union foo`, `name` and `xxx`.
-/// `struct foo {int a;} v;`, `extern struct foo {int a;} v;`,
-/// `struct foo {int a;} *p;` and `typedef struct blah {int a;} name, name2;`
-/// all fail to match, because each introduces something besides the type.
-///
-/// A tag written on its own is free standing and introduces its own name. A
-/// tag written inside a declarator is owned by whatever that declarator
-/// declares, and `TagType::isTagOwned` says so, so the declarations of the
-/// enclosing context that own this one are the whole answer: exactly one, and
-/// a typedef.
-SourceRange introducedTypeRange(const RecordDecl &RD) {
-  if (!RD.isEmbeddedInDeclarator())
-    return RD.getIdentifier() ? SourceRange(RD.getBeginLoc(), RD.getLocation())
-                              : SourceRange();
-  const Decl *Owner = nullptr;
-  for (const Decl *D : RD.getDeclContext()->decls()) {
-    const TypeSourceInfo *Info = nullptr;
-    if (const auto *DD = dyn_cast<DeclaratorDecl>(D))
-      Info = DD->getTypeSourceInfo();
-    else if (const auto *TD = dyn_cast<TypedefNameDecl>(D))
-      Info = TD->getTypeSourceInfo();
-    if (!Info)
-      continue;
-    const auto *Tag = Info->getType()->getAs<TagType>();
-    if (!Tag || !Tag->isTagOwned() ||
-        Tag->getDecl()->getCanonicalDecl() != RD.getCanonicalDecl())
-      continue;
-    if (Owner)
-      return SourceRange(); // Two names, as `typedef struct {} a, b;` writes.
-    Owner = D;
-  }
-  const auto *TD = dyn_cast_or_null<TypedefNameDecl>(Owner);
-  return TD ? SourceRange(TD->getLocation()) : SourceRange();
-}
 
 /// Every declaration written at file scope, and by default only those that
 /// declare exactly one thing.
@@ -1071,16 +1061,16 @@ std::vector<Match> findMatches(llvm::ArrayRef<const Stmt *> Patterns,
       // the list would report every near miss as the match's own.
       NodePairs Pairs;
       TypeLocPairs TypePairs;
-      DeclPairs DeclarationPairs;
+      DeclarationPairs DeclPairs;
       if (!Shared.run(Patterns[P], S, Bound,
-                      Opts.WantNodePairs ? &Pairs : nullptr,
-                      Opts.WantNodePairs ? &TypePairs : nullptr,
-                      Opts.WantNodePairs ? &DeclarationPairs : nullptr))
+                      Opts.WantPairs ? &Pairs : nullptr,
+                      Opts.WantPairs ? &TypePairs : nullptr,
+                      Opts.WantPairs ? &DeclPairs : nullptr))
         continue;
       StmtRanges.push_back(R);
       Out.push_back({DynTypedNode::create(*S), std::move(Bound), P,
                      std::move(Pairs), std::move(TypePairs),
-                     std::move(DeclarationPairs)});
+                     std::move(DeclPairs)});
     }
     const auto *DS = dyn_cast<DeclStmt>(peel(Patterns[P]));
     if (!DS)
@@ -1092,17 +1082,17 @@ std::vector<Match> findMatches(llvm::ArrayRef<const Stmt *> Patterns,
       Bindings Bound = Seed;
       NodePairs Pairs;
       TypeLocPairs TypePairs;
-      DeclPairs DeclarationPairs;
+      DeclarationPairs DeclPairs;
       if (!Shared.runOnDecl(*DS, D, Bound,
-                            Opts.WantNodePairs ? &Pairs : nullptr,
-                            Opts.WantNodePairs ? &TypePairs : nullptr,
-                            Opts.WantNodePairs ? &DeclarationPairs : nullptr))
+                            Opts.WantPairs ? &Pairs : nullptr,
+                            Opts.WantPairs ? &TypePairs : nullptr,
+                            Opts.WantPairs ? &DeclPairs : nullptr))
         continue;
       ClaimedDecls.insert(D);
       DeclRanges.push_back(D->getSourceRange());
       Out.push_back({DynTypedNode::create(*D), std::move(Bound), P,
                      std::move(Pairs), std::move(TypePairs),
-                     std::move(DeclarationPairs)});
+                     std::move(DeclPairs)});
     }
   }
 

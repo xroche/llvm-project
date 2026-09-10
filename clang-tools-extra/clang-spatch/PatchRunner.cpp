@@ -509,7 +509,7 @@ void runFlatRule(const Rule &R, const FlatRule &F,
   Opts.MultiDeclaratorOK = !Rewrites;
   // An edit inside the match needs to know which target node each pattern
   // node matched. Nothing else does, so nothing else pays for it.
-  Opts.WantNodePairs = llvm::any_of(
+  Opts.WantPairs = llvm::any_of(
       F.Alts, [](const FlatRule::Alternative &A) { return A.Inner.has_value(); });
   // A `-` side written as a bare expression matches at every expression
   // position, one inside a site it already matched included. One written as a
@@ -563,8 +563,9 @@ void runFlatRule(const Rule &R, const FlatRule &F,
         const unsigned Begin =
             Parsed->ItemOffsets[M.Pattern] + A.Inner->MinusOffset;
         In = innerEditRange(Begin, Begin + A.Inner->MinusLength, M.Pairs,
-                            M.TypePairs, M.DeclarationPairs,
-                            Parsed->Unit->getASTContext(), Context);
+                            M.TypePairs, M.DeclPairs,
+                            /*PatternContext=*/Parsed->Unit->getASTContext(),
+                            /*Context=*/Context);
         InPlaceText = A.Inner->PlusText;
       } else if (MatchesAWrittenType) {
         In = {M.Node.getSourceRange(), /*IsAWrittenType=*/true};

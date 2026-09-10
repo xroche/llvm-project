@@ -1842,6 +1842,7 @@ TEST(SmplParser, ABalancedBraceGroupIsOneItemAndAnUnbalancedOneIsNot) {
   ASSERT_EQ(1u, P.Rules.size());
   ASSERT_EQ(1u, P.Rules[0].Minus.size()) << refusalList(P);
   EXPECT_EQ("{ .foo = E }", P.Rules[0].Minus[0].Text);
+  EXPECT_TRUE(P.Rules[0].Minus[0].BraceGroup);
 
   // A run that never closes on this side stays as it was. The joined text
   // would leave a brace unclosed, and every item of a rule shares one
@@ -1853,8 +1854,9 @@ TEST(SmplParser, ABalancedBraceGroupIsOneItemAndAnUnbalancedOneIsNot) {
   ASSERT_EQ(1u, Q.Rules.size());
   ASSERT_EQ(1u, Q.Rules[0].Minus.size()) << refusalList(Q);
   EXPECT_EQ("{ S }", Q.Rules[0].Minus[0].Text);
-  ASSERT_LE(2u, Q.Rules[0].Plus.size()) << refusalList(Q);
+  ASSERT_EQ(2u, Q.Rules[0].Plus.size()) << refusalList(Q);
   EXPECT_EQ("{", Q.Rules[0].Plus[0].Text);
+  EXPECT_FALSE(Q.Rules[0].Plus[0].BraceGroup);
 }
 
 TEST(SmplParser, AStatementOpeningWithAnOperatorIsAFragment) {

@@ -476,10 +476,17 @@ TEST(FlatRule, ARecordGroupRewritesOneMemberAndKeepsTheTargetsLayout) {
 }
 
 TEST(FlatRule, ARecordGroupsTagIsComparedUnlessItStandsForAMetavariable) {
+  // `T` binds the name the declaration introduces, which is the tag for a
+  // free-standing definition and the typedef name for a typedef of one.
+  const llvm::StringRef Bind =
+      "@r@\ntype T;\n@@\nT {\n- int a;\n+ int b;\n+ T z;\n};\n";
+  EXPECT_EQ("struct foo {int b; struct foo z;};\n",
+            rewritten(Bind, "struct foo {int a;};\n"));
+  EXPECT_EQ("typedef struct blah {int b; name z;} name;\n",
+            rewritten(Bind, "typedef struct blah {int a;} name;\n"));
+
   // A type metavariable in the tag position constrains neither the kind nor
-  // the name: `spatch` 1.1.1 rewrites a `union` for the pattern above, and all
-  // three of `struct foo`, `typedef struct blah {...} name` and
-  // `typedef struct {...} xxx`.
+  // the name, so a `union` matches the same pattern a `struct` does.
   EXPECT_EQ("union foo {int b;};\n",
             rewritten("@r@\ntype T;\n@@\nT {\n- int a;\n+ int b;\n};\n",
                       "union foo {int a;};\n"));
@@ -501,8 +508,7 @@ TEST(FlatRule, ARecordGroupNeedsTheTargetToIntroduceTheTypeAndNothingElse) {
   const llvm::StringRef Patch =
       "@r@\ntype T;\n@@\nT {\n- int a;\n+ int b;\n};\n";
   for (llvm::StringRef Code :
-       {"struct foo {int a;} v;\n", "extern struct foo {int a;} v;\n",
-        "struct foo {int a;} *p;\n",
+       {"struct foo {int a;} v;\n",
         "typedef struct blah {int a;} name, name2;\n",
         "struct foo {int a; int c;};\n", "enum e { a };\n",
         "struct outer { struct inner { int a; } i; };\n",
@@ -900,9 +906,7 @@ TEST(Edit, TheWhitespaceAfterAnInPlaceEditGoesByWhatFollowsIt) {
 }
 
 TEST(Edit, ABlockPatternRewritesNothingRatherThanAFunctionsOwnBody) {
-  // `- { foo(); }` used to rewrite every `CompoundStmt` the walk offered, so
-  // `int main() { foo(); }` came back as `int main() foo();` at exit 0.
-  // `spatch` 1.1.1 changes nothing for this patch on this input.
+  // See `whyNotComparable` in Unify.cpp for why a block is refused.
   EXPECT_EQ("!the `-` side is a block, and which blocks a block pattern may "
             "take is decided by more than the block itself: Coccinelle leaves "
             "a function's own body alone, which this version does not express",

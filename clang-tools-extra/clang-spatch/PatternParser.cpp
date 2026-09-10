@@ -129,8 +129,6 @@ const MetaVar *typeVarNamed(llvm::StringRef Prefix,
 /// written, so there is nothing to wrap.
 GroupWrapper wrapperFor(llvm::StringRef Text,
                         llvm::ArrayRef<MetaVar> MetaVars) {
-  if (llvm::StringRef(Text).trim().find('{') == llvm::StringRef::npos)
-    return GroupWrapper::None;
   const llvm::StringRef Prefix = groupPrefix(Text);
   if (Prefix.empty())
     return GroupWrapper::Initialiser;
@@ -138,15 +136,6 @@ GroupWrapper wrapperFor(llvm::StringRef Text,
                                         : GroupWrapper::None;
 }
 
-
-/// \p E without the \c RecoveryExpr the group wrapper's own unresolvable
-/// designator provokes.
-const Expr *peelRecovery(const Expr *E) {
-  if (const auto *R = dyn_cast_or_null<RecoveryExpr>(E))
-    return R->subExpressions().size() == 1 ? R->subExpressions().front()
-                                           : nullptr;
-  return E;
-}
 
 bool isIdentChar(char C) {
   return isalnum(static_cast<unsigned char>(C)) || C == '_';
@@ -425,6 +414,9 @@ namespace {
 /// \p AsType says, per statement, that Clang read it as a type rather than as
 /// a statement, so it is given a declarator this time round. A type written
 /// alone declares nothing and Clang produces no location for it.
+///
+/// \p AsGroup says, per statement, which wrapper a brace group needs, and
+/// \c GroupWrapper::None leaves the statement written as it is.
 void parseOnce(llvm::ArrayRef<MetaVar> MetaVars,
                llvm::ArrayRef<std::string> Statements,
                llvm::ArrayRef<std::string> TypeNames,
@@ -619,9 +611,13 @@ void parseOnce(llvm::ArrayRef<MetaVar> MetaVars,
       const auto *VD = DS && DS->isSingleDecl()
                            ? dyn_cast<VarDecl>(DS->getSingleDecl())
                            : nullptr;
-      const auto *List =
-          dyn_cast_or_null<InitListExpr>(peelRecovery(VD ? VD->getInit()
-                                                         : nullptr));
+      // Through the `RecoveryExpr` the wrapper's own unresolvable designator
+      // provokes.
+      const Expr *Init = VD ? VD->getInit() : nullptr;
+      if (const auto *R = dyn_cast_or_null<RecoveryExpr>(Init))
+        Init = R->subExpressions().size() == 1 ? R->subExpressions().front()
+                                               : nullptr;
+      const auto *List = dyn_cast_or_null<InitListExpr>(Init);
       // The form a designator survives in. A parse Clang accepted hands back
       // the semantic form, where the designator has already been resolved away
       // and the element is the bare initialiser, so `{ [0] = E, }` came back as
