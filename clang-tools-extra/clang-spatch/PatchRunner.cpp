@@ -456,20 +456,21 @@ void runFlatRule(const Rule &R, const FlatRule &F,
       if (!Rewrites)
         continue;
       std::string EditError;
-      // Null when the marked region covers no whole node of the pattern, and
-      // the whole match is replaced instead.
-      const Stmt *Inner = nullptr;
+      // Invalid when the marked region covers no whole node of the pattern,
+      // and the whole match is replaced instead.
+      SourceRange Inner;
       if (A.Inner) {
         const unsigned Begin =
             Parsed->ItemOffsets[M.Pattern] + A.Inner->MinusOffset;
-        Inner = innerEditTarget(Begin, Begin + A.Inner->MinusLength, M.Pairs,
-                                Parsed->Unit->getASTContext());
+        Inner = innerEditRange(Begin, Begin + A.Inner->MinusLength, M.Pairs,
+                               M.TypePairs, Parsed->Unit->getASTContext());
       }
       std::optional<PatternEdit> E =
-          Inner ? buildInnerEdit(*Inner, A.Inner->PlusText, M.Bound, Context,
-                                 EditError)
-                : buildEdit(M.Node, A.PlusText, A.PatternEndsInSemicolon,
-                            M.Bound, Context, EditError);
+          Inner.isValid()
+              ? buildInnerEdit(Inner, A.Inner->PlusText, M.Bound, Context,
+                               EditError)
+              : buildEdit(M.Node, A.PlusText, A.PatternEndsInSemicolon, M.Bound,
+                          Context, EditError);
       if (!E) {
         ++Result.EditsRefused;
         continue;

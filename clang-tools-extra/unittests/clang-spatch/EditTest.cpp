@@ -749,6 +749,33 @@ TEST(Edit, AMarkedRegionCoveringNoNodeFallsBackToReplacingTheMatch) {
                       "int main () {\n  return -1;\n}\n"));
 }
 
+TEST(Edit, ATypeMetavariableNestedInADeclaratorBindsWhatTheTargetWrote) {
+  // `tests/funptr_array.cocci` writes `T (*x[2])(int x)`, so the return type
+  // of the function the array points to is a metavariable. A comparison over
+  // `QualType` can bind one written at the top of a declarator and nothing
+  // below it, because a `QualType` carries no location for the binding to
+  // hold, and the rule then matched nothing at all.
+  const llvm::StringRef Patch =
+      "@@\ntype T;\nidentifier x;\n@@\n\nT (*x[2])(\n- int\n+ char\n  x);\n";
+  EXPECT_EQ("long (*x[2])(char x);\n",
+            rewritten(Patch, "long (*x[2])(int x);\n"));
+  EXPECT_EQ("int (*x[2])(char x);\n",
+            rewritten(Patch, "int (*x[2])(int x);\n"));
+}
+
+TEST(Edit, AMarkedTypeOccurrenceIsEditedWhereTheTargetWroteIt) {
+  // Both `int`s of this pattern spell the same three characters, and only the
+  // parameter's is marked, so the edit is located by the characters the `-`
+  // line occupies and not by what they say. Replacing the whole match instead
+  // reprints the declaration from the pattern and leaves the space the
+  // grouping put after the `(`, which is the one byte `funptr_array` was out
+  // by.
+  EXPECT_EQ("int (*x[2])(char x);\n",
+            rewritten("@@\nidentifier x;\n@@\n\nint (*x[2])(\n- int\n"
+                      "+ char\n  x);\n",
+                      "int (*x[2])(int x);\n"));
+}
+
 TEST(Edit, ABareExpressionPatternMatchesInsideASiteItAlreadyMatched) {
   // Coccinelle has no exclusion of a match's own subtrees. `- e1 + 27` over
   // this input rewrites all three depths, because the three edits are

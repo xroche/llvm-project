@@ -92,48 +92,37 @@ bool sameBinding(const Binding &A, const Binding &B, ASTContext &Context) {
   return sourceTextOf(A.Range, Context) == sourceTextOf(B.Range, Context);
 }
 
-/// Do two written types, each read from its own translation unit, describe
-/// the same type?
+/// Do two type specifiers, each read from its own translation unit, name the
+/// same type?
+///
+/// This is the bottom of a declarator rather than the whole of a written
+/// type: the paren, pointer, array and function layers above it have source
+/// locations of their own and `Unifier::matchTypeLoc` walks those.
 ///
 /// Written rather than canonical, because Coccinelle matches the spelling: a
 /// pattern saying `long long` does not match a typedef that resolves to it.
 /// A `QualType` cannot cross translation units, so nothing here compares one
-/// by identity. A builtin compares by its kind, a named type by its name, and
-/// everything else by structure.
+/// by identity. A builtin compares by its kind and a named type by its name.
 ///
-/// **The class list here and the one in `uncomparableType` are one list.**
-/// A class this does not handle must be refused there, or a pattern would
-/// silently fail to match a construct it describes.
+/// **The classes here, the declarator layers `matchTypeLoc` walks, and the
+/// list in `uncomparableType` are one list.** A class none of the three
+/// handles must be refused there, or a pattern would silently fail to match a
+/// construct it describes.
 bool sameWrittenType(QualType P, QualType T) {
   if (P.getLocalFastQualifiers() != T.getLocalFastQualifiers())
     return false;
   const Type *PT = P.getTypePtrOrNull(), *TT = T.getTypePtrOrNull();
   if (!PT || !TT)
     return PT == TT;
-  // A parenthesised declarator adds a layer that carries no meaning of its
-  // own, and it is not always written on both sides.
-  if (const auto *PP = dyn_cast<ParenType>(PT))
-    return sameWrittenType(PP->getInnerType(), T);
-  if (const auto *TP = dyn_cast<ParenType>(TT))
-    return sameWrittenType(P, TP->getInnerType());
   if (PT->getTypeClass() != TT->getTypeClass())
     return false;
   if (const auto *PB = dyn_cast<BuiltinType>(PT))
     return PB->getKind() == cast<BuiltinType>(TT)->getKind();
-  if (const auto *PPtr = dyn_cast<PointerType>(PT))
-    return sameWrittenType(PPtr->getPointeeType(),
-                           cast<PointerType>(TT)->getPointeeType());
   if (const auto *PC = dyn_cast<ComplexType>(PT))
+    // `double _Complex` writes both halves in the one specifier, so the
+    // element type has no location of its own to descend into.
     return sameWrittenType(PC->getElementType(),
                            cast<ComplexType>(TT)->getElementType());
-  if (const auto *PA = dyn_cast<ConstantArrayType>(PT)) {
-    const auto *TA = cast<ConstantArrayType>(TT);
-    return PA->getSize() == TA->getSize() &&
-           sameWrittenType(PA->getElementType(), TA->getElementType());
-  }
-  if (const auto *PA = dyn_cast<IncompleteArrayType>(PT))
-    return sameWrittenType(PA->getElementType(),
-                           cast<IncompleteArrayType>(TT)->getElementType());
   if (const auto *PD = dyn_cast<TypedefType>(PT))
     return PD->getDecl()->getName() ==
            cast<TypedefType>(TT)->getDecl()->getName();
@@ -142,25 +131,11 @@ bool sameWrittenType(QualType P, QualType T) {
     return PTag->getTagKind() == TTag->getTagKind() &&
            !PTag->getName().empty() && PTag->getName() == TTag->getName();
   }
-  if (const auto *PF = dyn_cast<FunctionProtoType>(PT)) {
-    const auto *TF = cast<FunctionProtoType>(TT);
-    if (PF->isVariadic() != TF->isVariadic() ||
-        PF->getNumParams() != TF->getNumParams() ||
-        !sameWrittenType(PF->getReturnType(), TF->getReturnType()))
-      return false;
-    for (unsigned I = 0, E = PF->getNumParams(); I != E; ++I)
-      if (!sameWrittenType(PF->getParamType(I), TF->getParamType(I)))
-        return false;
-    return true;
-  }
-  if (const auto *PF = dyn_cast<FunctionNoProtoType>(PT))
-    return sameWrittenType(PF->getReturnType(),
-                           cast<FunctionNoProtoType>(TT)->getReturnType());
   return false;
 }
 
-/// The type class in \p T that `sameWrittenType` cannot compare, or an empty
-/// string. See the note on that function: the two class lists are one list.
+/// The type class in \p T that the comparison cannot handle, or an empty
+/// string. See the note on `sameWrittenType`: the lists are one list.
 std::string uncomparableType(QualType T) {
   const Type *P = T.getTypePtrOrNull();
   if (!P)
@@ -235,24 +210,39 @@ public:
       : Parsed(Parsed), Context(Context),
         PatternContext(Parsed.Unit->getASTContext()) {}
 
-  /// \p Out, when given, is appended with which target node each pattern
-  /// node matched. It is never cleared, so it must be empty on the way in and
-  /// the caller owns one per candidate.
+  /// \p Out and \p TypeOut, when given, are appended with which target node
+  /// each pattern node matched and which target type occurrence each written
+  /// type matched. Neither is cleared, so both must be empty on the way in
+  /// and the caller owns one pair of them per candidate.
   bool run(const Stmt *Pattern, const Stmt *Target, Bindings &Bound,
-           NodePairs *Out = nullptr) {
+           NodePairs *Out = nullptr, TypeLocPairs *TypeOut = nullptr) {
     assert((!Out || Out->empty()) &&
            "run appends, so the caller owns one NodePairs per candidate");
+    assert((!TypeOut || TypeOut->empty()) &&
+           "run appends, so the caller owns one TypeLocPairs per candidate");
     Pairs = Out;
+    TypePairs = TypeOut;
     const bool Matched = match(Pattern, Target, Bound);
     Pairs = nullptr;
+    TypePairs = nullptr;
     return Matched;
   }
 
   /// Matches a declaration pattern against a declaration that is not inside
   /// any function body, so it has no `DeclStmt` to be compared through.
+  ///
+  /// \p Out and \p TypeOut are as in \c run.
   bool runOnDecl(const DeclStmt &Pattern, llvm::ArrayRef<const Decl *> Target,
-                 Bindings &Bound) {
-    return matchDecls(Pattern, Target, Bound);
+                 Bindings &Bound, NodePairs *Out = nullptr,
+                 TypeLocPairs *TypeOut = nullptr) {
+    assert((!Out || Out->empty()) && (!TypeOut || TypeOut->empty()) &&
+           "runOnDecl appends, so the caller owns one of each per candidate");
+    Pairs = Out;
+    TypePairs = TypeOut;
+    const bool Matched = matchDecls(Pattern, Target, Bound);
+    Pairs = nullptr;
+    TypePairs = nullptr;
+    return Matched;
   }
 
 private:
@@ -263,6 +253,9 @@ private:
   /// caller did not ask for them. Owned by \c run for the length of one
   /// candidate.
   NodePairs *Pairs = nullptr;
+  /// Where to record the written-type correspondence, or null. Owned the same
+  /// way \c Pairs is.
+  TypeLocPairs *TypePairs = nullptr;
 
   bool bind(const MetaVar &M, const Stmt *Target, Bindings &Bound) {
     if (!kindAccepts(M.Kind, Target))
@@ -370,10 +363,84 @@ private:
                         const TypeSourceInfo *Target, Bindings &Bound) {
     if (!Pattern || !Target)
       return false;
-    if (const MetaVar *M = typeMetaVarOf(Pattern->getType()))
-      return bindTo(*M, Binding{nullptr, Target->getTypeLoc().getSourceRange()},
-                    Bound);
-    return sameWrittenType(Pattern->getType(), Target->getType());
+    return matchTypeLoc(Pattern->getTypeLoc(), Target->getTypeLoc(), Bound);
+  }
+
+  /// Matches one written type occurrence against another, descending through
+  /// the declarator layers that have a location of their own.
+  ///
+  /// The walk is over \c TypeLoc rather than \c QualType because two things
+  /// need a source range that a \c QualType does not carry. A type
+  /// metavariable nested inside a larger type binds the range the target
+  /// wrote, so `T (*x[2])(int)` matches a target whose return type is
+  /// anything. And a rule that marks a type occurrence is edited at the range
+  /// that occurrence covers, so the correspondence is recorded here for the
+  /// same reason \c match records one for statements.
+  ///
+  /// A layer with no location structure of its own is decided by
+  /// \c sameWrittenType.
+  bool matchTypeLoc(TypeLoc P, TypeLoc T, Bindings &Bound) {
+    if (P.isNull() || T.isNull())
+      return P.isNull() == T.isNull();
+    // Recorded before the qualifiers and the parentheses come off, so a
+    // pattern marking `const int` names the range the target wrote them over.
+    if (TypePairs)
+      TypePairs->push_back({P, T});
+    if (P.getType().getLocalFastQualifiers() !=
+        T.getType().getLocalFastQualifiers())
+      return false;
+    P = P.getUnqualifiedLoc();
+    T = T.getUnqualifiedLoc();
+    // A parenthesised declarator adds a layer that carries no meaning of its
+    // own, and it is not always written on both sides.
+    if (ParenTypeLoc PP = P.getAs<ParenTypeLoc>())
+      return matchTypeLoc(PP.getInnerLoc(), T, Bound);
+    if (ParenTypeLoc TP = T.getAs<ParenTypeLoc>())
+      return matchTypeLoc(P, TP.getInnerLoc(), Bound);
+    if (const MetaVar *M = typeMetaVarOf(P.getType()))
+      return bindTo(*M, Binding{nullptr, T.getSourceRange()}, Bound);
+    if (P.getTypeLocClass() != T.getTypeLocClass())
+      return false;
+    if (PointerTypeLoc PPtr = P.getAs<PointerTypeLoc>())
+      return matchTypeLoc(PPtr.getPointeeLoc(),
+                          T.castAs<PointerTypeLoc>().getPointeeLoc(), Bound);
+    if (ArrayTypeLoc PArr = P.getAs<ArrayTypeLoc>()) {
+      if (!isa<ConstantArrayType, IncompleteArrayType>(P.getTypePtr()))
+        return false;
+      // The class test above already agreed on which array kind this is, so a
+      // constant one has a size on both sides.
+      if (const auto *PC = dyn_cast<ConstantArrayType>(P.getTypePtr()))
+        if (PC->getSize() != cast<ConstantArrayType>(T.getTypePtr())->getSize())
+          return false;
+      return matchTypeLoc(PArr.getElementLoc(),
+                          T.castAs<ArrayTypeLoc>().getElementLoc(), Bound);
+    }
+    if (FunctionTypeLoc PFn = P.getAs<FunctionTypeLoc>()) {
+      FunctionTypeLoc TFn = T.castAs<FunctionTypeLoc>();
+      if (const auto *PProto = dyn_cast<FunctionProtoType>(P.getTypePtr()))
+        if (PProto->isVariadic() !=
+            cast<FunctionProtoType>(T.getTypePtr())->isVariadic())
+          return false;
+      if (PFn.getNumParams() != TFn.getNumParams())
+        return false;
+      if (!matchTypeLoc(PFn.getReturnLoc(), TFn.getReturnLoc(), Bound))
+        return false;
+      // Each parameter is compared as the declaration wrote it rather than
+      // as the function type holds it, because a parameter of array type
+      // decays in the type and keeps its brackets in the source. Measured on
+      // `spatch` 1.1.1: a pattern writing `int *a` does not match a target
+      // writing `int a[]`.
+      for (unsigned I = 0, E = PFn.getNumParams(); I != E; ++I) {
+        const ParmVarDecl *PV = PFn.getParam(I), *TV = TFn.getParam(I);
+        if (!PV || !TV)
+          return false;
+        if (!matchWrittenType(PV->getTypeSourceInfo(), TV->getTypeSourceInfo(),
+                              Bound))
+          return false;
+      }
+      return true;
+    }
+    return sameWrittenType(P.getType(), T.getType());
   }
 
   /// Matches the name \p Pattern declares against \p Target's, binding an
@@ -695,12 +762,14 @@ std::vector<Match> findMatches(llvm::ArrayRef<const Stmt *> Patterns,
       // node and gets some way in before it fails, so a vector reused down
       // the list would report every near miss as the match's own.
       NodePairs Pairs;
+      TypeLocPairs TypePairs;
       if (!Shared.run(Patterns[P], S, Bound,
-                      Opts.WantNodePairs ? &Pairs : nullptr))
+                      Opts.WantNodePairs ? &Pairs : nullptr,
+                      Opts.WantNodePairs ? &TypePairs : nullptr))
         continue;
       StmtRanges.push_back(R);
-      Out.push_back(
-          {DynTypedNode::create(*S), std::move(Bound), P, std::move(Pairs)});
+      Out.push_back({DynTypedNode::create(*S), std::move(Bound), P,
+                     std::move(Pairs), std::move(TypePairs)});
     }
     const auto *DS = dyn_cast<DeclStmt>(peel(Patterns[P]));
     if (!DS)
@@ -710,11 +779,16 @@ std::vector<Match> findMatches(llvm::ArrayRef<const Stmt *> Patterns,
           overlaps(StmtRanges, D->getSourceRange()))
         continue;
       Bindings Bound = Seed;
-      if (!Shared.runOnDecl(*DS, D, Bound))
+      NodePairs Pairs;
+      TypeLocPairs TypePairs;
+      if (!Shared.runOnDecl(*DS, D, Bound,
+                            Opts.WantNodePairs ? &Pairs : nullptr,
+                            Opts.WantNodePairs ? &TypePairs : nullptr))
         continue;
       ClaimedDecls.insert(D);
       DeclRanges.push_back(D->getSourceRange());
-      Out.push_back({DynTypedNode::create(*D), std::move(Bound), P, {}});
+      Out.push_back({DynTypedNode::create(*D), std::move(Bound), P,
+                     std::move(Pairs), std::move(TypePairs)});
     }
   }
 

@@ -24,6 +24,7 @@
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTTypeTraits.h"
 #include "clang/AST/Stmt.h"
+#include "clang/AST/TypeLoc.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringMap.h"
 #include <string>
@@ -70,6 +71,21 @@ struct NodePair {
 /// are absent, because a declarator is not a \c Stmt.
 using NodePairs = std::vector<NodePair>;
 
+/// One type occurrence written in the pattern and the one it matched.
+///
+/// A type is not a \c Stmt, so a rule marking the `int` of `T (*x[2])(int x)`
+/// has no entry in \c NodePairs at all and the range to overwrite is a
+/// \c TypeLoc's. Both sides point into their own translation unit, as in
+/// \c NodePair.
+struct TypeLocPair {
+  TypeLoc Pattern;
+  TypeLoc Target;
+};
+
+/// Which target type occurrence each written type of the pattern matched, in
+/// the order the comparison reached them.
+using TypeLocPairs = std::vector<TypeLocPair>;
+
 /// One place a pattern matched.
 struct Match {
   /// The target node the pattern matched.
@@ -84,6 +100,8 @@ struct Match {
   unsigned Pattern = 0;
   /// Filled only when \c MatchOptions::WantNodePairs asked for it.
   NodePairs Pairs;
+  /// Filled only when \c MatchOptions::WantNodePairs asked for it.
+  TypeLocPairs TypePairs;
 };
 
 /// What a search over the target is allowed to match.
@@ -102,7 +120,7 @@ struct MatchOptions {
   /// one `;` and replacing one would take the terminator the others need, so
   /// only a rule that asks for no change may be given it.
   bool MultiDeclaratorOK = false;
-  /// Record \c Match::Pairs for every match.
+  /// Record \c Match::Pairs and \c Match::TypePairs for every match.
   ///
   /// Off by default, because a rule that replaces a whole statement has no use
   /// for it and every match would carry the vector.

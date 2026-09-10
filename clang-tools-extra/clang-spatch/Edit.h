@@ -59,23 +59,27 @@ std::optional<PatternEdit> buildEdit(DynTypedNode Matched,
                                      const Bindings &Bound, ASTContext &Context,
                                      std::string &Error);
 
-/// The target node the `-` lines of a partly changed statement correspond to,
-/// or null when they cover no whole node of the pattern.
+/// The range in the target that the `-` lines of a partly changed statement
+/// correspond to, or an invalid range when they cover no whole node of the
+/// pattern.
 ///
 /// \p PatternBegin and \p PatternEnd are the characters the `-` lines occupy
-/// in the pattern's own source, and \p Pairs says which target node each
-/// pattern node matched.
+/// in the pattern's own source. \p Pairs says which target node each pattern
+/// node matched and \p TypePairs the same for each written type, which is
+/// where a rule marking the `int` of `T (*x[2])(int x)` is answered: a type is
+/// not a \c Stmt, so it has no entry in \p Pairs at all.
 ///
 /// Covering no node is common and is not an error. `- foo(` over `+ bar(`
 /// marks a callee and a parenthesis, and `- -` over `  x` marks part of a
 /// unary operator. Neither has a range of its own in the target, so a caller
 /// falls back to replacing the whole match with the plus side reassembled.
-const Stmt *innerEditTarget(unsigned PatternBegin, unsigned PatternEnd,
-                            const NodePairs &Pairs,
-                            ASTContext &PatternContext);
+SourceRange innerEditRange(unsigned PatternBegin, unsigned PatternEnd,
+                           const NodePairs &Pairs,
+                           const TypeLocPairs &TypePairs,
+                           ASTContext &PatternContext);
 
-/// Builds the edit that writes \p PlusText over \p Target and leaves the rest
-/// of the matched statement as the target wrote it.
+/// Builds the edit that writes \p PlusText over the target range \p Target
+/// and leaves the rest of the matched statement as the target wrote it.
 ///
 /// This is the faithful shape, because Coccinelle removes the `-` tokens and
 /// puts the `+` tokens where they stood while every context token keeps the
@@ -85,11 +89,9 @@ const Stmt *innerEditTarget(unsigned PatternBegin, unsigned PatternEnd,
 /// Returns std::nullopt and sets \p Error when the range cannot be edited,
 /// which a caller must count rather than fall back on: a range inside a macro
 /// expansion is refused for the same reason \c buildEdit refuses one.
-std::optional<PatternEdit> buildInnerEdit(const Stmt &Target,
-                                          llvm::StringRef PlusText,
-                                          const Bindings &Bound,
-                                          ASTContext &Context,
-                                          std::string &Error);
+std::optional<PatternEdit>
+buildInnerEdit(SourceRange Target, llvm::StringRef PlusText,
+               const Bindings &Bound, ASTContext &Context, std::string &Error);
 
 /// The characters an in-place edit over \p Range overwrites, and the text it
 /// writes there.

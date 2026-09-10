@@ -323,29 +323,33 @@ CharSourceRange inPlaceEditRange(CharSourceRange Range, std::string &Text,
       FileBegin.getLocWithOffset(static_cast<int>(Wide.End)));
 }
 
-const Stmt *innerEditTarget(unsigned PatternBegin, unsigned PatternEnd,
-                            const NodePairs &Pairs,
-                            ASTContext &PatternContext) {
+SourceRange innerEditRange(unsigned PatternBegin, unsigned PatternEnd,
+                           const NodePairs &Pairs,
+                           const TypeLocPairs &TypePairs,
+                           ASTContext &PatternContext) {
+  const auto Covers = [&](SourceRange Pattern) {
+    const std::optional<Span> Here =
+        spanOf(CharSourceRange::getTokenRange(Pattern),
+               PatternContext.getSourceManager(), PatternContext.getLangOpts());
+    return Here && Here->Begin == PatternBegin && Here->End == PatternEnd;
+  };
   // The first exact match wins. A pattern node and an implicit cast over it
   // name the same characters, so either one gives the same range.
-  for (const auto &Pair : Pairs) {
-    const std::optional<Span> Here = spanOf(
-        CharSourceRange::getTokenRange(Pair.Pattern->getSourceRange()),
-        PatternContext.getSourceManager(), PatternContext.getLangOpts());
-    if (Here && Here->Begin == PatternBegin && Here->End == PatternEnd)
-      return Pair.Target;
-  }
-  return nullptr;
+  for (const auto &Pair : Pairs)
+    if (Covers(Pair.Pattern->getSourceRange()))
+      return Pair.Target->getSourceRange();
+  for (const auto &Pair : TypePairs)
+    if (Covers(Pair.Pattern.getSourceRange()))
+      return Pair.Target.getSourceRange();
+  return SourceRange();
 }
 
-std::optional<PatternEdit> buildInnerEdit(const Stmt &Target,
-                                          llvm::StringRef PlusText,
-                                          const Bindings &Bound,
-                                          ASTContext &Context,
-                                          std::string &Error) {
+std::optional<PatternEdit>
+buildInnerEdit(SourceRange Target, llvm::StringRef PlusText,
+               const Bindings &Bound, ASTContext &Context, std::string &Error) {
   std::string Text = substitute(PlusText, Bound, Context);
-  const CharSourceRange Range = inPlaceEditRange(
-      CharSourceRange::getTokenRange(Target.getSourceRange()), Text, Context);
+  const CharSourceRange Range =
+      inPlaceEditRange(CharSourceRange::getTokenRange(Target), Text, Context);
   if (llvm::Error Invalid =
           tooling::validateEditRange(Range, Context.getSourceManager())) {
     Error = "the range inside the match cannot be edited: " +
