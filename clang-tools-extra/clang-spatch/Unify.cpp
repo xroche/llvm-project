@@ -230,15 +230,13 @@ public:
 
   /// Matches a type pattern against one written type occurrence.
   ///
-  /// \p TypeOut is as in \c run.
-  bool runOnType(TypeLoc Pattern, TypeLoc Target, Bindings &Bound,
-                 TypeLocPairs *TypeOut = nullptr) {
-    assert((!TypeOut || TypeOut->empty()) &&
-           "runOnType appends, so the caller owns one per candidate");
-    TypePairs = TypeOut;
-    const bool Matched = matchTypeLoc(Pattern, Target, Bound);
+  /// No correspondence is recorded, because a type pattern Clang can read is
+  /// a type specifier and the occurrence it matches is the range to edit, so
+  /// \c Match::Node already carries it.
+  bool runOnType(TypeLoc Pattern, TypeLoc Target, Bindings &Bound) {
+    Pairs = nullptr;
     TypePairs = nullptr;
-    return Matched;
+    return matchTypeLoc(Pattern, Target, Bound);
   }
 
   /// Matches a declaration pattern against a declaration that is not inside
@@ -382,42 +380,57 @@ private:
   /// Matches one written type occurrence against another, descending through
   /// the declarator layers that have a location of their own.
   ///
-  /// The walk is over \c TypeLoc rather than \c QualType because two things
-  /// need a source range that a \c QualType does not carry. A type
-  /// metavariable nested inside a larger type binds the range the target
-  /// wrote, so `T (*x[2])(int)` matches a target whose return type is
-  /// anything. And a rule that marks a type occurrence is edited at the range
-  /// that occurrence covers, so the correspondence is recorded here for the
-  /// same reason \c match records one for statements.
-  ///
-  /// A layer with no location structure of its own is decided by
+  /// Over \c TypeLoc rather than \c QualType, because a metavariable binding
+  /// and an edit both need a source range and a \c QualType carries none. A
+  /// layer with no location structure of its own is decided by
   /// \c sameWrittenType.
-  bool matchTypeLoc(TypeLoc P, TypeLoc T, Bindings &Bound) {
-    if (P.isNull() || T.isNull())
-      return P.isNull() == T.isNull();
-    // Recorded before the qualifiers and the parentheses come off, so a
-    // pattern marking `const int` names the range the target wrote them over.
+  bool matchTypeLoc(TypeLoc Pattern, TypeLoc Target, Bindings &Bound) {
+    // A null loc is what Clang leaves where nothing was written, so recursing
+    // on one would compare a handle to no type at all.
+    if (Pattern.isNull() || Target.isNull())
+      return Pattern.isNull() == Target.isNull();
+    TypeLoc P = Pattern.getUnqualifiedLoc(), T = Target.getUnqualifiedLoc();
+    // A parenthesised declarator has to be written on both sides. Measured on
+    // `spatch` 1.1.1, `- int *` does not match `int (*p);`, and matching it
+    // would also give the edit a range covering the name being declared,
+    // because a paren layer runs to its own closing parenthesis.
+    const ParenTypeLoc PP = P.getAs<ParenTypeLoc>();
+    const ParenTypeLoc TP = T.getAs<ParenTypeLoc>();
+    if (PP || TP) {
+      if (!PP || !TP)
+        return false;
+      return matchTypeLoc(PP.getInnerLoc(), TP.getInnerLoc(), Bound);
+    }
+    // Recorded before the qualifiers come off, so a pattern marking
+    // `const int` names the range the target wrote them over.
     if (TypePairs)
-      TypePairs->push_back({P, T});
-    if (P.getType().getLocalFastQualifiers() !=
-        T.getType().getLocalFastQualifiers())
+      TypePairs->push_back({Pattern, Target});
+    // A type metavariable stands for whatever the target wrote, qualifiers
+    // included, so it is tried before they are compared. A pattern writing a
+    // qualifier of its own still requires it: `- const T x;` leaves an
+    // unqualified declaration alone and binds `int` from `const int`, while
+    // `- T x;` binds the whole of `const int`. Both were read off `spatch`
+    // 1.1.1.
+    const unsigned PQuals = Pattern.getType().getLocalFastQualifiers();
+    const unsigned TQuals = Target.getType().getLocalFastQualifiers();
+    if (const MetaVar *M = typeMetaVarOf(P.getType())) {
+      if ((TQuals & PQuals) != PQuals)
+        return false;
+      return bindTo(*M,
+                    Binding{nullptr, Target.getSourceRange(),
+                            /*RangeIsShort=*/TQuals != PQuals},
+                    Bound);
+    }
+    if (PQuals != TQuals)
       return false;
-    P = P.getUnqualifiedLoc();
-    T = T.getUnqualifiedLoc();
-    // A parenthesised declarator adds a layer that carries no meaning of its
-    // own, and it is not always written on both sides.
-    if (ParenTypeLoc PP = P.getAs<ParenTypeLoc>())
-      return matchTypeLoc(PP.getInnerLoc(), T, Bound);
-    if (ParenTypeLoc TP = T.getAs<ParenTypeLoc>())
-      return matchTypeLoc(P, TP.getInnerLoc(), Bound);
-    if (const MetaVar *M = typeMetaVarOf(P.getType()))
-      return bindTo(*M, Binding{nullptr, T.getSourceRange()}, Bound);
     if (P.getTypeLocClass() != T.getTypeLocClass())
       return false;
     if (PointerTypeLoc PPtr = P.getAs<PointerTypeLoc>())
       return matchTypeLoc(PPtr.getPointeeLoc(),
                           T.castAs<PointerTypeLoc>().getPointeeLoc(), Bound);
     if (ArrayTypeLoc PArr = P.getAs<ArrayTypeLoc>()) {
+      // Kept in step with `uncomparableType`, whose class list is this one:
+      // an array class it refuses cannot reach here, and this says so.
       if (!isa<ConstantArrayType, IncompleteArrayType>(P.getTypePtr()))
         return false;
       // The class test above already agreed on which array kind this is, so a
@@ -438,11 +451,9 @@ private:
         return false;
       if (!matchTypeLoc(PFn.getReturnLoc(), TFn.getReturnLoc(), Bound))
         return false;
-      // Each parameter is compared as the declaration wrote it rather than
-      // as the function type holds it, because a parameter of array type
-      // decays in the type and keeps its brackets in the source. Measured on
-      // `spatch` 1.1.1: a pattern writing `int *a` does not match a target
-      // writing `int a[]`.
+      // A parameter is compared as the declaration wrote it and not as the
+      // function type holds it, because one of array type decays in the type
+      // and keeps its brackets in the source.
       for (unsigned I = 0, E = PFn.getNumParams(); I != E; ++I) {
         const ParmVarDecl *PV = PFn.getParam(I), *TV = TFn.getParam(I);
         if (!PV || !TV)
@@ -736,28 +747,16 @@ std::vector<Match> findTypeMatches(TypeLoc Pattern, const ParsedPattern &Parsed,
   const Bindings Seed = Opts.Inherited ? *Opts.Inherited : Bindings();
   for (TypeLoc TL : Collector.All) {
     Bindings Bound = Seed;
-    // Fresh for each candidate, for the reason findMatches gives: a candidate
-    // that fails gets some way in first.
-    TypeLocPairs TypePairs;
-    if (!Shared.runOnType(Pattern, TL, Bound, &TypePairs))
+    if (!Shared.runOnType(Pattern, TL, Bound))
       continue;
-    Out.push_back({DynTypedNode::create(TL),
-                   std::move(Bound),
-                   0,
-                   {},
-                   std::move(TypePairs)});
+    Out.push_back({DynTypedNode::create(TL), std::move(Bound), 0, {}, {}});
   }
   return Out;
 }
 
 std::string whyNotATypePattern(TypeLoc Pattern, const ParsedPattern &Parsed) {
-  if (Pattern.isNull())
-    return "the `-` side names no type at all";
-  TypeLoc P = Pattern.getUnqualifiedLoc();
-  while (ParenTypeLoc Paren = P.getAs<ParenTypeLoc>())
-    P = Paren.getInnerLoc().getUnqualifiedLoc();
   const auto *TD =
-      dyn_cast_or_null<TypedefType>(P.getType().getTypePtrOrNull());
+      dyn_cast_or_null<TypedefType>(Pattern.getType().getTypePtrOrNull());
   const MetaVar *M =
       TD ? Parsed.metaVarFor(TD->getDecl()->getCanonicalDecl()) : nullptr;
   if (M && M->Kind == MetaVar::Kind::Type)

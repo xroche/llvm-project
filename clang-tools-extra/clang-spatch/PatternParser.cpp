@@ -523,10 +523,16 @@ parsePattern(llvm::ArrayRef<MetaVar> MetaVars,
 
   ParsedPattern Typed;
   parseOnce(MetaVars, Statements, TypeNames, AsType, Typed);
-  if (!Typed.Unit) {
-    Error = "Clang could not be run on the synthesised pattern";
-    return std::nullopt;
-  }
+  // The first pass read every other item, so it is what a caller gets when
+  // the second cannot run at all. The type items are then reported as types
+  // rather than as statements, which is what they are.
+  if (!Typed.Unit)
+    return P;
+  // A declarator this synthesis invented must not reach a message a user
+  // reads, and a failure here is a failure to read the type.
+  for (unsigned I = 0, E = Statements.size(); I != E; ++I)
+    if (AsType[I] && !Typed.Errors[I].empty())
+      Typed.Errors[I] = "the pattern names a type Clang could not read";
   return Typed;
 }
 

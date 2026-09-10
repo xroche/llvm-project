@@ -661,13 +661,10 @@ TEST(FlatRule, ADeclaredTypeNameIsAvailableToEveryRuleOfThePatch) {
 }
 
 TEST(FlatRule, ATypeNameWrittenAloneRewritesEveryOccurrenceOfTheType) {
-  // `tests/compare.cocci`, `tests/devlink.cocci`, `tests/macro.cocci` and
-  // `tests/weirdinit_failure.cocci` each write a bare type name as their
-  // whole `-` side and mean the type, and so do `tests/ifzz.cocci`,
-  // `tests/starprint.cocci` and `tests/ty_tyexp.cocci`. The declaration that
-  // introduced the name is left alone, because the name there is what is
-  // being declared and the type written is what it aliases. Read off
-  // `spatch` 1.1.1.
+  // Seven corpus patches write a bare type name as their whole `-` side and
+  // mean the type. The declaration that introduced the name is left alone,
+  // because the name there is what is declared and the type written is what
+  // it aliases. Read off `spatch` 1.1.1.
   EXPECT_EQ("typedef int mytype;\nvoid f(struct other *p) { }\n",
             rewritten("@r@\ntypedef mytype;\n@@\n- mytype\n"
                       "+ struct other\n",
@@ -675,17 +672,38 @@ TEST(FlatRule, ATypeNameWrittenAloneRewritesEveryOccurrenceOfTheType) {
 }
 
 TEST(FlatRule, ATypeMetavariableWrittenAloneAsTheMinusSideIsRefused) {
-  // Such a rule names the whole written type of every declaration in the
-  // file, and `spatch` reprints each declaration it touches: `long f(short
-  // s);` comes back as `int f;`. Writing the new type where the old one stood
-  // cannot produce that, and the written type of a function declaration
-  // covers the name being declared, so the edit would eat it.
+  // `spatch` reprints every declaration such a rule touches, so `long f(short
+  // s);` comes back as `int f;`. An edit where the old type stood cannot do
+  // that, and it would eat the declared name.
   EXPECT_EQ(
       "the `-` side is a type metavariable written on its own, so it "
       "names the whole written type of every declaration in the file, "
       "and Coccinelle reprints each of those declarations rather than "
       "writing the new type where the old one stood\n",
       unrunReasons("@@\ntype T;\n@@\n- T\n+ int\n", "long f(short s);\n"));
+}
+
+TEST(FlatRule, AWrittenTypeThatIsNotTheWholeMinusSideIsRefused) {
+  // Only a rule whose whole `-` side is the type matches every occurrence of
+  // it. Anywhere else the synthesised declaration would run as an ordinary
+  // declaration pattern, which matches nothing but the declarator the
+  // synthesis named, and the rule would report success having changed
+  // nothing.
+  EXPECT_EQ("a written type on the `-` side is matched at every occurrence of "
+            "that type, which this version builds only for a rule whose whole "
+            "`-` side is the type\n",
+            unrunReasons("@@\ntypedef LPINT;\nidentifier x;\n@@\n(\n"
+                         "- LPINT\n+ x;\n|\n- foo();\n+ bar();\n)\n",
+                         "typedef int *LPINT;\nvoid foo(void);\n"
+                         "void bar(void);\nvoid g(LPINT p) { foo(); }\n"));
+}
+
+TEST(FlatRule, ADeclaratorTheSynthesisInventedStaysOutOfTheMessage) {
+  // A type item is given a declarator so that Clang produces a location for
+  // the type. `- T ;` cannot be read that way, and the reason a reader gets
+  // must be about their own type rather than about a name this tool made up.
+  EXPECT_EQ("pattern: the pattern names a type Clang could not read\n",
+            unrunReasons("@@\ntype T;\n@@\n- T ;\n+ int ;\n", "int g;\n"));
 }
 
 TEST(SourceTextOf, AMacroArgumentComesThroughAsWritten) {
@@ -764,38 +782,77 @@ TEST(Edit, AMarkedRegionCoveringNoNodeFallsBackToReplacingTheMatch) {
 }
 
 TEST(Edit, ATypeMetavariableNestedInADeclaratorBindsWhatTheTargetWrote) {
-  // `tests/funptr_array.cocci` writes `T (*x[2])(int x)`, so the return type
-  // of the function the array points to is a metavariable. A comparison over
-  // `QualType` can bind one written at the top of a declarator and nothing
-  // below it, because a `QualType` carries no location for the binding to
-  // hold, and the rule then matched nothing at all.
-  const llvm::StringRef Patch =
-      "@@\ntype T;\nidentifier x;\n@@\n\nT (*x[2])(\n- int\n+ char\n  x);\n";
-  EXPECT_EQ("long (*x[2])(char x);\n",
-            rewritten(Patch, "long (*x[2])(int x);\n"));
-  EXPECT_EQ("int (*x[2])(char x);\n",
-            rewritten(Patch, "int (*x[2])(int x);\n"));
+  // `tests/funptr_array.cocci` makes the return type of the function its
+  // array points to a metavariable, so the binding is nested below the top of
+  // a declarator. The `+` side writes the metavariable back, which is what
+  // pins the value bound rather than only the match.
+  EXPECT_EQ("long (*x[2])(long x);\n",
+            rewritten("@@\ntype T;\nidentifier x;\n@@\n\nT (*x[2])(\n"
+                      "- int\n+ T\n  x);\n",
+                      "long (*x[2])(int x);\n"));
+}
+
+TEST(
+    Edit,
+    ATypeMetavariableMatchesAQualifiedTypeAndThePatternsOwnQualifierIsRequired) {
+  // Both rows read off `spatch` 1.1.1. A bare metavariable matches whatever
+  // the target wrote, qualifiers included.
+  const llvm::StringRef Code = "const int a;\nint b;\nvolatile int c;\n";
+  EXPECT_EQ("int a = 0;\nint b = 0;\nint c = 0;\n",
+            rewritten("@@\ntype T;\nidentifier x;\n@@\n- T x;\n"
+                      "+ int x = 0;\n",
+                      Code));
+  // A pattern writing `const` itself requires it, and binds what is left.
+  EXPECT_EQ("int a = 0;\nint b;\nvolatile int c;\n",
+            rewritten("@@\ntype T;\nidentifier x;\n@@\n- const T x;\n"
+                      "+ T x = 0;\n",
+                      Code));
+  // Writing the metavariable back is refused where it bound a qualifier,
+  // because a written type's qualifiers have no source range and the text
+  // would come out as `int` where `const int` was. Two of the three lines
+  // are such a site, and the run says so rather than printing them short.
+  EXPECT_EQ("!2 edit(s) the run could not build",
+            rewritten("@@\ntype T;\nidentifier x;\n@@\n- T x;\n"
+                      "+ T x = 0;\n",
+                      Code));
 }
 
 TEST(Edit, AMarkedTypeOccurrenceIsEditedWhereTheTargetWroteIt) {
-  // Both `int`s of this pattern spell the same three characters, and only the
+  // Both `int`s of this pattern spell the same three characters and only the
   // parameter's is marked, so the edit is located by the characters the `-`
-  // line occupies and not by what they say. Replacing the whole match instead
-  // reprints the declaration from the pattern and leaves the space the
-  // grouping put after the `(`, which is the one byte `funptr_array` was out
-  // by.
+  // line occupies and not by what they say.
   EXPECT_EQ("int (*x[2])(char x);\n",
             rewritten("@@\nidentifier x;\n@@\n\nint (*x[2])(\n- int\n"
                       "+ char\n  x);\n",
                       "int (*x[2])(int x);\n"));
+  // The whitespace rule reads the range the edit covers and not the shape of
+  // the rule, so a type occurrence followed by a declarator star keeps the
+  // two tokens touching, as `spatch` 1.1.1 does.
+  EXPECT_EQ("int (*x[2])(char*x);\n",
+            rewritten("@@\nidentifier x;\n@@\n\nint (*x[2])(\n- int\n"
+                      "+ char\n  *x);\n",
+                      "int (*x[2])(int*x);\n"));
+}
+
+TEST(Edit, AParenthesisedDeclaratorIsNotATypeOccurrence) {
+  // A `ParenTypeLoc`'s range runs to the closing parenthesis, so it covers the
+  // name being declared. Editing it rewrote `int (x);` to `long;` and dropped
+  // the declarator at exit 0. `spatch` 1.1.1 leaves the parentheses alone and
+  // rewrites the type inside them.
+  EXPECT_EQ("long (x);\nlong y;\n",
+            rewritten("@@\n@@\n- int\n+ long\n", "int (x);\nint y;\n"));
+  // A pattern that does not write the parenthesis does not match a target
+  // that does, which is what `spatch` 1.1.1 does and what keeps the edit off
+  // the declarator.
+  EXPECT_EQ("int (*y);\nlong *z;\n",
+            rewritten("@@\nidentifier x;\n@@\n\n- int *\n+ long *\n  x;\n",
+                      "int (*y);\nint *z;\n"));
 }
 
 TEST(Edit, APlusTextEndingInAPointerStarTakesTheWhitespaceAfterIt) {
-  // `tests/starprint.cocci`. The star binds to what follows it, so `LPINT x`
-  // becomes `int *x` rather than `int * x`, and the occurrence under `LPINT
-  // *y` is reached through the pointer it sits below. Read off `spatch`
-  // 1.1.1, which is where every clause of the in-place whitespace rule comes
-  // from.
+  // `tests/starprint.cocci`, read off `spatch` 1.1.1. The star binds to what
+  // follows, and the occurrence under `LPINT *y` is reached through the
+  // pointer above it.
   EXPECT_EQ("typedef int *LPINT;\nint foo(int *x, int **y) { return 0; }\n",
             rewritten("@@\ntypedef LPINT;\n@@\n- LPINT\n+ int *\n",
                       "typedef int *LPINT;\n"
@@ -803,9 +860,8 @@ TEST(Edit, APlusTextEndingInAPointerStarTakesTheWhitespaceAfterIt) {
 }
 
 TEST(Edit, AStarAfterAWrittenTypeIsADeclaratorAndNotAnOperator) {
-  // The clause that writes a space before a binary operator is off for a type
-  // occurrence, because the `*` of `LPINT*y` declares a pointer. Read off
-  // `spatch` 1.1.1, which leaves the two tokens touching.
+  // The `*` of `LPINT*y` declares a pointer, so `spatch` 1.1.1 leaves the two
+  // tokens touching where the binary-operator clause would space them.
   EXPECT_EQ("typedef int *LPINT;\nunsigned*y;\n",
             rewritten("@@\ntypedef LPINT;\n@@\n- LPINT\n+ unsigned\n",
                       "typedef int *LPINT;\nLPINT*y;\n"));

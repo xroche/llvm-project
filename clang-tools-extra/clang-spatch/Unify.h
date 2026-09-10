@@ -44,6 +44,15 @@ struct Binding {
   const Stmt *Node = nullptr;
   /// Where the bound text is, in the matched tree's source manager.
   SourceRange Range;
+  /// \c Range does not cover everything the target wrote, so writing the
+  /// binding back would drop part of it.
+  ///
+  /// A written type's qualifiers have no location of their own, so the range
+  /// of `const int` is the range of `int`. A `type` metavariable still binds
+  /// the qualified type, because Coccinelle matches one and reprints the
+  /// qualifier, and a rule that writes the metavariable back is refused
+  /// rather than printing `int` where `const int` was.
+  bool RangeIsShort = false;
 };
 
 /// What a match bound each metavariable to, in the target's tree.
@@ -76,7 +85,7 @@ using NodePairs = std::vector<NodePair>;
 /// A type is not a \c Stmt, so a rule marking the `int` of `T (*x[2])(int x)`
 /// has no entry in \c NodePairs at all and the range to overwrite is a
 /// \c TypeLoc's. Both sides point into their own translation unit, as in
-/// \c NodePair.
+/// \c NodePair, so a holder must keep both alive.
 struct TypeLocPair {
   TypeLoc Pattern;
   TypeLoc Target;
@@ -174,17 +183,11 @@ std::vector<Match> findMatches(const Stmt *Pattern, const ParsedPattern &Parsed,
 /// Every written type occurrence in \p Context's translation unit that
 /// \p Pattern matches, in source order.
 ///
-/// This is what a `-` side written as a bare type name means: Coccinelle
-/// rewrites every occurrence of the type, wherever a declarator, a cast or a
-/// `sizeof` wrote it, and not the declaration that introduced the name. In
-/// `typedef int *LPINT;` the type written is `int *` and `LPINT` is the name
-/// being declared, so that line is outside the search rather than excluded
-/// from it.
-///
-/// Each match's \c Node is the target \c TypeLoc and its \c TypePairs holds
-/// the correspondence, so a caller edits the occurrence where it stands.
-/// Call \c whyNotATypePattern first: a pattern this refuses names occurrences
-/// whose range is not the type alone.
+/// A `-` side written as a bare type name means the type, and not the
+/// declaration that introduces the name: in `typedef int *LPINT;` the type
+/// written is `int *`, so that line holds no occurrence of `LPINT` to rewrite.
+/// Each match's \c Node is the occurrence, which is the range to edit. Call
+/// \c whyNotATypePattern first.
 std::vector<Match> findTypeMatches(TypeLoc Pattern, const ParsedPattern &Parsed,
                                    ASTContext &Context, MatchOptions Opts = {});
 

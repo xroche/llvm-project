@@ -59,9 +59,18 @@ std::optional<PatternEdit> buildEdit(DynTypedNode Matched,
                                      const Bindings &Bound, ASTContext &Context,
                                      std::string &Error);
 
-/// The range in the target that the `-` lines of a partly changed statement
-/// correspond to, or an invalid range when they cover no whole node of the
-/// pattern.
+/// What an in-place edit overwrites, and what kind of thing it is.
+struct InnerEdit {
+  /// Invalid when the `-` lines cover no whole node of the pattern.
+  SourceRange Range;
+  /// The range is a written type occurrence rather than a statement. The
+  /// whitespace rule reads the two differently, because a `*` after a type
+  /// declares a pointer and a `*` after an expression multiplies.
+  bool IsAWrittenType = false;
+};
+
+/// The target text that the `-` lines of a partly changed statement
+/// correspond to.
 ///
 /// \p PatternBegin and \p PatternEnd are the characters the `-` lines occupy
 /// in the pattern's own source. \p Pairs says which target node each pattern
@@ -73,10 +82,9 @@ std::optional<PatternEdit> buildEdit(DynTypedNode Matched,
 /// marks a callee and a parenthesis, and `- -` over `  x` marks part of a
 /// unary operator. Neither has a range of its own in the target, so a caller
 /// falls back to replacing the whole match with the plus side reassembled.
-SourceRange innerEditRange(unsigned PatternBegin, unsigned PatternEnd,
-                           const NodePairs &Pairs,
-                           const TypeLocPairs &TypePairs,
-                           ASTContext &PatternContext);
+InnerEdit innerEditRange(unsigned PatternBegin, unsigned PatternEnd,
+                         const NodePairs &Pairs, const TypeLocPairs &TypePairs,
+                         ASTContext &PatternContext);
 
 /// Builds the edit that writes \p PlusText over the target range \p Target
 /// and leaves the rest of the matched statement as the target wrote it.
@@ -86,16 +94,15 @@ SourceRange innerEditRange(unsigned PatternBegin, unsigned PatternEnd,
 /// layout it already had. Replacing the whole match reprints that layout from
 /// the pattern instead, which loses the target's own line breaks and spacing.
 ///
-/// \p TargetIsAWrittenType is passed on to \c inPlaceEditRange, whose
-/// whitespace rule reads a `*` after a type differently from one after an
-/// expression.
+/// \p RangeIsAWrittenType is \c InnerEdit::IsAWrittenType, which the
+/// whitespace rule reads.
 ///
 /// Returns std::nullopt and sets \p Error when the range cannot be edited,
 /// which a caller must count rather than fall back on: a range inside a macro
 /// expansion is refused for the same reason \c buildEdit refuses one.
 std::optional<PatternEdit>
 buildInnerEdit(SourceRange Target, llvm::StringRef PlusText,
-               bool TargetIsAWrittenType, const Bindings &Bound,
+               bool RangeIsAWrittenType, const Bindings &Bound,
                ASTContext &Context, std::string &Error);
 
 /// The characters an in-place edit over \p Range overwrites, and the text it
@@ -113,7 +120,7 @@ buildInnerEdit(SourceRange Target, llvm::StringRef PlusText,
 /// - The whitespace after the region stays when the token after it is a
 ///   binary operator, and one space is written when there was none. A `*`
 ///   after a written type is a declarator star and not an operator, so
-///   \p RegionIsAWrittenType turns that clause off and `LPINT*y` becomes
+///   \p RangeIsAWrittenType turns that clause off and `LPINT*y` becomes
 ///   `unsigned*y`.
 /// - Otherwise it goes before a `,`, a `)` or a `;`, unless the region is a
 ///   single token, which keeps it.
@@ -124,8 +131,7 @@ buildInnerEdit(SourceRange Target, llvm::StringRef PlusText,
 /// writes the returned range with the updated \p Text and not with the string
 /// it passed in.
 CharSourceRange inPlaceEditRange(CharSourceRange Range, std::string &Text,
-                                 ASTContext &Context,
-                                 bool RegionIsAWrittenType);
+                                 ASTContext &Context, bool RangeIsAWrittenType);
 
 /// The source text of \p S exactly as written, macros included.
 ///

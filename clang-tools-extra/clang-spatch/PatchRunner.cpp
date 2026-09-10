@@ -177,10 +177,10 @@ struct FlatRule {
     /// Why the `+` side is a fragment of a statement rather than one, or
     /// empty when it is not.
     ///
-    /// Recorded rather than refused, because a rule whose `-` side is a
-    /// written type has one on its `+` side too, and `int *` is a whole
-    /// written type while being an incomplete statement. Clang is what tells
-    /// the two apart, so a caller checks this once the pattern is parsed.
+    /// Recorded and not refused here. A rule whose `-` side is a written type
+    /// has a fragment on its `+` side too, and only Clang can tell that
+    /// `int *` is a whole type rather than a broken statement, so the caller
+    /// checks this once the pattern is parsed.
     std::string FragmentWhy;
     RulePurpose Purpose = RulePurpose::Rewrite;
   };
@@ -188,6 +188,16 @@ struct FlatRule {
   std::vector<Alternative> Alts;
   RulePurpose Purpose = RulePurpose::Rewrite;
 };
+
+/// Why a written type is refused anywhere but as a rule's whole `-` side.
+///
+/// Its synthesised declaration would run as an ordinary declaration pattern,
+/// which matches only a declarator the synthesis itself named, so the rule
+/// would report success while rewriting nothing the patch asked for.
+constexpr llvm::StringLiteral ATypeSideNotBuilt =
+    "a written type on the `-` side is matched at every occurrence of that "
+    "type, which this version builds only for a rule whose whole `-` side is "
+    "the type";
 
 /// Do \p Items open with a `{` and close with a `}`?
 ///
@@ -393,6 +403,12 @@ void runFlatRule(const Rule &R, const FlatRule &F,
   // disjunction of written types is not built.
   const bool MatchesAWrittenType =
       Texts.size() == 1 && !Parsed->TypeItems.front().isNull();
+  if (!MatchesAWrittenType)
+    for (const TypeLoc &TL : Parsed->TypeItems)
+      if (!TL.isNull()) {
+        Result.UnrunRules.push_back({R.Name, ATypeSideNotBuilt.str()});
+        return;
+      }
   if (MatchesAWrittenType)
     if (std::string Why =
             whyNotATypePattern(Parsed->TypeItems.front(), *Parsed);
@@ -502,21 +518,21 @@ void runFlatRule(const Rule &R, const FlatRule &F,
       // stands. A marked region covering part of a statement is too, unless
       // it covers no whole node of the pattern, and then the range stays
       // invalid and the whole match is replaced.
-      SourceRange InPlace;
+      InnerEdit In;
       llvm::StringRef InPlaceText;
       if (A.Inner) {
         const unsigned Begin =
             Parsed->ItemOffsets[M.Pattern] + A.Inner->MinusOffset;
-        InPlace = innerEditRange(Begin, Begin + A.Inner->MinusLength, M.Pairs,
-                                 M.TypePairs, Parsed->Unit->getASTContext());
+        In = innerEditRange(Begin, Begin + A.Inner->MinusLength, M.Pairs,
+                            M.TypePairs, Parsed->Unit->getASTContext());
         InPlaceText = A.Inner->PlusText;
       } else if (MatchesAWrittenType) {
-        InPlace = M.Node.getSourceRange();
+        In = {M.Node.getSourceRange(), /*IsAWrittenType=*/true};
         InPlaceText = A.PlusText;
       }
       std::optional<PatternEdit> E =
-          InPlace.isValid()
-              ? buildInnerEdit(InPlace, InPlaceText, MatchesAWrittenType,
+          In.Range.isValid()
+              ? buildInnerEdit(In.Range, InPlaceText, In.IsAWrittenType,
                                M.Bound, Context, EditError)
               : buildEdit(M.Node, A.PlusText, A.PatternEndsInSemicolon, M.Bound,
                           Context, EditError);
@@ -688,6 +704,10 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
     }
     if (!Parsed->Items[1]) {
       Result.UnrunRules.push_back({R.Name, "when !=: " + Parsed->Errors[1]});
+      continue;
+    }
+    if (!Parsed->TypeItems[0].isNull() || !Parsed->TypeItems[1].isNull()) {
+      Result.UnrunRules.push_back({R.Name, ATypeSideNotBuilt.str()});
       continue;
     }
     if (std::string Why = whyNotComparable(Parsed->Items[0]); !Why.empty()) {

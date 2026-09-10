@@ -29,8 +29,14 @@ bool isIdentChar(char C) {
 ///
 /// Whole-word, because a metavariable named `E` must not be substituted inside
 /// `END` or inside another metavariable's name.
-std::string substitute(llvm::StringRef Text, const Bindings &Bound,
-                       ASTContext &Context) {
+///
+/// Returns std::nullopt and sets \p Error when \p Text writes back a binding
+/// whose range does not cover everything the target wrote. See
+/// Binding::RangeIsShort: printing such a binding drops part of the target,
+/// so the edit is refused and counted instead.
+std::optional<std::string> substitute(llvm::StringRef Text,
+                                      const Bindings &Bound,
+                                      ASTContext &Context, std::string &Error) {
   std::string Out = Text.str();
   for (const auto &Entry : Bound) {
     const std::string Name = Entry.first().str();
@@ -42,6 +48,12 @@ std::string substitute(llvm::StringRef Text, const Bindings &Bound,
       if (!LeftOK || !RightOK) {
         At = End;
         continue;
+      }
+      if (Entry.second.RangeIsShort) {
+        Error = "the rule writes back the metavariable '" + Name +
+                "', and what it bound has qualifiers that no source range "
+                "covers, so the text written would drop them";
+        return std::nullopt;
       }
       Out.replace(At, Name.size(), Value);
       At += Value.size();
@@ -277,14 +289,17 @@ std::optional<PatternEdit> buildEdit(DynTypedNode Matched,
     return std::nullopt;
   }
 
-  const std::string Text = substitute(PlusText, Bound, Context);
+  const std::optional<std::string> Text =
+      substitute(PlusText, Bound, Context, Error);
+  if (!Text)
+    return std::nullopt;
   return PatternEdit{tooling::Replacement(Context.getSourceManager(), Range,
-                                          Text, Context.getLangOpts())};
+                                          *Text, Context.getLangOpts())};
 }
 
 CharSourceRange inPlaceEditRange(CharSourceRange Range, std::string &Text,
                                  ASTContext &Context,
-                                 bool RegionIsAWrittenType) {
+                                 bool RangeIsAWrittenType) {
   const SourceManager &SM = Context.getSourceManager();
   const LangOptions &Opts = Context.getLangOpts();
   const std::optional<Span> At = spanOf(Range, SM, Opts);
@@ -310,7 +325,7 @@ CharSourceRange inPlaceEditRange(CharSourceRange Range, std::string &Text,
     // The `+` text ends in a pointer star, which binds to whatever follows
     // it, so `- LPINT` over `+ int *` writes `int *y` from `LPINT y`.
     Wide.End = TrailEnd;
-  } else if (opensABinaryOperator(Next) && !RegionIsAWrittenType) {
+  } else if (opensABinaryOperator(Next) && !RangeIsAWrittenType) {
     if (!HasTrailing)
       Text += " ";
   } else if (Next == ',' || Next == ')' || Next == ';') {
@@ -328,10 +343,9 @@ CharSourceRange inPlaceEditRange(CharSourceRange Range, std::string &Text,
       FileBegin.getLocWithOffset(static_cast<int>(Wide.End)));
 }
 
-SourceRange innerEditRange(unsigned PatternBegin, unsigned PatternEnd,
-                           const NodePairs &Pairs,
-                           const TypeLocPairs &TypePairs,
-                           ASTContext &PatternContext) {
+InnerEdit innerEditRange(unsigned PatternBegin, unsigned PatternEnd,
+                         const NodePairs &Pairs, const TypeLocPairs &TypePairs,
+                         ASTContext &PatternContext) {
   const auto Covers = [&](SourceRange Pattern) {
     const std::optional<Span> Here =
         spanOf(CharSourceRange::getTokenRange(Pattern),
@@ -342,21 +356,25 @@ SourceRange innerEditRange(unsigned PatternBegin, unsigned PatternEnd,
   // name the same characters, so either one gives the same range.
   for (const auto &Pair : Pairs)
     if (Covers(Pair.Pattern->getSourceRange()))
-      return Pair.Target->getSourceRange();
+      return {Pair.Target->getSourceRange(), /*IsAWrittenType=*/false};
   for (const auto &Pair : TypePairs)
     if (Covers(Pair.Pattern.getSourceRange()))
-      return Pair.Target.getSourceRange();
-  return SourceRange();
+      return {Pair.Target.getSourceRange(), /*IsAWrittenType=*/true};
+  return {};
 }
 
 std::optional<PatternEdit>
 buildInnerEdit(SourceRange Target, llvm::StringRef PlusText,
-               bool TargetIsAWrittenType, const Bindings &Bound,
+               bool RangeIsAWrittenType, const Bindings &Bound,
                ASTContext &Context, std::string &Error) {
-  std::string Text = substitute(PlusText, Bound, Context);
+  std::optional<std::string> Substituted =
+      substitute(PlusText, Bound, Context, Error);
+  if (!Substituted)
+    return std::nullopt;
+  std::string Text = std::move(*Substituted);
   const CharSourceRange Range =
       inPlaceEditRange(CharSourceRange::getTokenRange(Target), Text, Context,
-                       TargetIsAWrittenType);
+                       RangeIsAWrittenType);
   if (llvm::Error Invalid =
           tooling::validateEditRange(Range, Context.getSourceManager())) {
     Error = "the range inside the match cannot be edited: " +

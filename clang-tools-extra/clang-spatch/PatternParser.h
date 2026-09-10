@@ -74,12 +74,8 @@ struct ParsedPattern {
   /// statement, in \c Items order, and null for the ones that are
   /// statements.
   ///
-  /// Coccinelle reads a `-` side that is a bare type name as a type pattern:
-  /// `- LPINT` over `+ int *` rewrites every occurrence of that type.
-  /// A type written alone declares nothing, so Clang gives it no location at
-  /// all, and such a statement is synthesised a second time with a pointer
-  /// declarator over it. \c Items then holds that declaration and this holds
-  /// the type it was written over, which is the part the rule means.
+  /// \c Items holds the declaration the synthesis wrapped the type in, and
+  /// this holds the type it was written over, which is what the rule means.
   std::vector<TypeLoc> TypeItems;
   /// The declaration each metavariable was given, so that a reference to one
   /// is recognised by comparing declarations rather than by comparing names.
