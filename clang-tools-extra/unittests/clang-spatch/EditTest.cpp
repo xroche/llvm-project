@@ -354,6 +354,63 @@ TEST(Insertion, APatternThatIsNotAWholeStatementIsRefused) {
                          "int main() {\n  foo(12);\n}\n"));
 }
 
+TEST(Insertion, AnUnbracedBodyCannotAcceptAnotherStatement) {
+  for (llvm::StringRef Control : {"if (x)", "while (x)", "for (; x;)"}) {
+    SCOPED_TRACE(Control);
+    EXPECT_EQ("!1 edit(s) the run could not build",
+              rewritten("@@\n@@\n+mark();\n foo();\n",
+                        "void foo(void); void mark(void);\n"
+                        "void f(int x) {\n  " +
+                            Control.str() + "\n    foo();\n}\n"));
+  }
+}
+
+TEST(Insertion, AnExpressionInsideReturnCannotAnchorAStatement) {
+  EXPECT_EQ("!1 edit(s) the run could not build",
+            rewritten("@@\n@@\n+mark();\n foo();\n",
+                      "int foo(void); void mark(void);\n"
+                      "int f(void) {\n  return\n    foo();\n}\n"));
+}
+
+TEST(Insertion, ADeclarationKeepsTheFollowingNullStatementAfterTheInsertion) {
+  EXPECT_EQ("void mark(void);\nvoid f(void) {\n"
+            "  int x;\n  mark();\n  ;\n}\n",
+            rewritten("@@\n@@\n int x;\n+mark();\n",
+                      "void mark(void);\nvoid f(void) {\n"
+                      "  int x;\n  ;\n}\n"));
+}
+
+TEST(Whitespace, DeletingADeclarationPreservesTheFollowingNullStatement) {
+  EXPECT_EQ(
+      "void f(void) {\n  int x;\n  ;\n  return;\n}\n",
+      rewritten("@@\n@@\n- int y;\n",
+                "void f(void) {\n  int x;\n  int y;\n  ;\n  return;\n}\n"));
+}
+
+TEST(Insertion, AnAnchorChangedByAnEarlierRuleIsRefused) {
+  EXPECT_EQ("!1 edit(s) the run could not build",
+            rewritten("@@\n@@\n- a();\n+ c();\n"
+                      "@@\n@@\n+ b();\n a();\n",
+                      "void a(void); void b(void); void c(void);\n"
+                      "void f(void) {\n  a();\n}\n"));
+  EXPECT_EQ("void a(void); void b(void); void c(void);\n"
+            "void f(void) {\n  b();\n  c();\n}\n",
+            rewritten("@@\n@@\n+ b();\n a();\n"
+                      "@@\n@@\n- a();\n+ c();\n",
+                      "void a(void); void b(void); void c(void);\n"
+                      "void f(void) {\n  a();\n}\n"));
+}
+
+TEST(Insertion, ADeletionWhoseWhitespaceOverlapsAnInsertionIsRefused) {
+  for (llvm::StringRef Insertion : {"+ b();\n a();\n", " a();\n+ b();\n"}) {
+    SCOPED_TRACE(Insertion);
+    EXPECT_EQ("!1 edit(s) the run could not build",
+              rewritten("@@\n@@\n" + Insertion.str() + "@@\n@@\n- a();\n",
+                        "void a(void); void b(void);\n"
+                        "void f(void) {\n  a();\n}\n"));
+  }
+}
+
 TEST(Whitespace, ADeletedStatementTakesItsWholeLine) {
   EXPECT_EQ("void del(void);\nvoid a(void);\n"
             "void f(void) {\n  a();\n  a();\n}\n",

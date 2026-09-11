@@ -25,6 +25,7 @@
 #include "clang/Tooling/Core/Replacement.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Error.h"
 #include <optional>
 #include <string>
 
@@ -60,25 +61,14 @@ std::optional<PatternEdit> buildEdit(DynTypedNode Matched,
                                      const Bindings &Bound, ASTContext &Context,
                                      std::string &Error);
 
-/// Builds the edit that writes \p Statements on their own lines beside
-/// \p Matched, above it when \p Above is set and below it otherwise.
+/// Inserts \p Statements above \p Matched when \p Above is true, or below it.
+/// Substitutes \p Bound and uses the anchor's indentation for each new line.
+/// The anchor includes its terminator and must occupy a whole line, except
+/// that an insertion above it permits trailing code on that line.
 ///
-/// An inserted statement takes the indentation of the statement it is
-/// anchored to, and the indentation the patch wrote is discarded. Measured
-/// against `spatch`: `+          a();` anchored on a statement indented by six
-/// spaces comes out indented by six, and two `+` lines written at column zero
-/// come out on two lines at the anchor's own indentation.
-///
-/// The anchor is taken through the terminator the target wrote, because an
-/// inserted statement is placed beside a whole statement. A caller must
-/// refuse a pattern that is not one: `spatch` rejects such a patch when it
-/// parses it, and writing below a bare expression lands before the semicolon
-/// that ends the statement holding it.
-///
-/// Returns std::nullopt and sets \p Error when the anchor's line cannot carry
-/// the insertion, which a caller must count rather than fall back on.
-/// Coccinelle breaks the line in that case, and that layout is not built here:
-/// inserting below `anchor(); y();` moves `y();` down with the inserted text.
+/// Statement anchors must belong to a compound statement because an unbraced
+/// body cannot hold another statement without changing control flow.
+/// Returns std::nullopt and sets \p Error if the insertion cannot be built.
 std::optional<PatternEdit>
 buildInsertion(DynTypedNode Matched, llvm::ArrayRef<std::string> Statements,
                bool Above, const Bindings &Bound, ASTContext &Context,
@@ -193,9 +183,10 @@ llvm::StringRef sourceTextOf(SourceRange Range, ASTContext &Context);
 /// - A deletion that shares its line with kept code takes the horizontal
 ///   whitespace after it, and the whitespace before it as well when nothing
 ///   but the newline follows.
-tooling::Replacements widenDeletions(llvm::StringRef FilePath,
-                                     llvm::StringRef Buffer,
-                                     const tooling::Replacements &Reps);
+/// Returns an error if widened deletions conflict with another edit.
+llvm::Expected<tooling::Replacements>
+widenDeletions(llvm::StringRef FilePath, llvm::StringRef Buffer,
+               const tooling::Replacements &Reps);
 
 } // namespace clang::spatch
 

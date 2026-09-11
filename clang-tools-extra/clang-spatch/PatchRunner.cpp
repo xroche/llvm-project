@@ -642,8 +642,24 @@ void runFlatRule(const Rule &R, const FlatRule &F,
         ++Result.EditsRefused;
         continue;
       }
-      if (llvm::Error Added =
-              Result.Edits[E->Replacement.getFilePath()].add(E->Replacement)) {
+      auto &Edits = Result.Edits[E->Replacement.getFilePath()];
+      if (!A.Inserted.empty()) {
+        // Later rules still see the original AST, so a changed anchor is stale.
+        const tooling::Replacement Anchor(
+            SM, CharSourceRange::getTokenRange(M.Node.getSourceRange()), "",
+            Context.getLangOpts());
+        const tooling::Range AnchorRange(Anchor.getOffset(),
+                                         Anchor.getLength());
+        if (llvm::any_of(Edits, [&](const tooling::Replacement &Previous) {
+              return Previous.getLength() != 0 &&
+                     AnchorRange.overlapsWith(tooling::Range(
+                         Previous.getOffset(), Previous.getLength()));
+            })) {
+          ++Result.EditsRefused;
+          continue;
+        }
+      }
+      if (llvm::Error Added = Edits.add(E->Replacement)) {
         // Two matches asking for different text at one offset is a conflict
         // Replacements detects, and it must not be dropped quietly.
         llvm::consumeError(std::move(Added));
@@ -982,7 +998,13 @@ void runPatch(const SemanticPatch &Patch, ASTContext &Context,
     const llvm::StringRef Buffer = SM.getBufferData(FID, &Invalid);
     if (Invalid)
       continue;
-    File.second = widenDeletions(File.first(), Buffer, File.second);
+    auto Widened = widenDeletions(File.first(), Buffer, File.second);
+    if (!Widened) {
+      llvm::consumeError(Widened.takeError());
+      ++Result.EditsRefused;
+      continue;
+    }
+    File.second = std::move(*Widened);
   }
 }
 

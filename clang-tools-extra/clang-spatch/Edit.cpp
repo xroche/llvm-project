@@ -90,6 +90,9 @@ CharSourceRange matchedRange(DynTypedNode Matched, bool PatternEndsInSemicolon,
       CharSourceRange::getTokenRange(Matched.getSourceRange());
   if (!PatternEndsInSemicolon || !ownsItsTerminator(Matched, Context))
     return Token;
+  // A block declaration already includes its own semicolon.
+  if (Matched.get<DeclStmt>())
+    return Token;
   return tooling::maybeExtendRange(Token, tok::semi, Context);
 }
 
@@ -301,6 +304,14 @@ std::optional<PatternEdit>
 buildInsertion(DynTypedNode Matched, llvm::ArrayRef<std::string> Statements,
                bool Above, const Bindings &Bound, ASTContext &Context,
                std::string &Error) {
+  if (const auto *S = Matched.get<Stmt>()) {
+    if (llvm::none_of(Context.getParents(*S), [](const DynTypedNode &P) {
+          return P.get<CompoundStmt>() != nullptr;
+        })) {
+      Error = "an insertion requires an anchor in a compound statement";
+      return std::nullopt;
+    }
+  }
   const SourceManager &SM = Context.getSourceManager();
   const LangOptions &Opts = Context.getLangOpts();
   const CharSourceRange Range =
@@ -471,23 +482,17 @@ buildInnerEdit(SourceRange Target, llvm::StringRef PlusText,
                                           Text, Context.getLangOpts())};
 }
 
-tooling::Replacements widenDeletions(llvm::StringRef FilePath,
-                                     llvm::StringRef Buffer,
-                                     const tooling::Replacements &Reps) {
+llvm::Expected<tooling::Replacements>
+widenDeletions(llvm::StringRef FilePath, llvm::StringRef Buffer,
+               const tooling::Replacements &Reps) {
   const BufferLines Lines(Buffer);
   const std::vector<tooling::Replacement> Sorted(Reps.begin(), Reps.end());
   tooling::Replacements Out;
-  bool Failed = false;
-  auto keep = [&](const tooling::Replacement &R) {
-    if (llvm::Error E = Out.add(R)) {
-      llvm::consumeError(std::move(E));
-      Failed = true;
-    }
-  };
 
   for (size_t I = 0; I < Sorted.size();) {
     if (!Sorted[I].getReplacementText().empty() || Sorted[I].getLength() == 0) {
-      keep(Sorted[I]);
+      if (llvm::Error E = Out.add(Sorted[I]))
+        return std::move(E);
       ++I;
       continue;
     }
@@ -503,14 +508,13 @@ tooling::Replacements widenDeletions(llvm::StringRef FilePath,
          ++J)
       Group.End = Sorted[J].getOffset() + Sorted[J].getLength();
     const Span Wide = widenedSpan(Lines, Group);
-    keep(tooling::Replacement(FilePath, Wide.Begin, Wide.End - Wide.Begin, ""));
+    if (llvm::Error E = Out.add(tooling::Replacement(
+            FilePath, Wide.Begin, Wide.End - Wide.Begin, "")))
+      return std::move(E);
     I = J;
   }
 
-  // A conflict means the widened spans overlap, which the grouping above is
-  // meant to prevent. The unwidened set is still correct, so it is what a
-  // caller gets rather than a partly widened one.
-  return Failed ? Reps : Out;
+  return Out;
 }
 
 } // namespace clang::spatch
