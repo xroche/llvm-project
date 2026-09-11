@@ -1,0 +1,1228 @@
+//===--- EditTest.cpp - Tests for the dot-free path and rewriting --------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
+#include "Edit.h"
+#include "PatchRunner.h"
+#include "SmplParser.h"
+#include "clang/Tooling/Core/Replacement.h"
+#include "clang/Tooling/Tooling.h"
+#include "gtest/gtest.h"
+
+namespace clang::spatch {
+namespace {
+
+/// Runs \p Patch over \p Code and returns the rewritten source, or "!" plus
+/// the first reason no rule ran.
+std::string rewritten(llvm::StringRef Patch, llvm::StringRef Code) {
+  std::string Error;
+  std::optional<SemanticPatch> P = parseSemanticPatch(Patch, "t.cocci", Error);
+  if (!P)
+    return "!" + Error;
+  if (!P->fullyUnderstood()) {
+    std::string Refusals;
+    for (const Refusal &R : P->Refusals)
+      Refusals += R.Construct + "; ";
+    return "!refused: " + Refusals;
+  }
+  std::unique_ptr<ASTUnit> Unit =
+      tooling::buildASTFromCodeWithArgs(Code, {"-std=gnu11", "-w"}, "input.c");
+  if (!Unit)
+    return "!no AST";
+  RunResult Result;
+  runPatch(*P, Unit->getASTContext(), Result);
+  if (!Result.UnrunRules.empty())
+    return "!" + Result.UnrunRules.front().Reason;
+  // An edit the run could not build leaves the output looking right while the
+  // rule did something else, so it fails the test rather than passing
+  // quietly. Without this a disjunction test could not tell a branch that was
+  // excluded from one that matched and had its overlapping edit dropped by
+  // `Replacements`, and both tests for branch order passed against an
+  // implementation with no cross-branch exclusion at all. An unread branch is
+  // not checked here, because a rule with one is still expected to rewrite
+  // and `unreadBranchReasons` is what asserts on it.
+  if (Result.EditsRefused != 0)
+    return "!" + std::to_string(Result.EditsRefused) +
+           " edit(s) the run could not build";
+  if (Result.Edits.empty())
+    return Code.str();
+  llvm::Expected<std::string> Out =
+      tooling::applyAllReplacements(Code, Result.Edits.begin()->second);
+  if (!Out)
+    return "!" + llvm::toString(Out.takeError());
+  return *Out;
+}
+
+/// The reason every rule that could not run gives, one per line.
+std::string unrunReasons(llvm::StringRef Patch, llvm::StringRef Code) {
+  std::string Error;
+  std::optional<SemanticPatch> P = parseSemanticPatch(Patch, "t.cocci", Error);
+  if (!P)
+    return "!" + Error;
+  std::unique_ptr<ASTUnit> Unit =
+      tooling::buildASTFromCodeWithArgs(Code, {"-std=gnu11", "-w"}, "input.c");
+  if (!Unit)
+    return "!no AST";
+  RunResult Result;
+  runPatch(*P, Unit->getASTContext(), Result);
+  std::string Out;
+  for (const Unrun &U : Result.UnrunRules)
+    Out += U.Reason + "\n";
+  return Out;
+}
+
+/// The reason every branch that could not be read gives, one per line.
+std::string unreadBranchReasons(llvm::StringRef Patch, llvm::StringRef Code) {
+  std::string Error;
+  std::optional<SemanticPatch> P = parseSemanticPatch(Patch, "t.cocci", Error);
+  if (!P)
+    return "!" + Error;
+  std::unique_ptr<ASTUnit> Unit =
+      tooling::buildASTFromCodeWithArgs(Code, {"-std=gnu11", "-w"}, "input.c");
+  if (!Unit)
+    return "!no AST";
+  RunResult Result;
+  runPatch(*P, Unit->getASTContext(), Result);
+  std::string Out;
+  for (const Unrun &U : Result.UnreadBranches)
+    Out += U.Reason + "\n";
+  return Out;
+}
+
+/// What \p Patch over \p Code reported about its own completeness, as
+/// `unrun=N unread=N complete=0|1`.
+///
+/// Spelled out rather than returned as one bool, because a bool any failure
+/// satisfies cannot say which failure happened: a patch that did not parse
+/// and a rule that ran with one branch unread both read as "not complete".
+std::string completeness(llvm::StringRef Patch, llvm::StringRef Code) {
+  std::string Error;
+  std::optional<SemanticPatch> P = parseSemanticPatch(Patch, "t.cocci", Error);
+  if (!P)
+    return "!" + Error;
+  std::unique_ptr<ASTUnit> Unit =
+      tooling::buildASTFromCodeWithArgs(Code, {"-std=gnu11", "-w"}, "input.c");
+  if (!Unit)
+    return "!no AST";
+  RunResult Result;
+  runPatch(*P, Unit->getASTContext(), Result);
+  return "unrun=" + std::to_string(Result.UnrunRules.size()) +
+         " unread=" + std::to_string(Result.UnreadBranches.size()) +
+         " complete=" + (Result.complete() ? "1" : "0");
+}
+
+/// The line of every finding, in the order the run reported them.
+std::string findingLines(llvm::StringRef Patch, llvm::StringRef Code) {
+  std::string Error;
+  std::optional<SemanticPatch> P = parseSemanticPatch(Patch, "t.cocci", Error);
+  if (!P)
+    return "!" + Error;
+  std::unique_ptr<ASTUnit> Unit =
+      tooling::buildASTFromCodeWithArgs(Code, {"-std=gnu11", "-w"}, "input.c");
+  if (!Unit)
+    return "!no AST";
+  RunResult Result;
+  runPatch(*P, Unit->getASTContext(), Result);
+  std::string Out;
+  for (const Finding &F : Result.Findings) {
+    if (!Out.empty())
+      Out += ",";
+    Out += std::to_string(F.Line);
+  }
+  return Out;
+}
+
+} // namespace
+
+TEST(FlatRule, ADotFreeRuleRunsAndRewrites) {
+  // Before this, `runPatch` refused every rule with no `...`, saying there was
+  // no path property to check. That is true and is not a reason to refuse:
+  // 339 of the 403 rules in the sample corpus have no `...` at all.
+  EXPECT_EQ("void foo(int);\nvoid bar(int);\nvoid f(int x) { bar(x + 1); }\n",
+            rewritten("@r@\nexpression E;\n@@\n- foo(E);\n+ bar(E);\n",
+                      "void foo(int);\nvoid bar(int);\n"
+                      "void f(int x) { foo(x + 1); }\n"));
+}
+
+TEST(FlatRule, AMetavariableCarriesTheTextItMatched) {
+  // The replacement takes the argument's source text, so an expression with
+  // its own spacing and operators survives verbatim.
+  EXPECT_EQ("void g(int);\nvoid h(int);\nvoid f(int a, int b) "
+            "{ h(a * 2 + b); }\n",
+            rewritten("@r@\nexpression E;\n@@\n- g(E);\n+ h(E);\n",
+                      "void g(int);\nvoid h(int);\nvoid f(int a, int b) "
+                      "{ g(a * 2 + b); }\n"));
+}
+
+TEST(FlatRule, EveryMatchIsRewrittenRatherThanTheFirst) {
+  EXPECT_EQ("void foo(int);\nvoid bar(int);\n"
+            "void f(void) { bar(1); bar(2); }\n",
+            rewritten("@r@\nconstant C;\n@@\n- foo(C);\n+ bar(C);\n",
+                      "void foo(int);\nvoid bar(int);\n"
+                      "void f(void) { foo(1); foo(2); }\n"));
+}
+
+TEST(FlatRule, AMinusWithNoPlusDeletesTheStatement) {
+  // The space the statement stood in goes with it, so the brace pair is
+  // `{ }` and not `{  }`. Measured against `spatch` on this input.
+  EXPECT_EQ("void foo(int);\nvoid f(int x) { }\n",
+            rewritten("@r@\nexpression E;\n@@\n- foo(E);\n",
+                      "void foo(int);\nvoid f(int x) { foo(x); }\n"));
+}
+
+// The six tests below pin the whitespace a deletion takes with it. Every
+// expected output was read off `spatch` on the same input, because the rule
+// is a fit to the reference implementation and not a design of its own. Before
+// them the tool made the substantive edit and left the statement's line, its
+// indentation, or a newly blank line behind, which was 20 of the 186
+// disagreements with Coccinelle's own `.res` files.
+
+TEST(FlatRule, AOneElementBraceGroupRewritesThatElementInPlace) {
+  // `tests/substruct.cocci` is this shape. The braces said which context to
+  // read the line in, so the node is the element and the text that replaces
+  // it is the plus group's own element: writing the whole plus group there
+  // gave `{ { DECLARE_A(7), }, }`.
+  EXPECT_EQ("struct s { int a; };\nstruct s v = { g(1), };\n",
+            rewritten("@r@\nexpression E;\n@@\n{\n- .a = E,\n+ g(E),\n}\n",
+                      "struct s { int a; };\nstruct s v = { .a = 1, };\n"));
+}
+
+TEST(FlatRule, AnArrayDesignatorInAGroupMatchesByItsIndex) {
+  // A parse Clang accepts hands back the semantic form of the list, where the
+  // designator is already resolved away, so this group came back as the bare
+  // `E` and rewrote every expression in the file: `int y[3] = { [1] = 7, };`
+  // printed `int y[g(3)] = g({ [1] = 7, });` at exit 0.
+  const llvm::StringRef Patch =
+      "@r@\nexpression E;\n@@\n{\n- [0] = E,\n+ g(E),\n}\n";
+  EXPECT_EQ("int y[3] = { g(7), };\n",
+            rewritten(Patch, "int y[3] = { [0] = 7, };\n"));
+  for (llvm::StringRef Code :
+       {"int y[3] = { [1] = 7, };\n", "int y[3] = { [2] = 7, };\n"})
+    EXPECT_EQ(Code.str(), rewritten(Patch, Code)) << Code;
+}
+
+TEST(FlatRule, AGroupElementWithNoDesignatorIsRefused) {
+  // Such an element is a bare expression, and searching for one rewrote every
+  // occurrence in the file rather than the one in the list. `spatch` 1.1.1
+  // changes nothing for this patch, on an array target or a struct one.
+  EXPECT_EQ("!pattern: the pattern's brace group holds an element with no "
+            "designator, which names a bare expression rather than a place in "
+            "a list",
+            rewritten("@r@\n@@\n{\n- old_fn,\n+ new_fn,\n}\n",
+                      "extern void old_fn(void);\nextern void new_fn(void);\n"
+                      "void (*table[1])(void) = { old_fn };\n"
+                      "void h(void) { old_fn(); }\n"));
+}
+
+TEST(FlatRule, APlusGroupKeepsItsBracesOverAStatementMinusSide) {
+  // The braces come off the plus side only when the `-` side lost its own.
+  // Stripping them whenever the plus item was a group wrote `.a = 1` where the
+  // whole construct belonged, so `f(1);` became `{ .a = 1 }`.
+  EXPECT_EQ("void f(int);\nvoid g(void) { { .a = 1, } }\n",
+            rewritten("@r@\nexpression E;\n@@\n- f(E);\n+ {\n+ .a = E,\n"
+                      "+ }\n",
+                      "void f(int);\nvoid g(void) { f(1); }\n"));
+}
+
+TEST(FlatRule, AGroupMinusSideNeedsAGroupPlusSide) {
+  // A `+` side that did not group is a fragment of the construct the `-` side
+  // matched, and reassembling it wrote `int a; int b; };` over a whole record
+  // at exit 0. Coccinelle rejects this patch at meta-parse.
+  EXPECT_EQ("!the `-` side is a brace group and the `+` side is not, so the "
+            "replacement is a fragment of the construct rather than a group "
+            "that can stand in its place",
+            rewritten("@r@\ntype T;\n@@\n- T {\n  int a;\n+ int b;\n};\n",
+                      "struct s { int a; };\n"));
+}
+
+TEST(FlatRule, TakingAnElementOutOfABraceGroupIsRefused) {
+  // The element's range stops before its comma, so deleting the element alone
+  // printed `{ , }` at exit 0. `spatch` 1.1.1 changes nothing for this patch
+  // on `{ .a = 1, }`, on `{ .a = 1, .c = 2, }` or on `{ .c = 2, .a = 1, }`.
+  EXPECT_EQ("!the rule takes an element out of a brace group, which leaves "
+            "the separator the target wrote beside it, and moving that "
+            "separator is not what this version builds",
+            rewritten("@r@\nexpression E;\n@@\n{\n- .a = E,\n}\n",
+                      "struct s { int a; };\nstruct s v = { .a = 1, };\n"));
+}
+
+TEST(FlatRule, ABraceGroupOfSeveralElementsIsRefused) {
+  // One element is found wherever it stands, which is what searching for the
+  // element alone does. Several need them found adjacent in the target's own
+  // list, which is the same question statement adjacency asks.
+  EXPECT_EQ("!pattern: the pattern's brace group holds more than one element, "
+            "so matching it needs the elements found adjacent in the target's "
+            "own list, which this version does not build",
+            rewritten("@r@\nexpression E;\n@@\n{\n- .a = E,\n+ g(E),\n"
+                      "- .b = E,\n+ h(E),\n}\n",
+                      "struct s { int a; int b; };\n"
+                      "struct s v = { .a = 1, .b = 2, };\n"));
+}
+
+TEST(Insertion, AnInsertedStatementTakesTheAnchorsIndentation) {
+  // `tests/bigin.cocci` and `tests/change.cocci` are the corpus patches this
+  // reaches, and both agree with Coccinelle's expected output byte for byte.
+  EXPECT_EQ("int main() {\n      a();\n      anchor();\n}\n",
+            rewritten("@r@\n@@\n+a();\n anchor();\n",
+                      "int main() {\n      anchor();\n}\n"));
+}
+
+TEST(Insertion, AnInsertedStatementGoesWhereThePatchWroteIt) {
+  // Below the anchor, which also pins that the anchor is taken through the
+  // terminator the target wrote: without that the insertion lands between
+  // `anchor()` and its own `;`.
+  EXPECT_EQ("int main() {\n      anchor();\n      a();\n}\n",
+            rewritten("@r@\n@@\n anchor();\n+a();\n",
+                      "int main() {\n      anchor();\n}\n"));
+}
+
+TEST(Insertion, ThePatchsOwnIndentationIsDiscarded) {
+  // Measured against `spatch`, which indents an inserted line to the anchor
+  // whatever the patch wrote.
+  EXPECT_EQ("int main() {\n      a();\n      anchor();\n}\n",
+            rewritten("@r@\n@@\n+          a();\n anchor();\n",
+                      "int main() {\n      anchor();\n}\n"));
+}
+
+TEST(Insertion, EachInsertedStatementTakesItsOwnLine) {
+  EXPECT_EQ("int main() {\n  a();\n  b();\n  anchor();\n}\n",
+            rewritten("@r@\n@@\n+a();\n+b();\n anchor();\n",
+                      "int main() {\n  anchor();\n}\n"));
+}
+
+TEST(Insertion, ABoundMetavariableIsWrittenIntoTheInsertedStatement) {
+  EXPECT_EQ("int main() {\n  anchor(12);\n  a(12);\n}\n",
+            rewritten("@r@\nexpression E;\n@@\n anchor(E);\n+a(E);\n",
+                      "int main() {\n  anchor(12);\n}\n"));
+}
+
+TEST(Insertion, AnAnchorThatDoesNotBeginItsLineIsRefused) {
+  // `spatch` breaks the line for this shape rather than indenting, so the
+  // edit is refused and counted. `rewritten` reports a refused edit as `!`.
+  EXPECT_EQ("!1 edit(s) the run could not build",
+            rewritten("@r@\n@@\n+a();\n anchor();\n",
+                      "int main() {\n  x(); anchor();\n}\n"));
+}
+
+TEST(Insertion, AnAnchorThatDoesNotEndItsLineIsRefusedBelowOnly) {
+  // Below the anchor, `spatch` moves the rest of the line down with the
+  // inserted text. Above it, the anchor's line is left alone and the
+  // insertion is placed, which is why the two directions ask different
+  // questions of the same line.
+  EXPECT_EQ("!1 edit(s) the run could not build",
+            rewritten("@r@\n@@\n anchor();\n+a();\n",
+                      "int main() {\n  anchor(); y();\n}\n"));
+  EXPECT_EQ("int main() {\n  a();\n  anchor(); y();\n}\n",
+            rewritten("@r@\n@@\n+a();\n anchor();\n",
+                      "int main() {\n  anchor(); y();\n}\n"));
+}
+
+TEST(Insertion, InsertingOnBothSidesOfOneMatchIsRefused) {
+  // `tests/void_spacingfailure.cocci` writes one, and it is a ceiling for
+  // other reasons.
+  EXPECT_EQ("a rule inserting both above and below its match, which needs "
+            "two edits at one match, and this version builds one\n",
+            unrunReasons("@r@\n@@\n+a();\n anchor();\n+b();\n",
+                         "int main() {\n  anchor();\n}\n"));
+}
+
+TEST(Insertion, ABraceGroupWithAnInsertedElementIsRefusedAsAnInnerEdit) {
+  // A brace group is one item holding every line inside its braces, so an
+  // inserted element is part of that item rather than a statement beside it.
+  // Inserting into a list is a separate question, and this is the refusal it
+  // reaches rather than one of its own.
+  EXPECT_EQ("a rule whose `+` line is part of the statement it matches rather "
+            "than a statement beside it, so it needs an edit inside the "
+            "match, which this version builds only where the `-` side marks "
+            "the region to overwrite\n",
+            unrunReasons("@r@\n@@\n{\n  .a = 1,\n+ .b = 2,\n}\n",
+                         "struct S { int a; int b; };\n"
+                         "struct S s = { .a = 1, };\n"));
+}
+
+TEST(Insertion, APatternThatIsNotAWholeStatementIsRefused) {
+  // `spatch` reports "plus: parse error" for this patch, so there is no
+  // behaviour to reproduce. Accepting it inserted beside an expression that
+  // stands inside a statement.
+  EXPECT_EQ("a rule inserting beside a pattern that is not written as a whole "
+            "statement, which `spatch` rejects when it parses the patch\n",
+            unrunReasons("@r@\nexpression E;\n@@\n foo(E)\n+a();\n",
+                         "int main() {\n  foo(12);\n}\n"));
+}
+
+TEST(Insertion, AnUnbracedBodyCannotAcceptAnotherStatement) {
+  for (llvm::StringRef Control : {"if (x)", "while (x)", "for (; x;)"}) {
+    SCOPED_TRACE(Control);
+    EXPECT_EQ("!1 edit(s) the run could not build",
+              rewritten("@@\n@@\n+mark();\n foo();\n",
+                        "void foo(void); void mark(void);\n"
+                        "void f(int x) {\n  " +
+                            Control.str() + "\n    foo();\n}\n"));
+  }
+}
+
+TEST(Insertion, AnExpressionInsideReturnCannotAnchorAStatement) {
+  EXPECT_EQ("!1 edit(s) the run could not build",
+            rewritten("@@\n@@\n+mark();\n foo();\n",
+                      "int foo(void); void mark(void);\n"
+                      "int f(void) {\n  return\n    foo();\n}\n"));
+}
+
+TEST(Insertion, ADeclarationKeepsTheFollowingNullStatementAfterTheInsertion) {
+  EXPECT_EQ("void mark(void);\nvoid f(void) {\n"
+            "  int x;\n  mark();\n  ;\n}\n",
+            rewritten("@@\n@@\n int x;\n+mark();\n",
+                      "void mark(void);\nvoid f(void) {\n"
+                      "  int x;\n  ;\n}\n"));
+}
+
+TEST(Whitespace, DeletingADeclarationPreservesTheFollowingNullStatement) {
+  EXPECT_EQ(
+      "void f(void) {\n  int x;\n  ;\n  return;\n}\n",
+      rewritten("@@\n@@\n- int y;\n",
+                "void f(void) {\n  int x;\n  int y;\n  ;\n  return;\n}\n"));
+}
+
+TEST(Insertion, AnAnchorChangedByAnEarlierRuleIsRefused) {
+  EXPECT_EQ("!1 edit(s) the run could not build",
+            rewritten("@@\n@@\n- a();\n+ c();\n"
+                      "@@\n@@\n+ b();\n a();\n",
+                      "void a(void); void b(void); void c(void);\n"
+                      "void f(void) {\n  a();\n}\n"));
+  EXPECT_EQ("void a(void); void b(void); void c(void);\n"
+            "void f(void) {\n  b();\n  c();\n}\n",
+            rewritten("@@\n@@\n+ b();\n a();\n"
+                      "@@\n@@\n- a();\n+ c();\n",
+                      "void a(void); void b(void); void c(void);\n"
+                      "void f(void) {\n  a();\n}\n"));
+}
+
+TEST(Insertion, ADeletionWhoseWhitespaceOverlapsAnInsertionIsRefused) {
+  for (llvm::StringRef Insertion : {"+ b();\n a();\n", " a();\n+ b();\n"}) {
+    SCOPED_TRACE(Insertion);
+    EXPECT_EQ("!1 edit(s) the run could not build",
+              rewritten("@@\n@@\n" + Insertion.str() + "@@\n@@\n- a();\n",
+                        "void a(void); void b(void);\n"
+                        "void f(void) {\n  a();\n}\n"));
+  }
+}
+
+TEST(Whitespace, ADeletedStatementTakesItsWholeLine) {
+  EXPECT_EQ("void del(void);\nvoid a(void);\n"
+            "void f(void) {\n  a();\n  a();\n}\n",
+            rewritten("@r@\n@@\n- del();\n",
+                      "void del(void);\nvoid a(void);\n"
+                      "void f(void) {\n  a();\n  del();\n  a();\n}\n"));
+}
+
+TEST(Whitespace, ADeletionAtTheEndOfABlockTakesTheBlankLineAboveIt) {
+  EXPECT_EQ("void del(void);\nvoid a(void);\n"
+            "void f(void) {\n  a();\n}\n",
+            rewritten("@r@\n@@\n- del();\n",
+                      "void del(void);\nvoid a(void);\n"
+                      "void f(void) {\n  a();\n\n  del();\n}\n"));
+}
+
+TEST(Whitespace, ADeletionAfterTheOpeningBraceTakesTheBlankLineBelowIt) {
+  // The rule is directional: above the deletion a blank line survives unless
+  // the deletion ends the block, and below it one survives unless the
+  // deletion opens the block. Deleting the first statement of a block would
+  // otherwise leave a gap under the brace.
+  EXPECT_EQ("void del(void);\nvoid a(void);\n"
+            "void f(void) {\n  a();\n}\n",
+            rewritten("@r@\n@@\n- del();\n",
+                      "void del(void);\nvoid a(void);\n"
+                      "void f(void) {\n  del();\n\n  a();\n}\n"));
+}
+
+TEST(Whitespace, ADeletionFollowedByABlankLineTakesTheBlankLineAboveIt) {
+  EXPECT_EQ("void del(void);\nvoid a(void);\n"
+            "void f(void) {\n  a();\n\n  a();\n}\n",
+            rewritten("@r@\n@@\n- del();\n",
+                      "void del(void);\nvoid a(void);\n"
+                      "void f(void) {\n  a();\n\n  del();\n\n  a();\n}\n"));
+}
+
+TEST(Whitespace, ADeletionSharingItsLineWithKeptCodeKeepsTheLine) {
+  EXPECT_EQ("void del(void);\nvoid a(void);\n"
+            "void f(void) {\n  a(); a();\n}\n",
+            rewritten("@r@\n@@\n- del();\n",
+                      "void del(void);\nvoid a(void);\n"
+                      "void f(void) {\n  a(); del(); a();\n}\n"));
+}
+
+TEST(Whitespace, TwoDeletionsSeparatedByWhitespaceAreWidenedAsOneRegion) {
+  // Widening them one at a time keeps the blank line that separated the pair
+  // from the statement above, because neither deletion on its own is
+  // preceded by a blank line. `tests/argument.cocci` is this shape.
+  EXPECT_EQ("void del1(void);\nvoid del2(void);\nvoid a(void);\n"
+            "void f(void) {\n  a();\n\n  a();\n}\n",
+            rewritten("@r@\n@@\n- del1();\n\n@s@\n@@\n- del2();\n",
+                      "void del1(void);\nvoid del2(void);\nvoid a(void);\n"
+                      "void f(void) {\n  a();\n\n  del1();\n  del2();\n"
+                      "\n  a();\n}\n"));
+}
+
+TEST(FlatRule, AStarRuleMatchesAndChangesNothing) {
+  const llvm::StringRef Code = "void foo(int);\nvoid f(int x) { foo(x); }\n";
+  EXPECT_EQ(Code.str(), rewritten("@r@\nexpression E;\n@@\n* foo(E);\n", Code));
+}
+
+TEST(FlatRule, ASubExpressionMatchKeepsTheStatementTerminator) {
+  // The semicolon belongs to the `return`, not to the operand replaced.
+  // Extending the edit over it unconditionally produced `return 10` and the
+  // file no longer compiled, which is what `tests/hashhash.cocci`,
+  // `tests/hil1.cocci` and `tests/sizeof.cocci` disagreed with Coccinelle on.
+  EXPECT_EQ("int f(void) { return 10; }\n",
+            rewritten("@r@\n@@\n- 12\n+ 10\n", "int f(void) { return 12; }\n"));
+}
+
+TEST(FlatRule, AnExpressionPatternLeavesTheTerminatorWhereItIs) {
+  // `spatch` rewrites `bar(12);` to `4;` here: the `-` side describes the
+  // expression and says nothing about the statement around it. Deciding this
+  // on the target position alone took the `;` whenever the expression
+  // happened to be a statement on its own, which is what
+  // `tests/orexp.cocci` disagreed with Coccinelle on.
+  EXPECT_EQ("void bar(int);\nvoid f(void) { 4; }\n",
+            rewritten("@r@\nexpression F;\n@@\n- bar(F)\n+ 4\n",
+                      "void bar(int);\nvoid f(void) { bar(12); }\n"));
+}
+
+TEST(FlatRule, AStatementPatternTakesTheTerminatorWithIt) {
+  EXPECT_EQ("void bar(int);\nvoid f(void) { 4; }\n",
+            rewritten("@r@\nexpression F;\n@@\n- bar(F);\n+ 4;\n",
+                      "void bar(int);\nvoid f(void) { bar(12); }\n"));
+}
+
+TEST(FlatRule, AContextLineInsideTheChangedStatementIsMatchedWithIt) {
+  // The head of a transformed `if` sits on a context line and its condition
+  // on a `-` and a `+` line, so the two sides of the rule are
+  // `if (E) foo(E);` and `if (!E) foo(E);`. Grouping by marker instead left
+  // the head and the body as separate fragments and neither parsed.
+  EXPECT_EQ("void foo(int);\nvoid f(int x) { if (!x) foo(x); }\n",
+            rewritten("@r@\nexpression E;\n@@\n- if (E)\n+ if (!E)\n"
+                      "    foo(E);\n",
+                      "void foo(int);\nvoid f(int x) { if (x) foo(x); }\n"));
+}
+
+TEST(FlatRule, ALineEndingInAnOperatorTakesTheContextLineBelowIt) {
+  // `tests/unary.cocci` is `- -` over ` x`, so the minus side is the unary
+  // expression `- x` and the plus side is `x` alone. Neither line is a
+  // pattern on its own.
+  EXPECT_EQ("int f(void) { return 1; }\n",
+            rewritten("@r@\nexpression x;\n@@\n- -\n x\n",
+                      "int f(void) { return -1; }\n"));
+}
+
+TEST(FlatRule, OneStatementIsReplacedByASequenceOfThem) {
+  // `tests/test7.cocci` is this shape. The plus side is two statements and
+  // both replace the one that matched, so neither needs positioning.
+  EXPECT_EQ("void foo(int);\nvoid f(void) { foo(1); foo(2); }\n",
+            rewritten("@r@\nconstant C;\n@@\n- foo(C);\n+ foo(1);\n"
+                      "+ foo(2);\n",
+                      "void foo(int);\nvoid f(void) { foo(9); }\n"));
+}
+
+TEST(FlatRule, DroppingAStatementHeadKeepsWhatIsLeftOfIt) {
+  // `tests/unfree.cocci` is this shape: the `if` goes and its body stays. The
+  // body is the whole of the plus side, so replacing the matched `if` with it
+  // is the edit the rule asks for.
+  EXPECT_EQ("void b(void);\nvoid f(int a) { b(); }\n",
+            rewritten("@r@\n@@\n- if (a)\n    b();\n",
+                      "void b(void);\nvoid f(int a) { if (a) b(); }\n"));
+}
+
+TEST(FlatRule, LeavingAFragmentOnThePlusSideIsRefused) {
+  // Here the body goes and the `if` head is left alone on the plus side.
+  // Writing that back would drop the body and report success.
+  EXPECT_EQ("!the rule takes part of a statement away and leaves a fragment, "
+            "which needs an edit inside the matched node rather than over it",
+            rewritten("@r@\n@@\n  if (a)\n-   b();\n",
+                      "void b(void);\nvoid f(int a) { if (a) b(); }\n"));
+}
+
+TEST(FlatRule, ADeclarationComparesItsTypeAndCarriesItsName) {
+  // A `DeclStmt` with no initialiser has no children, and its type and its
+  // declared name are not children either. Compared by class plus children,
+  // this pattern matched `char c;` and `struct S { int f; } s;` as well, and
+  // rewrote all three to the literal text `int x;`.
+  EXPECT_EQ("int f(void) { int b; char c; return 0; }\n",
+            rewritten("@r@\nidentifier x;\n@@\n- long long x;\n+ int x;\n",
+                      "int f(void) { long long b; char c; return 0; }\n"));
+}
+
+TEST(FlatRule, ATypeMetavariableCarriesTheTypeItMatched) {
+  // `T` stands for whatever the target declared, so both declarations match
+  // and each keeps its own type.
+  EXPECT_EQ("int f(void) { long b = 0; char c = 0; return 0; }\n",
+            rewritten("@r@\ntype T;\nidentifier x;\n@@\n- T x;\n"
+                      "+ T x = 0;\n",
+                      "int f(void) { long b; char c; return 0; }\n"));
+}
+
+TEST(FlatRule, ACastComparesTheTypeItWasWrittenWith) {
+  // A cast keeps its target type off the child list, so comparing class plus
+  // children matched `(char)y` as well.
+  EXPECT_EQ("int f(int y) { return g((int)y) + (char)y; }\n",
+            rewritten("@r@\nexpression E;\n@@\n- (int)E\n+ g((int)E)\n",
+                      "int f(int y) { return (int)y + (char)y; }\n"));
+}
+
+TEST(FlatRule, SizeofOverATypeComparesThatType) {
+  // The operand is a child only when it is an expression, so `sizeof(int)`
+  // and `sizeof(long)` were the same node with the same no children.
+  EXPECT_EQ("int f(void) { return 4 + sizeof(long); }\n",
+            rewritten("@r@\n@@\n- sizeof(int)\n+ 4\n",
+                      "int f(void) { return sizeof(int) + sizeof(long); }\n"));
+}
+
+TEST(FlatRule, ADeclarationOutsideAnyFunctionBodyIsMatched) {
+  // There is no `DeclStmt` at file scope, so a walk over statements never
+  // reaches this declaration. `tests/longlong.cocci` and `tests/cptr.cocci`
+  // both rewrote the copy inside `main` and left the file-scope one alone.
+  EXPECT_EQ("int a;\nint f(void) { return 0; }\n",
+            rewritten("@r@\nidentifier x;\n@@\n- long long x;\n+ int x;\n",
+                      "long long a;\nint f(void) { return 0; }\n"));
+}
+
+TEST(FlatRule, ATypedefOutsideAnyFunctionBodyIsMatched) {
+  // `tests/fntypedef.cocci` is this shape, and a typedef is not a
+  // `DeclaratorDecl`, so it needs naming alongside one.
+  EXPECT_EQ("typedef void (*t)(int a, int b);\n",
+            rewritten("@r@\n@@\n- typedef void (*t)(int a);\n"
+                      "+ typedef void (*t)(int a, int b);\n",
+                      "typedef void (*t)(int a);\n"));
+}
+
+TEST(FlatRule, AFileScopeDeclarationOfTwoThingsIsLeftAlone) {
+  // The two declarators share one `;`, so replacing either one of them takes
+  // the terminator the other needs.
+  EXPECT_EQ("long long a, b;\n",
+            rewritten("@r@\nidentifier x;\n@@\n- long long x;\n+ int x;\n",
+                      "long long a, b;\n"));
+}
+
+TEST(FlatRule, ARecordGroupRewritesOneMemberAndKeepsTheTargetsLayout) {
+  // `tests/td.cocci` is this shape. The member's own range is what the edit
+  // covers, so the rest of the record keeps the spacing the target wrote:
+  // replacing the whole match instead reprinted it as `struct foo { int b; };`
+  // from the pattern.
+  EXPECT_EQ("struct foo {int b;};\n",
+            rewritten("@r@\ntype T;\n@@\nT {\n- int a;\n+ int b;\n};\n",
+                      "struct foo {int a;};\n"));
+  // A member's range stops before its `;` while the patch marks the line
+  // including it, so each side is taken through its own terminator. Without
+  // that the pattern range matched nothing and the whole record was replaced;
+  // extending only the pattern's side wrote `{int b;;}`.
+  EXPECT_EQ("typedef struct blah {int b;} name;\n",
+            rewritten("@r@\ntype T;\n@@\nT {\n- int a;\n+ int b;\n};\n",
+                      "typedef struct blah {int a;} name;\n"));
+}
+
+TEST(FlatRule, ARecordGroupsTagIsComparedUnlessItStandsForAMetavariable) {
+  // `T` binds the name the declaration introduces, which is the tag for a
+  // free-standing definition and the typedef name for a typedef of one.
+  const llvm::StringRef Bind =
+      "@r@\ntype T;\n@@\nT {\n- int a;\n+ int b;\n+ T z;\n};\n";
+  EXPECT_EQ("struct foo {int b; struct foo z;};\n",
+            rewritten(Bind, "struct foo {int a;};\n"));
+  EXPECT_EQ("typedef struct blah {int b; name z;} name;\n",
+            rewritten(Bind, "typedef struct blah {int a;} name;\n"));
+
+  // A type metavariable in the tag position constrains neither the kind nor
+  // the name, so a `union` matches the same pattern a `struct` does.
+  EXPECT_EQ("union foo {int b;};\n",
+            rewritten("@r@\ntype T;\n@@\nT {\n- int a;\n+ int b;\n};\n",
+                      "union foo {int a;};\n"));
+  // A tag the patch wrote by name is compared, by kind as well as by name:
+  // `spatch` leaves `union foo` alone for a pattern writing `struct foo`,
+  // where the two names agree and only the kind does not.
+  for (llvm::StringRef Code : {"struct bar {int a;};\n", "union foo {int a;};\n"})
+    EXPECT_EQ(Code.str(),
+              rewritten("@r@\n@@\nstruct foo {\n- int a;\n+ int b;\n};\n",
+                        Code))
+        << Code;
+}
+
+TEST(FlatRule, ARecordGroupNeedsTheTargetToIntroduceTheTypeAndNothingElse) {
+  // Read off `spatch` 1.1.1: a declaration that also declares a variable, a
+  // pointer or a second typedef name is left alone, and a member list that
+  // does not match the pattern's exactly is too. Nothing implicit stands
+  // between the members, unlike an initialiser list.
+  const llvm::StringRef Patch =
+      "@r@\ntype T;\n@@\nT {\n- int a;\n+ int b;\n};\n";
+  for (llvm::StringRef Code :
+       {"struct foo {int a;} v;\n",
+        "typedef struct blah {int a;} name, name2;\n",
+        "struct foo {int a; int c;};\n", "enum e { a };\n",
+        "struct outer { struct inner { int a; } i; };\n",
+        // An anonymous record introduces no name for `T` to bind, and this
+        // is the shape that reaches the test inside the comparison: at file
+        // scope such a record is never offered at all.
+        "void f(void) { struct { int a; }; }\n"})
+    EXPECT_EQ(Code.str(), rewritten(Patch, Code)) << Code;
+
+  // A record and the typedef that names it share one `DeclStmt` inside a
+  // function body and are two declarations at file scope, and `spatch`
+  // rewrites both. Comparing the two groups element for element matched only
+  // the second.
+  EXPECT_EQ("void f(void) { typedef struct blah {int b;} name; }\n",
+            rewritten(Patch,
+                      "void f(void) { typedef struct blah {int a;} name; }\n"));
+}
+
+TEST(FlatRule, ADeclarationTheComparisonCannotReadIsRefused) {
+  // An anonymous tag written as a declarator's own type is refused by the
+  // type comparison, which has no name to compare and no `TypeLoc` class for
+  // one. `spatch` 1.1.1 does apply this patch, rewriting the anonymous target
+  // and leaving `struct foo { int a; } s;` and
+  // `struct { int a; int c; } s;` alone, so this is an under-match named
+  // rather than a difference of intent.
+  EXPECT_EQ("!the pattern declares an anonymous Record, which the type "
+            "comparison does not handle",
+            rewritten("@r@\nidentifier x;\n@@\n- struct { int a; } x;\n"
+                      "+ int x;\n",
+                      "int f(void) { struct { int a; } s; return 0; }\n"));
+}
+
+TEST(FlatRule, ShapesOutsideTheFlatPathAreNamedRatherThanRun) {
+  // Each of these is a real Coccinelle shape and none is silently
+  // approximated, because a rule that half-runs leaves code matching neither
+  // the old pattern nor the new one.
+  EXPECT_EQ("!a dot-free rule matching a sequence of statements needs "
+            "statement adjacency, which this version does not build",
+            rewritten("@r@\n@@\n- foo();\n- bar();\n",
+                      "void foo(void);\nvoid bar(void);\nvoid f(void) "
+                      "{ foo(); bar(); }\n"));
+  // A context statement beside a changed one is the same adjacency case: the
+  // minus side is a two-statement sequence whichever of the two is marked.
+  EXPECT_EQ("!a dot-free rule matching a sequence of statements needs "
+            "statement adjacency, which this version does not build",
+            rewritten("@r@\n@@\n  foo();\n- bar();\n",
+                      "void foo(void);\nvoid bar(void);\nvoid f(void) "
+                      "{ foo(); bar(); }\n"));
+  // A `+`-only rule never reaches the runner, because the parser rejects it
+  // first with Coccinelle's own wording. The runner's guard for it stays as a
+  // guard rather than a reachable path.
+  EXPECT_EQ("!t.cocci:1: a '+' slice with no '-' line and no context line: "
+            "Coccinelle reports \"minus slice can't be empty\"",
+            rewritten("@r@\n@@\n+ foo();\n", "void f(void) { }\n"));
+}
+
+TEST(Disjunction, EveryBranchIsTriedAndTheOnesThatMatchApply) {
+  // Two branches matching at different sites both fire, and a branch that
+  // matches nowhere does not stop the others. `tests/orexp.cocci` is the
+  // corpus case, where only the second branch has a site.
+  EXPECT_EQ("void foo(int);\nvoid bar(int);\n"
+            "void f(void) { 4; 5; }\n",
+            rewritten("@r@\nexpression E, F;\n@@\n"
+                      "(\n- foo(E)\n+ 4\n|\n- bar(F)\n+ 5\n)\n",
+                      "void foo(int);\nvoid bar(int);\n"
+                      "void f(void) { foo(1); bar(2); }\n"));
+}
+
+TEST(Disjunction, AnEarlierBranchTakesTheTextALaterOneWanted) {
+  // The specific branch written first takes the member access, and the
+  // general branch does not then also fire on the `p` inside it.
+  // `tests/disjexpr.cocci` is the corpus case for this order.
+  EXPECT_EQ("struct s { int fld; };\nvoid g(int);\nvoid h(struct s *);\n"
+            "void f(struct s *p) { g(p->fld); }\n",
+            rewritten("@r@\nidentifier fld; symbol p;\n@@\n"
+                      "(\n- p->fld\n+ g(p->fld)\n|\n- p\n+ h(p)\n)\n",
+                      "struct s { int fld; };\nvoid g(int);\n"
+                      "void h(struct s *);\n"
+                      "void f(struct s *p) { p->fld; }\n"));
+}
+
+TEST(Disjunction, BranchOrderBeatsNesting) {
+  // The same two branches the other way round. Measured on `spatch` 1.1.1:
+  // the general branch takes the `p` nested inside the member access, and
+  // the specific branch is then left with nothing, so the output keeps the
+  // `->fld` it would have replaced. Searching each branch over the whole
+  // translation unit in turn is what reproduces this; a walk that offers
+  // every branch one site at a time gives the member access to the specific
+  // branch instead, because the general one does not match it.
+  EXPECT_EQ("struct s { int fld; };\nvoid g(int);\nvoid h(struct s *);\n"
+            "void f(struct s *p) { h(p)->fld; }\n",
+            rewritten("@r@\nidentifier fld; symbol p;\n@@\n"
+                      "(\n- p\n+ h(p)\n|\n- p->fld\n+ g(p->fld)\n)\n",
+                      "struct s { int fld; };\nvoid g(int);\n"
+                      "void h(struct s *);\n"
+                      "void f(struct s *p) { p->fld; }\n"));
+}
+
+TEST(Disjunction, MatchesAreReportedInSourceOrderAcrossBranches) {
+  // Each branch is searched over the whole translation unit before the next,
+  // so the matches come out grouped by branch. A reader looks for them where
+  // they are in the file, so they are sorted back into source order. Branch 2
+  // here matches the earlier line.
+  EXPECT_EQ("4,5", findingLines("@r@\n@@\n(\n- foo();\n+ a();\n|\n- bar();\n"
+                                "+ b();\n)\n",
+                                "void foo(void);\nvoid bar(void);\n"
+                                "void k(void) {\n  bar();\n  foo();\n}\n"));
+}
+
+TEST(Disjunction, AFileScopeDeclarationAndTheStatementsInsideItAreOneClaim) {
+  // A file-scope declaration is claimed among declarations by identity, and a
+  // statement by range, and a declaration's initialiser is in the statement
+  // walk. With the two records not consulting each other, a branch matching
+  // `1 + 2` and a branch matching the whole declaration both fired on the
+  // same text: two edits over overlapping ranges, of which `Replacements`
+  // kept whichever it saw first.
+  EXPECT_EQ("int x = 7;\n",
+            rewritten("@r@\n@@\n(\n- 1 + 2\n+ 7\n|\n- int x = 1 + 2;\n"
+                      "+ int x = 8;\n)\n",
+                      "int x = 1 + 2;\n"));
+  EXPECT_EQ("int x = 8;\n",
+            rewritten("@r@\n@@\n(\n- int x = 1 + 2;\n+ int x = 8;\n|\n"
+                      "- 1 + 2\n+ 7\n)\n",
+                      "int x = 1 + 2;\n"));
+}
+
+TEST(Disjunction, ABranchThatCannotBeReadLeavesTheOthersRunning) {
+  // `NULL` reaches the pattern parser undeclared, because the target's `NULL`
+  // has already been preprocessed and no spelling of it in the synthesised
+  // source matches every target. `tests/condexp.cocci` is the corpus case.
+  // The other branch still describes sites this patch changes, so it runs.
+  EXPECT_EQ("void k(int *);\nvoid g(int *);\nvoid f(int *p) { g(p); }\n",
+            rewritten("@r@\nsymbol p;\n@@\n"
+                      "(\n- k(NULL)\n+ 0\n|\n- k(p)\n+ g(p)\n)\n",
+                      "void k(int *);\nvoid g(int *);\n"
+                      "void f(int *p) { k(p); }\n"));
+}
+
+TEST(Disjunction, ABranchThatCannotBeReadMakesTheRunIncomplete) {
+  // The sites that branch describes are left alone, so the rewrite is partial
+  // and must not read as a finished one.
+  const llvm::StringRef Patch = "@r@\nsymbol p;\n@@\n"
+                                "(\n- k(NULL)\n+ 0\n|\n- k(p)\n+ g(p)\n)\n";
+  const llvm::StringRef Code = "void k(int *);\nvoid g(int *);\n"
+                               "void f(int *p) { k(p); }\n";
+  EXPECT_EQ("unrun=0 unread=1 complete=0", completeness(Patch, Code));
+  EXPECT_EQ("branch 1 of the disjunction could not be read, so the sites it "
+            "describes are left alone: pattern: the pattern statement did not "
+            "parse as C: use of undeclared identifier 'NULL'\n",
+            unreadBranchReasons(Patch, Code));
+}
+
+TEST(Disjunction, ARuleWhoseEveryBranchIsUnreadableIsRefused) {
+  EXPECT_EQ("pattern: the pattern statement did not parse as C: use of "
+            "undeclared identifier 'NULL'\n",
+            unrunReasons("@r@\n@@\n(\n- k(NULL)\n+ 0\n|\n- m(NULL)\n+ 1\n)\n",
+                         "void k(int *);\nvoid f(int *p) { k(p); }\n"));
+}
+
+TEST(Disjunction, ABranchInsertingIntoItsMatchIsRefused) {
+  // `tests/const_adding.cocci` deletes nothing in its first branch and adds a
+  // qualifier in its second. Grouping joins that `+ const` onto the
+  // declaration below it, so the branch asks for an edit at a written type
+  // rather than for a statement beside the match. The refusal names the
+  // branch it came from.
+  EXPECT_EQ("branch 2 of the disjunction: a rule whose `+` line is part of "
+            "the statement it matches rather than a statement beside it, so "
+            "it needs an edit inside the match, which this version builds "
+            "only where the `-` side marks the region to overwrite\n",
+            unrunReasons("@r@\nidentifier I;\n@@\n"
+                         "(\n  const int I;\n|\n+ const\n  int I;\n)\n",
+                         "void f(void) { const int a; int b; }\n"));
+}
+
+TEST(Disjunction, BranchesAskingForDifferentThingsAreRefused) {
+  // One branch marks no line, so it only binds, and the other rewrites.
+  // Which of the two a site gets is then decided per site rather than per
+  // rule. Naming that is what keeps the first branch's purpose from being
+  // applied to every site. Both branches are acceptable on their own, which
+  // is what makes this reach the agreement check rather than an earlier
+  // refusal.
+  EXPECT_EQ("the branches of the disjunction ask for different things, so the "
+            "rule both rewrites and leaves alone depending on the branch, "
+            "which this version does not build\n",
+            unrunReasons("@r@\nexpression E;\n@@\n"
+                         "(\n  f(E);\n|\n- g(E);\n+ h(E);\n)\n",
+                         "void f(int);\nvoid g(int);\nvoid h(int);\n"
+                         "void k(void) { f(1); g(2); }\n"));
+}
+
+TEST(Disjunction, ADisjunctionInsideALargerPatternIsRefused) {
+  // `tests/expopt2.cocci` writes the disjunction between a call's opening and
+  // its closing parenthesis, so its branches are nodes inside a pattern
+  // rather than the pattern itself.
+  EXPECT_EQ("a disjunction that is not the whole rule body needs its branches "
+            "matched inside a larger pattern, which this version does not "
+            "build\n",
+            unrunReasons("@r@\nidentifier fld; symbol v;\n@@\n"
+                         " f(v,\n(\n- v.fld\n+ 1\n|\n- v.other\n+ 2\n)\n )\n",
+                         "void f(int, int);\nvoid g(void) { }\n"));
+}
+
+TEST(Inherited, ARuleThatMarksNoLineRunsForTheValuesItBinds) {
+  // It changes nothing, and refusing it left a rule declaring `r.E` with
+  // nothing to constrain it.
+  EXPECT_EQ("void foo(int);\nvoid f(void) { foo(1); }\n",
+            rewritten("@r@\nexpression E;\n@@\n  foo(E);\n",
+                      "void foo(int);\nvoid f(void) { foo(1); }\n"));
+}
+
+TEST(Inherited, AnInheritedMetavariableTakesOnlyTheValuesTheEarlierRuleBound) {
+  // Measured against `spatch` 1.1.1 on this input: it rewrites `h(1)` and
+  // leaves `h(2)` alone. Before inheritance was honoured, `expression r.X`
+  // matched any expression and both calls were rewritten.
+  EXPECT_EQ("void f(int);\nvoid h(int);\nvoid hh(int);\n"
+            "void g(void) { f(1); hh(1); h(2); }\n",
+            rewritten("@r@\nexpression X;\n@@\n  f(X);\n"
+                      "\n@@\nexpression r.X;\n@@\n- h(X);\n+ hh(X);\n",
+                      "void f(int);\nvoid h(int);\nvoid hh(int);\n"
+                      "void g(void) { f(1); h(1); h(2); }\n"));
+}
+
+TEST(Inherited, EveryValueTheEarlierRuleBoundIsTried) {
+  // `tests/skip.cocci` is the corpus case: one rule binds `E` twice over and
+  // the rule inheriting it has to delete both sites, so running the dependent
+  // rule once per environment is what the expected output needs.
+  EXPECT_EQ("void f(int);\nvoid g(void) { }\n",
+            rewritten("@r@\nexpression E;\n@@\n  f(E)\n"
+                      "\n@@\nexpression r.E;\n@@\n- f(E);\n",
+                      "void f(int);\nvoid g(void) { f(1); f(2); }\n"));
+}
+
+TEST(Inherited, ARuleInheritingFromOneThatDidNotRunIsRefused) {
+  // The values the declaration admits are unknown, and running the rule
+  // anyway is what rewrote more than the patch asked for. The binding rule
+  // here matches two adjacent statements, which the flat path does not build.
+  EXPECT_EQ("a dot-free rule matching a sequence of statements needs "
+            "statement adjacency, which this version does not build\n"
+            "the rule inherits a metavariable from rule 'r', which did not "
+            "run, so the values that metavariable may take are unknown and "
+            "matching without them would rewrite more than the patch asks "
+            "for\n",
+            unrunReasons("@r@\nexpression X;\n@@\n f(X);\n g(X);\n"
+                         "\n@@\nexpression r.X;\n@@\n- h(X);\n+ hh(X);\n",
+                         "void f(int);\nvoid g(int);\nvoid h(int);\n"
+                         "void k(void) { g(1); h(2); }\n"));
+}
+
+TEST(Inherited, ARuleThatRanAndBoundNothingLeavesTheDependentRuleWithNoSites) {
+  // Distinct from the refusal above: the constraint is known and admits
+  // nothing, so the dependent rule runs and matches nowhere.
+  EXPECT_EQ("void f(int);\nvoid h(int);\nvoid k(void) { h(2); }\n",
+            rewritten("@r@\nexpression X;\n@@\n  f(X);\n"
+                      "\n@@\nexpression r.X;\n@@\n- h(X);\n+ hh(X);\n",
+                      "void f(int);\nvoid h(int);\nvoid k(void) { h(2); }\n"));
+}
+
+TEST(Inherited, ATypeMetavariableNamingATypedefBindsTheNameItIntroduces) {
+  // `tests/typedef2.cocci` declares `type t, s;` and writes `typedef t s@p;`,
+  // where `s` stands for the alias rather than for a type written out. The
+  // dependent rule then rewrites one line per alias.
+  EXPECT_EQ("typedef int A, B;\nvoid f(void) { int x; int y; }\n",
+            rewritten("@r@\ntype t, s;\n@@\n  typedef t s;\n"
+                      "\n@@\ntype r.s;\nsymbol x, y;\n@@\n- s\n+ int\n"
+                      "  x;\n",
+                      "typedef int A, B;\nvoid f(void) { A x; int y; }\n"));
+}
+
+TEST(Inherited, EveryDeclaratorOfOneTypedefBindsTheNameItIntroduces) {
+  // Clang gives every declarator of one declaration the same begin location,
+  // so `typedef int A, B;` is two declarations over one source range. A
+  // search that excludes an already-matched range rather than an
+  // already-matched declaration lets the first of them hide the second, and
+  // `tests/typedef2.cocci` then rewrites one of its four lines instead of all
+  // four.
+  EXPECT_EQ("typedef int A, B;\nvoid f(void) { int x; int y; }\n",
+            rewritten("@r@\ntype t, s;\n@@\n  typedef t s;\n"
+                      "\n@@\ntype r.s;\nidentifier v;\n@@\n- s\n+ int\n"
+                      "  v;\n",
+                      "typedef int A, B;\nvoid f(void) { A x; B y; }\n"));
+}
+
+TEST(FlatRule, ADeclaredTypeNameIsAvailableToEveryRuleOfThePatch) {
+  // `typedef X;` used to suppress the undeclared-name refusal and declare
+  // nothing, so the pattern reached Clang with an undeclared type and failed
+  // to parse while the refusal that would have said so was gone. The name is
+  // declared for the whole patch, which is where Coccinelle keeps it and what
+  // `tests/wchar.cocci` needs: it declares in the first rule and writes in
+  // the second.
+  EXPECT_EQ("typedef int myint;\nvoid f(void) { }\n",
+            rewritten("@r@\ntypedef myint;\n@@\n  myint a;\n"
+                      "\n@@\nidentifier v;\n@@\n- myint v = 0;\n",
+                      "typedef int myint;\n"
+                      "void f(void) { myint v = 0; }\n"));
+}
+
+TEST(FlatRule, ATypeNameWrittenAloneRewritesEveryOccurrenceOfTheType) {
+  // Seven corpus patches write a bare type name as their whole `-` side and
+  // mean the type. The declaration that introduced the name is left alone,
+  // because the name there is what is declared and the type written is what
+  // it aliases. Read off `spatch` 1.1.1.
+  EXPECT_EQ("typedef int mytype;\nvoid f(struct other *p) { }\n",
+            rewritten("@r@\ntypedef mytype;\n@@\n- mytype\n"
+                      "+ struct other\n",
+                      "typedef int mytype;\nvoid f(mytype *p) { }\n"));
+}
+
+TEST(FlatRule, ATypeMetavariableWrittenAloneAsTheMinusSideIsRefused) {
+  // `spatch` reprints every declaration such a rule touches, so `long f(short
+  // s);` comes back as `int f;`. An edit where the old type stood cannot do
+  // that, and it would eat the declared name.
+  EXPECT_EQ(
+      "the `-` side is a type metavariable written on its own, so it "
+      "names the whole written type of every declaration in the file, "
+      "and Coccinelle reprints each of those declarations rather than "
+      "writing the new type where the old one stood\n",
+      unrunReasons("@@\ntype T;\n@@\n- T\n+ int\n", "long f(short s);\n"));
+}
+
+TEST(FlatRule, AWrittenTypeThatIsNotTheWholeMinusSideIsRefused) {
+  // Only a rule whose whole `-` side is the type matches every occurrence of
+  // it. Anywhere else the synthesised declaration would run as an ordinary
+  // declaration pattern, which matches nothing but the declarator the
+  // synthesis named, and the rule would report success having changed
+  // nothing.
+  EXPECT_EQ("a written type on the `-` side is matched at every occurrence of "
+            "that type, which this version builds only for a rule whose whole "
+            "`-` side is the type\n",
+            unrunReasons("@@\ntypedef LPINT;\nidentifier x;\n@@\n(\n"
+                         "- LPINT\n+ x;\n|\n- foo();\n+ bar();\n)\n",
+                         "typedef int *LPINT;\nvoid foo(void);\n"
+                         "void bar(void);\nvoid g(LPINT p) { foo(); }\n"));
+}
+
+TEST(FlatRule, ADeclaratorTheSynthesisInventedStaysOutOfTheMessage) {
+  // A type item is given a declarator so that Clang produces a location for
+  // the type. `- T ;` cannot be read that way, and the reason a reader gets
+  // must be about their own type rather than about a name this tool made up.
+  EXPECT_EQ("pattern: the pattern names a type Clang could not read\n",
+            unrunReasons("@@\ntype T;\n@@\n- T ;\n+ int ;\n", "int g;\n"));
+}
+
+TEST(SourceTextOf, AMacroArgumentComesThroughAsWritten) {
+  // The replacement must carry what the author wrote, not what the
+  // preprocessor produced, so a matched argument spelled as a macro keeps its
+  // spelling.
+  EXPECT_EQ("void foo(int);\nvoid bar(int);\n#define N 40 + 2\n"
+            "void f(void) { bar(N); }\n",
+            rewritten("@r@\nexpression E;\n@@\n- foo(E);\n+ bar(E);\n",
+                      "void foo(int);\nvoid bar(int);\n#define N 40 + 2\n"
+                      "void f(void) { foo(N); }\n"));
+}
+
+TEST(Edit, AChangedPartOfAStatementLeavesTheRestAsTheTargetWroteIt) {
+  // The point of the in-place edit. Replacing the whole match reprints the
+  // statement from the pattern, which puts the call back on one line and
+  // loses the break the target wrote inside its argument list.
+  EXPECT_EQ("void m() { int a,x,y,b; h(a,\n      27, b); }\n",
+            rewritten("@@\nidentifier x, y;\n@@\n  h(a,\n- x + y\n+ 27\n"
+                      "  , b);\n",
+                      "void m() { int a,x,y,b; h(a,\n      x + y, b); }\n"));
+}
+
+TEST(Edit, TheWhitespaceBeforeAnInPlaceEditGoesOnlyAfterAnOpenParen) {
+  // Every expectation here was read off `spatch` 1.1.1 rather than reasoned
+  // about, and a 70-case probe matrix over the same rule agrees with it byte
+  // for byte.
+  const llvm::StringRef Patch =
+      "@@\nidentifier x, y;\n@@\n  g(a,\n- (x = y)\n+ Z\n  , b);\n";
+  EXPECT_EQ("void m() { int a,x,y,b,Z; g(a,   Z, b); }\n",
+            rewritten(Patch, "void m() { int a,x,y,b,Z; g(a,   (x = y)   , b); }\n"));
+  const llvm::StringRef AfterParen =
+      "@@\nidentifier x, y;\n@@\n  g(\n- (x = y)\n+ Z\n  , b);\n";
+  EXPECT_EQ("void m() { int x,y,b,Z; g(Z, b); }\n",
+            rewritten(AfterParen, "void m() { int x,y,b,Z; g(   (x = y)   , b); }\n"));
+}
+
+TEST(Edit, TheWhitespaceAfterAnInPlaceEditGoesByWhatFollowsIt) {
+  // One target token keeps the whitespace before a separator and anything
+  // longer takes it, so the number of target tokens decides and the number of
+  // pattern tokens does not.
+  const llvm::StringRef One =
+      "@@\nidentifier x;\n@@\n  g(a,\n- x\n+ Z\n  , b);\n";
+  EXPECT_EQ("void m() { int a,x,b,Z; g(a, Z , b); }\n",
+            rewritten(One, "void m() { int a,x,b,Z; g(a, x , b); }\n"));
+  const llvm::StringRef Many =
+      "@@\nidentifier x, y;\n@@\n  g(a,\n- x + y\n+ Z\n  , b);\n";
+  EXPECT_EQ("void m() { int a,x,y,b,Z; g(a, Z, b); }\n",
+            rewritten(Many, "void m() { int a,x,y,b,Z; g(a, x + y , b); }\n"));
+  // A binary operator after it keeps the whitespace and gets one space when
+  // there was none.
+  const llvm::StringRef Binary =
+      "@@\nidentifier x, y;\n@@\n  if(\n- (x = y)\n+ Z\n  +\n  0) { }\n";
+  EXPECT_EQ("void m() { int x,y,Z; if(Z + 0 ) { } }\n",
+            rewritten(Binary, "void m() { int x,y,Z; if( (x = y)+ 0 ) { } }\n"));
+  EXPECT_EQ("void m() { int x,y,Z; if(Z   + 0 ) { } }\n",
+            rewritten(Binary, "void m() { int x,y,Z; if(   (x = y)   + 0 ) { } }\n"));
+}
+
+TEST(Edit, ABlockPatternRewritesNothingRatherThanAFunctionsOwnBody) {
+  // See `whyNotComparable` in Unify.cpp for why a block is refused.
+  EXPECT_EQ("!the `-` side is a block, and which blocks a block pattern may "
+            "take is decided by more than the block itself: Coccinelle leaves "
+            "a function's own body alone, which this version does not express",
+            rewritten("@@\n@@\n- { foo(); }\n+ foo();\n",
+                      "void foo(void);\nint main() { foo(); }\n"));
+}
+
+TEST(Edit, AMarkedRegionCoveringNoNodeFallsBackToReplacingTheMatch) {
+  // `cptr.cocci` marks a declaration without its initialiser and `unary.cocci`
+  // marks the `-` of a unary operator. Neither region has a range of its own
+  // in the target, so both go through the plus side reassembled over the whole
+  // match, and both reproduce the `.res` the corpus ships. Making the in-place
+  // edit unconditional broke five such agreements, so this guards the
+  // fallback rather than the feature, and a mutation of the feature leaves it
+  // green on purpose.
+  EXPECT_EQ("static const char * const str = \"...\";\n",
+            rewritten("@@\nidentifier str;\nexpression E;\n@@\n"
+                      "-static const char *str\n"
+                      "+static const char * const str\n    = E;\n",
+                      "static const char *str = \"...\";\n"));
+  EXPECT_EQ("int main () {\n  return 1;\n}\n",
+            rewritten("@deletion@\nexpression x;\n@@\n- -\n x\n",
+                      "int main () {\n  return -1;\n}\n"));
+}
+
+TEST(Edit, ATypeMetavariableNestedInADeclaratorBindsWhatTheTargetWrote) {
+  // `tests/funptr_array.cocci` makes the return type of the function its
+  // array points to a metavariable, so the binding is nested below the top of
+  // a declarator. The `+` side writes the metavariable back, which is what
+  // pins the value bound rather than only the match.
+  EXPECT_EQ("long (*x[2])(long x);\n",
+            rewritten("@@\ntype T;\nidentifier x;\n@@\n\nT (*x[2])(\n"
+                      "- int\n+ T\n  x);\n",
+                      "long (*x[2])(int x);\n"));
+}
+
+TEST(
+    Edit,
+    ATypeMetavariableMatchesAQualifiedTypeAndThePatternsOwnQualifierIsRequired) {
+  // Both rows read off `spatch` 1.1.1. A bare metavariable matches whatever
+  // the target wrote, qualifiers included.
+  const llvm::StringRef Code = "const int a;\nint b;\nvolatile int c;\n";
+  EXPECT_EQ("int a = 0;\nint b = 0;\nint c = 0;\n",
+            rewritten("@@\ntype T;\nidentifier x;\n@@\n- T x;\n"
+                      "+ int x = 0;\n",
+                      Code));
+  // A pattern writing `const` itself requires it, and binds what is left.
+  EXPECT_EQ("int a = 0;\nint b;\nvolatile int c;\n",
+            rewritten("@@\ntype T;\nidentifier x;\n@@\n- const T x;\n"
+                      "+ T x = 0;\n",
+                      Code));
+  // Writing the metavariable back is refused where it bound a qualifier,
+  // because a written type's qualifiers have no source range and the text
+  // would come out as `int` where `const int` was. Two of the three lines
+  // are such a site, and the run says so rather than printing them short.
+  EXPECT_EQ("!2 edit(s) the run could not build",
+            rewritten("@@\ntype T;\nidentifier x;\n@@\n- T x;\n"
+                      "+ T x = 0;\n",
+                      Code));
+}
+
+TEST(Edit, AMarkedTypeOccurrenceIsEditedWhereTheTargetWroteIt) {
+  // Both `int`s of this pattern spell the same three characters and only the
+  // parameter's is marked, so the edit is located by the characters the `-`
+  // line occupies and not by what they say.
+  EXPECT_EQ("int (*x[2])(char x);\n",
+            rewritten("@@\nidentifier x;\n@@\n\nint (*x[2])(\n- int\n"
+                      "+ char\n  x);\n",
+                      "int (*x[2])(int x);\n"));
+  // The whitespace rule reads the range the edit covers and not the shape of
+  // the rule, so a type occurrence followed by a declarator star keeps the
+  // two tokens touching, as `spatch` 1.1.1 does.
+  EXPECT_EQ("int (*x[2])(char*x);\n",
+            rewritten("@@\nidentifier x;\n@@\n\nint (*x[2])(\n- int\n"
+                      "+ char\n  *x);\n",
+                      "int (*x[2])(int*x);\n"));
+}
+
+TEST(Edit, AParenthesisedDeclaratorIsNotATypeOccurrence) {
+  // A `ParenTypeLoc`'s range runs to the closing parenthesis, so it covers the
+  // name being declared. Editing it rewrote `int (x);` to `long;` and dropped
+  // the declarator at exit 0. `spatch` 1.1.1 leaves the parentheses alone and
+  // rewrites the type inside them.
+  EXPECT_EQ("long (x);\nlong y;\n",
+            rewritten("@@\n@@\n- int\n+ long\n", "int (x);\nint y;\n"));
+  // A pattern that does not write the parenthesis does not match a target
+  // that does, which is what `spatch` 1.1.1 does and what keeps the edit off
+  // the declarator.
+  EXPECT_EQ("int (*y);\nlong *z;\n",
+            rewritten("@@\nidentifier x;\n@@\n\n- int *\n+ long *\n  x;\n",
+                      "int (*y);\nint *z;\n"));
+}
+
+TEST(Edit, APlusTextEndingInAPointerStarTakesTheWhitespaceAfterIt) {
+  // `tests/starprint.cocci`, read off `spatch` 1.1.1. The star binds to what
+  // follows, and the occurrence under `LPINT *y` is reached through the
+  // pointer above it.
+  EXPECT_EQ("typedef int *LPINT;\nint foo(int *x, int **y) { return 0; }\n",
+            rewritten("@@\ntypedef LPINT;\n@@\n- LPINT\n+ int *\n",
+                      "typedef int *LPINT;\n"
+                      "int foo(LPINT x, LPINT *y) { return 0; }\n"));
+}
+
+TEST(Edit, AStarAfterAWrittenTypeIsADeclaratorAndNotAnOperator) {
+  // The `*` of `LPINT*y` declares a pointer, so `spatch` 1.1.1 leaves the two
+  // tokens touching where the binary-operator clause would space them.
+  EXPECT_EQ("typedef int *LPINT;\nunsigned*y;\n",
+            rewritten("@@\ntypedef LPINT;\n@@\n- LPINT\n+ unsigned\n",
+                      "typedef int *LPINT;\nLPINT*y;\n"));
+}
+
+TEST(Edit, ABareExpressionPatternMatchesInsideASiteItAlreadyMatched) {
+  // Coccinelle has no exclusion of a match's own subtrees. `- e1 + 27` over
+  // this input rewrites all three depths, because the three edits are
+  // disjoint.
+  EXPECT_EQ("int m() { return 27 + (27 + (27 + 4)); }\n",
+            rewritten("@@\nexpression e1,e2;\n@@\n\n- e1\n+ 27\n  + e2\n",
+                      "int m() { return 1 + (2 + (3 + 4)); }\n"));
+}
+
+TEST(Edit, AStatementPatternDoesNotMatchInsideOneItAlreadyMatched) {
+  // `- foo(E);` over `foo(foo(1));` rewrites the outer call only. Coccinelle
+  // reaches that through the terminator: the `-` side is a statement, and the
+  // inner call sits in an argument rather than at a statement position. The
+  // terminator is stripped before the pattern is parsed, so the exclusion of
+  // a match's own subtrees stands in for the position restriction.
+  EXPECT_EQ("void m() { bar(foo(1)); }\n",
+            rewritten("@@\nexpression E;\n@@\n- foo(E);\n+ bar(E);\n",
+                      "void m() { foo(foo(1)); }\n"));
+}
+
+TEST(Edit, TwoNestedMatchesWantingTheSameTextAreRefusedRatherThanMerged) {
+  // `spatch` exits 255 with `already tagged token` on this, so it applies
+  // neither edit. Here the run reports an edit it could not build, so it does
+  // not claim success. Which of the two refusal sites fired is not asserted.
+  EXPECT_EQ("!1 edit(s) the run could not build",
+            rewritten("@@\nexpression E;\n@@\n- f(E)\n+ 9\n",
+                      "void m() { f(f(1)); }\n"));
+}
+
+TEST(Edit, TwoSeparateChangedRegionsInOneStatementFallBackToTheWholeMatch) {
+  // The `-` lines here mark `a` and `+ b` with the context line `+ mid`
+  // between them. Fused into one region they cover `a + mid + b`, which is
+  // exactly the range of the left-associative `(a + mid) + b` node, so the
+  // edit resolved and overwrote `mid`, which no `-` line marked. `spatch`
+  // rejects this patch outright, so there is no reference output to match;
+  // what matters is that the surgical edit is not taken.
+  EXPECT_EQ("void m(void) { int x, a, mid, b, tail;"
+            " x = f( + mid q , tail); }\n",
+            rewritten("@@\n@@\n  x = f(\n- a\n  + mid\n- + b\n+ q\n"
+                      "  , tail);\n",
+                      "void m(void) { int x, a, mid, b, tail;"
+                      " x = f(a + mid + b, tail); }\n"));
+}
+
+TEST(Edit, APlusRunNoMinusRunPrecedesFallsBackToTheWholeMatch) {
+  // The `+ z ,` line is written beside the match rather than over any `-`
+  // line, so placing it needs a position this step does not decide. Pairing
+  // counts it and the in-place edit stands down. Without that count the
+  // surgical edit rewrites `a` to `b` and drops the inserted argument
+  // altogether, giving `g(b )` and reporting success.
+  EXPECT_EQ("void g(int);\nvoid m(void) { int a, b, z; g( z , b ); }\n",
+            rewritten("@@\nidentifier a;\n@@\n  g(\n+ z ,\n- a\n+ b\n"
+                      "  );\n",
+                      "void g(int);\nvoid m(void) { int a, b, z; g(a ); }\n"));
+}
+
+} // namespace clang::spatch

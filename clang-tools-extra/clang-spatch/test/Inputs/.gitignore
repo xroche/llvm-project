@@ -1,0 +1,13 @@
+# The sample corpus is 1209 third-party semantic patches from the Linux kernel
+# and from Coccinelle, plus their C inputs and expected outputs. Those files are
+# GPL-2.0 and this tree is Apache-2.0 with LLVM exceptions, so they are used
+# where they already live rather than copied in here.
+#
+# Run ../../populate-corpus.sh to fill these directories from local checkouts.
+/cocci/
+/c/
+
+# Oracle verdicts recorded by harness/cocci-oracle.py from a local spatch. They
+# are regenerable measurement output, and res-oracle-verdicts.json already holds
+# the conclusions the tests read.
+/oracle/

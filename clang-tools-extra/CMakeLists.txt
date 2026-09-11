@@ -21,6 +21,7 @@ endif()
 
 add_subdirectory(clang-apply-replacements)
 add_subdirectory(clang-reorder-fields)
+add_subdirectory(clang-spatch)
 add_subdirectory(modularize)
 add_subdirectory(clang-tidy)
 
